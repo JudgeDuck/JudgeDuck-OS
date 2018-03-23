@@ -18,15 +18,9 @@ KERN_SRCFILES :=	kern/entry.S \
 			kern/init.c \
 			kern/console.c \
 			kern/monitor.c \
-			kern/pmap.c \
-			kern/env.c \
+			kern/pmem.c \
 			kern/kclock.c \
-			kern/picirq.c \
 			kern/printf.c \
-			kern/trap.c \
-			kern/trapentry.S \
-			kern/sched.c \
-			kern/syscall.c \
 			kern/kdebug.c \
 			lib/printfmt.c \
 			lib/readline.c \
