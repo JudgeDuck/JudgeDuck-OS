@@ -3,6 +3,8 @@
 
 #include <inc/types.h>
 
+void *read_eip(void);
+
 static inline void
 breakpoint(void)
 {

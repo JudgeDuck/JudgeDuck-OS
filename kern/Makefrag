@@ -16,12 +16,14 @@ KERN_LDFLAGS := $(LDFLAGS) -T kern/kernel.ld -nostdlib
 KERN_SRCFILES :=	kern/entry.S \
 			kern/entrypgdir.c \
 			kern/init.c \
+			kern/memdetect.c \
 			kern/console.c \
 			kern/monitor.c \
 			kern/pmem.c \
 			kern/kclock.c \
 			kern/printf.c \
 			kern/kdebug.c \
+			lib/read_eip.S \
 			lib/printfmt.c \
 			lib/readline.c \
 			lib/string.c
@@ -50,6 +52,11 @@ $(OBJDIR)/kern/%.o: kern/%.S $(OBJDIR)/.vars.KERN_CFLAGS
 	$(V)$(CC) -nostdinc $(KERN_CFLAGS) -c -o $@ $<
 
 $(OBJDIR)/kern/%.o: lib/%.c $(OBJDIR)/.vars.KERN_CFLAGS
+	@echo + cc $<
+	@mkdir -p $(@D)
+	$(V)$(CC) -nostdinc $(KERN_CFLAGS) -c -o $@ $<
+
+$(OBJDIR)/kern/%.o: lib/%.S $(OBJDIR)/.vars.KERN_CFLAGS
 	@echo + cc $<
 	@mkdir -p $(@D)
 	$(V)$(CC) -nostdinc $(KERN_CFLAGS) -c -o $@ $<

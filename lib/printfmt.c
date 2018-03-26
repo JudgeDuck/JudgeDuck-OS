@@ -21,10 +21,8 @@
 static const char * const error_string[MAXERROR] =
 {
 	[E_UNSPECIFIED]	= "unspecified error",
-	[E_BAD_ENV]	= "bad environment",
 	[E_INVAL]	= "invalid parameter",
-	[E_NO_MEM]	= "out of memory",
-	[E_NO_FREE_ENV]	= "out of environments",
+	[E_NOMEM]	= "out of memory",
 	[E_FAULT]	= "segmentation fault",
 };
 
