@@ -10,6 +10,8 @@ typedef size_t pid_t;
 #define PID_KERN ((pid_t) 1)
 #define PID_USER_BASE ((pid_t) 2)
 
+#define MAX_PROCS 1024
+
 struct VPageBlock;
 struct Proc
 {
@@ -32,5 +34,7 @@ struct Proc
 	unsigned is_critical: 1;
 	unsigned is_privileged: 1;
 };
+
+extern struct Proc *procs;
 
 #endif	// !JOS_KERN_PROC_H

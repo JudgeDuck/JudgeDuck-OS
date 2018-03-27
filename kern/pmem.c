@@ -89,6 +89,7 @@ vpb_pool_free(struct VPageBlock *vpb)
 
 /* Idle and kernel vpb */
 static struct VPageBlock *vpb_idle;
+static struct VPageBlock *kern_vpb_list;
 
 static struct PPageBlock *
 vpb_idle_take_front()
@@ -125,8 +126,8 @@ vpb_idle_push_back(struct PPageBlock *ppb)
 }
 
 /*
-	Allocate `length` consecutive physical pages. The caller should properly set the
-	`vblock`, `next` and `vstart` fields of return value.
+	Allocate `length` consecutive physical pages. The caller should properly
+	set the `vblock`, `next` and `vstart` fields of return value.
 */
 static struct PPageBlock *
 ppb_alloc(size_t length)
@@ -148,6 +149,10 @@ ppb_alloc(size_t length)
 			ppb->pstart += length;
 			if (ppb->length)
 				vpb_idle_push_front(ppb);
+			else
+				ppb_pool_free(ppb);
+			for (size_t i = 0; i < ret->length; ++i)
+				ppage2ppb[ret->pstart + i] = ret;
 			return ret;
 		}
 		vpb_idle_push_back(ppb);
@@ -176,6 +181,29 @@ vpb_alloc(pid_t owner, vpage_t vstart, size_t length, int consecutive)
 	{
 		panic("Not implemented yet!");
 	}
+}
+
+static void
+vpb_remap(struct VPageBlock *vpb, vpage_t vstart)
+{
+	vpb->vstart = vstart;
+	vpage_t cur = vpb->vstart;
+	for (struct PPageBlock *ppb = vpb->ppb_list; ppb; ppb = ppb->next)
+	{
+		ppb->vstart = cur;
+		cur += ppb->length;
+	}
+	assert(cur == vpb->vstart + vpb->length);
+}
+
+static void *
+kern_alloc(size_t bytes)
+{
+	struct VPageBlock *vpb = vpb_alloc(PID_KERN, 0, bytes >> PGSHIFT, 1);
+	assert(vpb->ppb_list);
+	assert(!vpb->ppb_list->next);
+	vpb_remap(vpb, vpb->ppb_list->pstart);
+	return (void *) (vpb->vstart << PGSHIFT);
 }
 
 static void
@@ -263,4 +291,15 @@ pmem_init()
 	vpb_print(vpb);
 	
 	cprintf("============ End   pmem_init() ============\n");
+	
+	char *str = (char *) kern_alloc(233);
+	cprintf("str = %p\n", str);
+	for (int i = 0; i < 48; ++i)
+		str[i] = 32 + i;
+	str[48] = '\n';
+	for (int i = 0; i < 48; ++i)
+		str[i + 49] = 80 + i;
+	str[97] = '\n';
+	str[98] = 0;
+	cprintf(str);
 }
