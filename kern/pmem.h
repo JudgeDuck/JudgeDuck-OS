@@ -75,6 +75,9 @@ struct PPageBlock
 	vpage_t vstart;
 };
 
-void pmem_init(void);
+void pmem_init();
+void *kern_alloc(size_t bytes);
+void *kern_calloc(size_t bytes);
+void kern_free(void *a);
 
 #endif	// !JOS_KERN_PMEM_H

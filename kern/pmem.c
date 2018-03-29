@@ -4,6 +4,7 @@
 #include <inc/error.h>
 #include <inc/stdio.h>
 #include <inc/assert.h>
+#include <inc/string.h>
 
 #include <kern/pmem.h>
 #include <kern/memdetect.h>
@@ -196,14 +197,31 @@ vpb_remap(struct VPageBlock *vpb, vpage_t vstart)
 	assert(cur == vpb->vstart + vpb->length);
 }
 
-static void *
+void *
 kern_alloc(size_t bytes)
 {
+	bytes = ROUNDUP(bytes, PGSIZE);
 	struct VPageBlock *vpb = vpb_alloc(PID_KERN, 0, bytes >> PGSHIFT, 1);
+	assert(vpb);
 	assert(vpb->ppb_list);
 	assert(!vpb->ppb_list->next);
 	vpb_remap(vpb, vpb->ppb_list->pstart);
 	return (void *) (vpb->vstart << PGSHIFT);
+}
+
+void *
+kern_calloc(size_t bytes)
+{
+	void *a = kern_alloc(bytes);
+	if (a)
+		memset(a, 0, bytes);
+	return a;
+}
+
+void
+kern_free(void *a)
+{
+	warn("kern_free not implemented\n");
 }
 
 static void
