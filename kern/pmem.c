@@ -7,6 +7,7 @@
 #include <inc/string.h>
 
 #include <kern/pmem.h>
+#include <kern/vmem.h>
 #include <kern/memdetect.h>
 
 #define BOOT_ALLOC_MAX (4 << 20)
@@ -300,13 +301,13 @@ pmem_init()
 		ppage2ppb[i] = vpb_idle->ppb_list;
 	
 	/* Preserve space for kernel */
-	cprintf("------------ Before Alloc ------------\n");
-	vpb_print(vpb_idle);
+	// cprintf("------------ Before Alloc ------------\n");
+	// vpb_print(vpb_idle);
 	struct VPageBlock *vpb = vpb_alloc(PID_KERN, KERNBASE >> PGSHIFT,
 		BOOT_ALLOC_MAX >> PGSHIFT, 1);
-	cprintf("------------ After  Alloc ------------\n");
-	vpb_print(vpb_idle);
-	vpb_print(vpb);
+	// cprintf("------------ After  Alloc ------------\n");
+	// vpb_print(vpb_idle);
+	// vpb_print(vpb);
 	
 	cprintf("============ End   pmem_init() ============\n");
 	

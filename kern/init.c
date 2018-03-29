@@ -7,6 +7,7 @@
 #include <kern/monitor.h>
 #include <kern/console.h>
 #include <kern/pmem.h>
+#include <kern/vmem.h>
 
 void
 i386_init(void)
@@ -25,6 +26,7 @@ i386_init(void)
 	cprintf("Booting success!\n");
 	
 	pmem_init();
+	vmem_init();
 
 	// Drop into the kernel monitor.
 	while (1)

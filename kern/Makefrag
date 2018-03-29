@@ -20,6 +20,7 @@ KERN_SRCFILES :=	kern/entry.S \
 			kern/console.c \
 			kern/monitor.c \
 			kern/pmem.c \
+			kern/vmem.c \
 			kern/kclock.c \
 			kern/printf.c \
 			kern/kdebug.c \
