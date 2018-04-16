@@ -6,8 +6,11 @@
 
 #include <kern/monitor.h>
 #include <kern/console.h>
-#include <kern/pmem.h>
-#include <kern/vmem.h>
+#include <kern/pmap.h>
+#include <kern/kclock.h>
+#include <kern/env.h>
+#include <kern/trap.h>
+
 
 void
 i386_init(void)
@@ -22,15 +25,26 @@ i386_init(void)
 	// Initialize the console.
 	// Can't call cprintf until after we do this!
 	cons_init();
-	
-	cprintf("Booting success!\n");
-	
-	pmem_init();
-	vmem_init();
 
-	// Drop into the kernel monitor.
-	while (1)
-		monitor(NULL);
+	cprintf("6828 decimal is %o octal!\n", 6828);
+
+	// Lab 2 memory management initialization functions
+	mem_init();
+
+	// Lab 3 user environment initialization functions
+	env_init();
+	trap_init();
+
+#if defined(TEST)
+	// Don't touch -- used by grading script!
+	ENV_CREATE(TEST, ENV_TYPE_USER);
+#else
+	// Touch all you want.
+	ENV_CREATE(user_hello, ENV_TYPE_USER);
+#endif // TEST*
+
+	// We only have one user environment for now, so just run it.
+	env_run(&envs[0]);
 }
 
 

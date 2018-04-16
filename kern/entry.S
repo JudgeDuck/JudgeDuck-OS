@@ -2,6 +2,7 @@
 
 #include <inc/mmu.h>
 #include <inc/memlayout.h>
+#include <inc/trap.h>
 
 # Shift Right Logical 
 #define SRL(val, shamt)		(((val) >> (shamt)) & ~(-1 << (32 - (shamt))))
@@ -58,8 +59,7 @@ entry:
 	movl	%eax, %cr3
 	# Turn on paging.
 	movl	%cr0, %eax
-	#orl	$(CR0_PE|CR0_WP|CR0_PG), %eax
-	orl	$(CR0_PE|CR0_WP), %eax
+	orl	$(CR0_PE|CR0_PG|CR0_WP), %eax
 	movl	%eax, %cr0
 
 	# Now paging is enabled, but we're still running at a low EIP

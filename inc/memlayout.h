@@ -84,9 +84,7 @@
 
 
 // All physical memory mapped at this address
-// #define	KERNBASE	0xF0000000
-#define	KERNBASE	0x00000000
-//saffah
+#define	KERNBASE	0xF0000000
 
 // At IOPHYSMEM (640K) there is a 384K hole for I/O.  From the kernel,
 // IOPHYSMEM can be addressed at KERNBASE + IOPHYSMEM.  The hole ends
@@ -139,9 +137,6 @@
 #define PFTEMP		(UTEMP + PTSIZE - PGSIZE)
 // The location of the user-level STABS data structure
 #define USTABDATA	(PTSIZE / 2)
-
-// Physical address of startup code for non-boot CPUs (APs)
-#define MPENTRY_PADDR	0x7000
 
 #ifndef __ASSEMBLER__
 

@@ -10,6 +10,7 @@
 #include <kern/console.h>
 #include <kern/monitor.h>
 #include <kern/kdebug.h>
+#include <kern/trap.h>
 
 #define CMDBUF_SIZE	80	// enough for one VGA text line
 
@@ -23,26 +24,11 @@ struct Command {
 
 static struct Command commands[] = {
 	{ "help", "Display this list of commands", mon_help },
-	{ "exit", "Force exit the monitor", mon_exit },
-	{ "reboot", "Reboot!", mon_reboot },
 	{ "kerninfo", "Display information about the kernel", mon_kerninfo },
+	{ "backtrace", "Display stack backtrace", mon_backtrace },
 };
 
 /***** Implementations of basic kernel monitor commands *****/
-
-int
-mon_reboot(int argc, char **argv, struct Trapframe *tf)
-{
-	cprintf("Rebooting!\n");
-	outb(0x92, 0x3); // courtesy of Chris Frost
-	panic("Did not reboot?\n");
-}
-
-int
-mon_exit(int argc, char **argv, struct Trapframe *tf)
-{
-	return -1;
-}
 
 int
 mon_help(int argc, char **argv, struct Trapframe *tf)
@@ -74,6 +60,21 @@ int
 mon_backtrace(int argc, char **argv, struct Trapframe *tf)
 {
 	// Your code here.
+	cprintf("Stack backtrace:\n");
+	uint32_t ebp;
+	asm volatile("movl %%ebp,%0" : "=r" (ebp));
+	while(ebp)
+	{
+		uint32_t eip = 1[(uint32_t *) ebp];
+		cprintf("  ebp %08x  eip %08x  args", ebp, eip);
+		for(int i = 2; i <= 6; i++)
+			cprintf(" %08x", i[(uint32_t *) ebp]);
+		cprintf("\n");
+		struct Eipdebuginfo info;
+		debuginfo_eip(eip, &info);
+		cprintf("         %s:%d: %.*s+%d\n", info.eip_file, info.eip_line, info.eip_fn_namelen, info.eip_fn_name, eip - (uint32_t) info.eip_fn_addr);
+		ebp = 0[(uint32_t *) ebp];
+	}
 	return 0;
 }
 
@@ -128,12 +129,19 @@ monitor(struct Trapframe *tf)
 {
 	char *buf;
 
-	cprintf("Welcome to the sro-twd2-orz-OS kernel monitor!\n");
+	cprintf("Welcome to the JOS kernel monitor!\n");
 	cprintf("Type 'help' for a list of commands.\n");
 
+	if (tf != NULL)
+		print_trapframe(tf);
+	
+	/*cprintf("begin fault\n");
+	int *a = (void *) 0x12345678;
+	cprintf("asdf %u\n", *a);
+	cprintf("end fault\n");*/
 
 	while (1) {
-		buf = readline("%twd K> ");
+		buf = readline("K> ");
 		if (buf != NULL)
 			if (runcmd(buf, tf) < 0)
 				break;

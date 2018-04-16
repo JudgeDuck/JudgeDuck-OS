@@ -16,15 +16,18 @@ KERN_LDFLAGS := $(LDFLAGS) -T kern/kernel.ld -nostdlib
 KERN_SRCFILES :=	kern/entry.S \
 			kern/entrypgdir.c \
 			kern/init.c \
-			kern/memdetect.c \
 			kern/console.c \
 			kern/monitor.c \
-			kern/pmem.c \
-			kern/vmem.c \
+			kern/pmap.c \
+			kern/env.c \
 			kern/kclock.c \
+			kern/picirq.c \
 			kern/printf.c \
+			kern/trap.c \
+			kern/trapentry.S \
+			kern/sched.c \
+			kern/syscall.c \
 			kern/kdebug.c \
-			lib/read_eip.S \
 			lib/printfmt.c \
 			lib/readline.c \
 			lib/string.c
@@ -33,7 +36,20 @@ KERN_SRCFILES :=	kern/entry.S \
 KERN_SRCFILES := $(wildcard $(KERN_SRCFILES))
 
 # Binary program images to embed within the kernel.
-KERN_BINFILES := 
+# Binary files for LAB3
+KERN_BINFILES :=	user/hello \
+			user/buggyhello \
+			user/buggyhello2 \
+			user/evilhello \
+			user/testbss \
+			user/divzero \
+			user/breakpoint \
+			user/softint \
+			user/badsegment \
+			user/faultread \
+			user/faultreadkernel \
+			user/faultwrite \
+			user/faultwritekernel
 
 KERN_OBJFILES := $(patsubst %.c, $(OBJDIR)/%.o, $(KERN_SRCFILES))
 KERN_OBJFILES := $(patsubst %.S, $(OBJDIR)/%.o, $(KERN_OBJFILES))
@@ -53,11 +69,6 @@ $(OBJDIR)/kern/%.o: kern/%.S $(OBJDIR)/.vars.KERN_CFLAGS
 	$(V)$(CC) -nostdinc $(KERN_CFLAGS) -c -o $@ $<
 
 $(OBJDIR)/kern/%.o: lib/%.c $(OBJDIR)/.vars.KERN_CFLAGS
-	@echo + cc $<
-	@mkdir -p $(@D)
-	$(V)$(CC) -nostdinc $(KERN_CFLAGS) -c -o $@ $<
-
-$(OBJDIR)/kern/%.o: lib/%.S $(OBJDIR)/.vars.KERN_CFLAGS
 	@echo + cc $<
 	@mkdir -p $(@D)
 	$(V)$(CC) -nostdinc $(KERN_CFLAGS) -c -o $@ $<
