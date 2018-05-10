@@ -22,7 +22,7 @@ libmain(int argc, char **argv)
 			thisenv = envs + i;
 			break;
 		}
-	cprintf("envs %p, thisenv %p\n", envs, thisenv);
+	//cprintf("envs %p, thisenv %p\n", envs, thisenv);
 
 	// save the name of the program so that panic() can use it
 	if (argc > 0)

@@ -4,6 +4,7 @@
 #include <inc/memlayout.h>
 #include <inc/trap.h>
 
+#include <kern/picirq.h>
 
 
 ###################################################################
@@ -55,19 +56,36 @@
 	TRAPHANDLER_NOEC(trap_05,  5)
 	TRAPHANDLER_NOEC(trap_06,  6)
 	TRAPHANDLER_NOEC(trap_07,  7)
-	TRAPHANDLER(trap_08,  8)
+	TRAPHANDLER     (trap_08,  8)
 	TRAPHANDLER_NOEC(trap_09,  9)
-	TRAPHANDLER(trap_10, 10)
-	TRAPHANDLER(trap_11, 11)
-	TRAPHANDLER(trap_12, 12)
-	TRAPHANDLER(trap_13, 13)
-	TRAPHANDLER(trap_14, 14)
-	TRAPHANDLER(trap_15, 15)
+	TRAPHANDLER     (trap_10, 10)
+	TRAPHANDLER     (trap_11, 11)
+	TRAPHANDLER     (trap_12, 12)
+	TRAPHANDLER     (trap_13, 13)
+	TRAPHANDLER     (trap_14, 14)
+	TRAPHANDLER     (trap_15, 15)
 	TRAPHANDLER_NOEC(trap_16, 16)
 	TRAPHANDLER_NOEC(trap_17, 17)
 	TRAPHANDLER_NOEC(trap_18, 18)
 	TRAPHANDLER_NOEC(trap_19, 19)
 	
+	TRAPHANDLER_NOEC(trap_32, 32)
+	TRAPHANDLER_NOEC(trap_33, 33)
+	TRAPHANDLER_NOEC(trap_34, 34)
+	TRAPHANDLER_NOEC(trap_35, 35)
+	TRAPHANDLER_NOEC(trap_36, 36)
+	TRAPHANDLER_NOEC(trap_37, 37)
+	TRAPHANDLER_NOEC(trap_38, 38)
+	TRAPHANDLER_NOEC(trap_39, 39)
+	TRAPHANDLER_NOEC(trap_40, 40)
+	TRAPHANDLER_NOEC(trap_41, 41)
+	TRAPHANDLER_NOEC(trap_42, 42)
+	TRAPHANDLER_NOEC(trap_43, 43)
+	TRAPHANDLER_NOEC(trap_44, 44)
+	TRAPHANDLER_NOEC(trap_45, 45)
+	TRAPHANDLER_NOEC(trap_46, 46)
+	TRAPHANDLER_NOEC(trap_47, 47)
+
 	TRAPHANDLER_NOEC(trap_48, 48)
 
 /*
