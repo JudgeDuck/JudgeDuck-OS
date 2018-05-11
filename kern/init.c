@@ -53,7 +53,7 @@ i386_init(void)
 	lock_kernel();
 
 	// Starting non-boot CPUs
-	boot_aps();
+	// boot_aps();
 
 #if defined(TEST)
 	// Don't touch -- used by grading script!

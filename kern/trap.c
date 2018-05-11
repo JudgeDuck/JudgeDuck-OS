@@ -12,6 +12,7 @@
 #include <kern/kclock.h>
 #include <kern/picirq.h>
 #include <kern/cpu.h>
+#include <kern/timer.h>
 #include <kern/spinlock.h>
 
 static struct Taskstate ts;
@@ -274,8 +275,14 @@ trap_dispatch(struct Trapframe *tf)
 	}
 	else if(tf->tf_trapno == IRQ_OFFSET + IRQ_TIMER)
 	{
-		//cprintf("hehe\n");
+		static int cnt = 0;
+		static uint64_t last_tsc = 0;
+		uint64_t cur_tsc = read_tsc();
+		if(cnt) cprintf("hehe %d | %lld\n", cnt, (cur_tsc - last_tsc) / cnt);
+		++cnt;
+		last_tsc = cur_tsc;
 		lapic_eoi();
+		timer_single_shot_s(cnt);
 		sched_yield();
 		return;
 	}

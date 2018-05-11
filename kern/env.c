@@ -11,6 +11,7 @@
 #include <kern/pmap.h>
 #include <kern/trap.h>
 #include <kern/monitor.h>
+#include <kern/timer.h>
 #include <kern/sched.h>
 #include <kern/cpu.h>
 #include <kern/spinlock.h>
@@ -550,6 +551,10 @@ env_run(struct Env *e)
 	unlock_kernel();
 	//cprintf("check pdx %p %p\n", e->env_pgdir[PDX(UVPT)], e->env_pgdir);
 	lcr3(PADDR(e->env_pgdir));
+	
+	// cprintf("next = %lld\n", next_timer_shot);
+	lapic_timer_single_shot(next_timer_shot);
+	
 	env_pop_tf(&e->env_tf);
 
 	//panic("env_run not yet implemented");

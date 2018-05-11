@@ -9,6 +9,7 @@
 #include <inc/x86.h>
 #include <kern/pmap.h>
 #include <kern/cpu.h>
+#include <kern/timer.h>
 
 // Local APIC registers, divided by 4 for use as uint32_t[] indices.
 #define ID      (0x0020/4)   // ID
@@ -32,6 +33,8 @@
 #define ICRHI   (0x0310/4)   // Interrupt Command [63:32]
 #define TIMER   (0x0320/4)   // Local Vector Table 0 (TIMER)
 	#define X1         0x0000000B   // divide counts by 1
+	#define X128       0x0000000A   // divide counts by 128
+	#define SINGLESHOT 0x00000000   // Single shot
 	#define PERIODIC   0x00020000   // Periodic
 #define PCINT   (0x0340/4)   // Performance Counter LVT
 #define LINT0   (0x0350/4)   // Local Vector Table 1 (LINT0)
@@ -53,6 +56,12 @@ lapicw(int index, int value)
 }
 
 void
+lapic_timer_single_shot(uint64_t ns)
+{
+	lapicw(TICR, ns / 128);
+}
+
+void
 lapic_init(void)
 {
 	if (!lapicaddr)
@@ -69,10 +78,10 @@ lapic_init(void)
 	// from lapic[TICR] and then issues an interrupt.  
 	// If we cared more about precise timekeeping,
 	// TICR would be calibrated using an external time source.
-	lapicw(TDCR, X1);
-	lapicw(TIMER, PERIODIC | (IRQ_OFFSET + IRQ_TIMER));
+	lapicw(TDCR, X128);
+	lapicw(TIMER, SINGLESHOT | (IRQ_OFFSET + IRQ_TIMER));
 	//lapicw(TICR, 1000000000); 
-	lapicw(TICR, 10000000); 
+	timer_single_shot_s(1);
 
 	// Leave LINT0 of the BSP enabled so that it can get
 	// interrupts from the 8259A chip.
