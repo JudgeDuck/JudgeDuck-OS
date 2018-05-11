@@ -278,11 +278,11 @@ trap_dispatch(struct Trapframe *tf)
 		static int cnt = 0;
 		static uint64_t last_tsc = 0;
 		uint64_t cur_tsc = read_tsc();
-		if(cnt) cprintf("hehe %d | %lld\n", cnt, (cur_tsc - last_tsc) / cnt);
+		if(cnt) cprintf("hehe %d | %lld\n", cnt, (cur_tsc - last_tsc));
 		++cnt;
 		last_tsc = cur_tsc;
 		lapic_eoi();
-		timer_single_shot_s(cnt);
+		// timer_single_shot_s(cnt);
 		sched_yield();
 		return;
 	}

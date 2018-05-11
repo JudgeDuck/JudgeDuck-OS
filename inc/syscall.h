@@ -16,6 +16,8 @@ enum {
 	SYS_yield,
 	SYS_ipc_try_send,
 	SYS_ipc_recv,
+	SYS_enter_judge,
+	SYS_accept_enter_judge,
 	NSYSCALLS
 };
 

@@ -12,4 +12,6 @@ void timer_single_shot_s(uint64_t);
 
 extern uint64_t next_timer_shot;
 
+#define DEFAULT_TIMER_INTERVAL 1000000000
+
 #endif

@@ -53,6 +53,8 @@ int	sys_page_map(envid_t src_env, void *src_pg,
 int	sys_page_unmap(envid_t env, void *pg);
 int	sys_ipc_try_send(envid_t to_env, uint32_t value, void *pg, int perm);
 int	sys_ipc_recv(void *rcv_pg);
+int sys_enter_judge(void *eip, void *esp);
+int sys_accept_enter_judge(envid_t envid, int ms, struct JudgeParams *prm);
 
 // This must be inlined.  Exercise for reader: why?
 static inline envid_t __attribute__((always_inline))

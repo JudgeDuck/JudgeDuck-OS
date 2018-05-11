@@ -111,3 +111,15 @@ sys_ipc_recv(void *dstva)
 	return syscall(SYS_ipc_recv, 1, (uint32_t)dstva, 0, 0, 0, 0);
 }
 
+int
+sys_enter_judge(void *eip, void *esp)
+{
+	return syscall(SYS_enter_judge, 1, (uint32_t)eip, (uint32_t)esp, 0, 0, 0);
+}
+
+int
+sys_accept_enter_judge(envid_t envid, int ms, struct JudgeParams *prm)
+{
+	return syscall(SYS_accept_enter_judge, 0, envid, ms, (uint32_t)prm, 0, 0);
+}
+

@@ -272,6 +272,9 @@ env_alloc(struct Env **newenv_store, envid_t parent_id)
 	// commit the allocation
 	env_free_list = e->env_link;
 	*newenv_store = e;
+	
+	e->env_judge_waiting = 0;
+	e->env_judging = 0;
 
 	cprintf("[%08x] new env %08x\n", curenv ? curenv->env_id : 0, e->env_id);
 	return 0;

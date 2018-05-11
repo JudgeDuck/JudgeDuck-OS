@@ -11,6 +11,7 @@
 #include <kern/syscall.h>
 #include <kern/console.h>
 #include <kern/sched.h>
+#include <kern/timer.h>
 
 // Print a string to the system console.
 // The string is exactly 'len' characters long.
@@ -393,6 +394,45 @@ sys_ipc_recv(void *dstva)
 	//return 0;
 }
 
+static int
+sys_enter_judge(void *eip, void *esp)
+{
+	// TODO: validate
+	curenv->env_status = ENV_NOT_RUNNABLE;
+	curenv->env_judge_waiting = 1;
+	curenv->env_judge_tf = curenv->env_tf;
+	curenv->env_judge_tf.tf_eip = (uint32_t) eip;
+	curenv->env_judge_tf.tf_esp = (uint32_t) esp;
+	sched_yield();
+	return 0;
+}
+
+static int
+sys_accept_enter_judge(envid_t envid, int ms, struct JudgeParams *prm)
+{
+	// TODO: validate
+	struct Env *env;
+	int ret = envid2env(envid, &env, 0);
+	if(ret < 0) return -E_INVAL;
+	if(!env->env_judge_waiting) return -E_INVAL;
+	if(ms < 100 || ms > 500000) return -E_INVAL;
+	
+	struct Trapframe tmp = env->env_judge_tf;
+	env->env_judge_tf = env->env_tf; env->env_tf = tmp;
+	
+	curenv->env_tf.tf_regs.reg_eax = 0; // return 0
+	
+	cprintf("here we go!\n");
+	
+	env->env_judge_waiting = 0;
+	env->env_judging = 1;
+	timer_single_shot_ms(ms);
+	env_run(env);
+	
+	// won't reach here
+	return 233;
+}
+
 // Dispatches to the correct kernel function, passing the arguments.
 int32_t
 syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5)
@@ -432,6 +472,10 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 		return sys_ipc_try_send(a1, a2, (void *) a3, a4);
 	case SYS_ipc_recv:
 		return sys_ipc_recv((void *) a1);
+	case SYS_enter_judge:
+		return sys_enter_judge((void *) a1, (void *) a2);
+	case SYS_accept_enter_judge:
+		return sys_accept_enter_judge(a1, a2, (void *) a3);
 	default:
 		return -E_INVAL;
 	}
