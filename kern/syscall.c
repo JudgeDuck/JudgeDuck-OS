@@ -4,6 +4,7 @@
 #include <inc/error.h>
 #include <inc/string.h>
 #include <inc/assert.h>
+#include <inc/judge.h>
 
 #include <kern/env.h>
 #include <kern/pmap.h>
@@ -408,9 +409,11 @@ sys_enter_judge(void *eip, void *esp)
 }
 
 static int
-sys_accept_enter_judge(envid_t envid, int ms, struct JudgeParams *prm)
+sys_accept_enter_judge(envid_t envid, struct JudgeParams *prm, struct JudgeResult *res)
 {
 	// TODO: validate
+	int ms = prm->ms;
+	
 	struct Env *env;
 	int ret = envid2env(envid, &env, 0);
 	if(ret < 0) return -E_INVAL;
@@ -419,18 +422,42 @@ sys_accept_enter_judge(envid_t envid, int ms, struct JudgeParams *prm)
 	
 	struct Trapframe tmp = env->env_judge_tf;
 	env->env_judge_tf = env->env_tf; env->env_tf = tmp;
+	env->env_judge_tf.tf_regs.reg_eax = 0;
 	
 	curenv->env_tf.tf_regs.reg_eax = 0; // return 0
+	curenv->env_judge_res = res;
+	res->verdict = VERDICT_SE;
+	judger_env = curenv;
 	
-	cprintf("here we go!\n");
+	// cprintf("here we go!\n");
 	
 	env->env_judge_waiting = 0;
 	env->env_judging = 1;
+	
 	timer_single_shot_ms(ms);
+	res->time_cycles = -read_tsc();
 	env_run(env);
 	
 	// won't reach here
 	return 233;
+}
+
+static int
+sys_quit_judge()
+{
+	// cprintf("quit judge!\n");
+	if(!curenv->env_judging) return -E_INVAL;
+	
+	curenv->env_judging = 0;
+	curenv->env_tf = curenv->env_judge_tf;
+	
+	lcr3(PADDR(judger_env->env_pgdir));
+	judger_env->env_judge_res->time_cycles += read_tsc();
+	judger_env->env_judge_res->verdict = VERDICT_OK;
+	lcr3(PADDR(curenv->env_pgdir));
+	
+	timer_single_shot_ns(DEFAULT_TIMER_INTERVAL);
+	return 0;
 }
 
 // Dispatches to the correct kernel function, passing the arguments.
@@ -475,7 +502,9 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 	case SYS_enter_judge:
 		return sys_enter_judge((void *) a1, (void *) a2);
 	case SYS_accept_enter_judge:
-		return sys_accept_enter_judge(a1, a2, (void *) a3);
+		return sys_accept_enter_judge(a1, (void *) a2, (void *) a3);
+	case SYS_quit_judge:
+		return sys_quit_judge();
 	default:
 		return -E_INVAL;
 	}

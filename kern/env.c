@@ -16,6 +16,8 @@
 #include <kern/cpu.h>
 #include <kern/spinlock.h>
 
+struct Env *judger_env = NULL;
+
 struct Env *envs = NULL;		// All environments
 static struct Env *env_free_list;	// Free environment list
 					// (linked by Env->env_link)

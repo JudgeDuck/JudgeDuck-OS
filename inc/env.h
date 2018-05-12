@@ -6,6 +6,7 @@
 #include <inc/types.h>
 #include <inc/trap.h>
 #include <inc/memlayout.h>
+#include <inc/judge.h>
 
 typedef int32_t envid_t;
 
@@ -43,11 +44,6 @@ enum EnvType {
 	ENV_TYPE_USER = 0,
 };
 
-struct JudgeParams
-{
-	
-};
-
 struct Env {
 	struct Trapframe env_tf;	// Saved registers
 	struct Env *env_link;		// Next free Env
@@ -74,6 +70,7 @@ struct Env {
 	// Judge
 	bool env_judge_waiting, env_judging;
 	struct Trapframe env_judge_tf;
+	struct JudgeResult *env_judge_res;
 };
 
 #endif // !JOS_INC_ENV_H

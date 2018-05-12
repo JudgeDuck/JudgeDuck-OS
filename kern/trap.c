@@ -275,14 +275,25 @@ trap_dispatch(struct Trapframe *tf)
 	}
 	else if(tf->tf_trapno == IRQ_OFFSET + IRQ_TIMER)
 	{
+		if(curenv->env_judging)
+		{
+			// TLE
+			curenv->env_judging = 0;
+			curenv->env_tf = curenv->env_judge_tf;
+			
+			lcr3(PADDR(judger_env->env_pgdir));
+			judger_env->env_judge_res->time_cycles += read_tsc();
+			judger_env->env_judge_res->verdict = VERDICT_TLE;
+			lcr3(PADDR(curenv->env_pgdir));
+		}
 		static int cnt = 0;
 		static uint64_t last_tsc = 0;
 		uint64_t cur_tsc = read_tsc();
-		if(cnt) cprintf("hehe %d | %lld\n", cnt, (cur_tsc - last_tsc));
+		// if(cnt) cprintf("hehe %d | %lld\n", cnt, (cur_tsc - last_tsc));
 		++cnt;
 		last_tsc = cur_tsc;
 		lapic_eoi();
-		// timer_single_shot_s(cnt);
+		timer_single_shot_ns(DEFAULT_TIMER_INTERVAL);
 		sched_yield();
 		return;
 	}

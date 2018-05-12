@@ -118,8 +118,14 @@ sys_enter_judge(void *eip, void *esp)
 }
 
 int
-sys_accept_enter_judge(envid_t envid, int ms, struct JudgeParams *prm)
+sys_accept_enter_judge(envid_t envid, struct JudgeParams *prm, struct JudgeResult *res)
 {
-	return syscall(SYS_accept_enter_judge, 0, envid, ms, (uint32_t)prm, 0, 0);
+	return syscall(SYS_accept_enter_judge, 0, envid, (uint32_t)prm, (uint32_t) res, 0, 0);
+}
+
+int
+sys_quit_judge()
+{
+	return syscall(SYS_quit_judge, 1, 0, 0, 0, 0, 0);
 }
 
