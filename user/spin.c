@@ -10,8 +10,9 @@ void
 sort_wrapper(void)
 {
 	cprintf("CHILD:  I am sort_wrapper!\n");
-	unsigned sum = 0;
-	for(unsigned i = 0; i < 100000000; i++) sum += i;
+	// while(1);
+	unsigned sum = 0; int n = 100000000;
+	for(int i = n; i >= 0; --i) sum += n / i;
 	cprintf("CHILD:  sum = %u\n", sum);
 	sys_quit_judge();
 }
@@ -19,17 +20,6 @@ sort_wrapper(void)
 void
 umain(int argc, char **argv)
 {
-	envid_t env;
-
-	cprintf("PARENT: I am the parent.  Forking the child...\n");
-	if ((env = fork()) == 0) {
-		cprintf("CHILD:  I am the child.\n");
-		cprintf("CHILD:  before sys_enter_judge......\n");
-		int ret = sys_enter_judge(sort_wrapper, TMPSTK + sizeof(TMPSTK));
-		cprintf("CHILD:  sys_enter_judge returned %d!\n", ret);
-		sys_env_destroy(0);
-	}
-	
 	if(fork() == 0)
 	{
 		while(1)
@@ -42,6 +32,17 @@ umain(int argc, char **argv)
 	{
 		while(1);
 	}
+	
+	envid_t env;
+
+	cprintf("PARENT: I am the parent.  Forking the child...\n");
+	if ((env = fork()) == 0) {
+		cprintf("CHILD:  I am the child.\n");
+		cprintf("CHILD:  before sys_enter_judge......\n");
+		int ret = sys_enter_judge(sort_wrapper, TMPSTK + sizeof(TMPSTK));
+		cprintf("CHILD:  sys_enter_judge returned %d!\n", ret);
+		sys_env_destroy(0);
+	}
 
 	cprintf("PARENT: I am the parent.\n");
 	while(1)
@@ -52,9 +53,13 @@ umain(int argc, char **argv)
 		prm.ms = 5000;
 		int ret = sys_accept_enter_judge(env, &prm, &res);
 		cprintf("PARENT: sys_accept_enter_judge returned %d\n", ret);
-		cprintf("PARENT: result verdict = %d\n", (int) res.verdict);
-		cprintf("PARENT: result time_cycles = %lld\n", res.time_cycles);
-		if(!ret && res.verdict == VERDICT_OK) break;
+		if(!ret)
+		{
+			static const char *verdict_str[] = {"OK", "Time Limit Exceeded", "Runtime Error", "Illegal Syscall", "System Error"};
+			cprintf("PARENT: result verdict = %s\n", verdict_str[(int) res.verdict]);
+			cprintf("PARENT: result time_cycles = %lld\n", res.time_cycles);
+			break;
+		}
 		sys_yield();
 	}
 	sys_env_destroy(0);

@@ -257,11 +257,39 @@ trap_dispatch(struct Trapframe *tf)
 	//print_trapframe(tf);
 	if(tf->tf_trapno == T_PGFLT)
 	{
+		if(curenv->env_judging)
+		{
+			// RE
+			curenv->env_judging = 0;
+			curenv->env_tf = curenv->env_judge_tf;
+			
+			lcr3(PADDR(judger_env->env_pgdir));
+			judger_env->env_judge_res->time_cycles += read_tsc();
+			judger_env->env_judge_res->verdict = VERDICT_RE;
+			lcr3(PADDR(curenv->env_pgdir));
+			timer_single_shot_ns(DEFAULT_TIMER_INTERVAL);
+			sched_yield();
+			return;
+		}
 		page_fault_handler(tf);
 		return;
 	}
 	else if(tf->tf_trapno == T_BRKPT)
 	{
+		if(curenv->env_judging)
+		{
+			// RE
+			curenv->env_judging = 0;
+			curenv->env_tf = curenv->env_judge_tf;
+			
+			lcr3(PADDR(judger_env->env_pgdir));
+			judger_env->env_judge_res->time_cycles += read_tsc();
+			judger_env->env_judge_res->verdict = VERDICT_RE;
+			lcr3(PADDR(curenv->env_pgdir));
+			timer_single_shot_ns(DEFAULT_TIMER_INTERVAL);
+			sched_yield();
+			return;
+		}
 		monitor(tf);
 		return;
 	}
@@ -316,6 +344,20 @@ trap_dispatch(struct Trapframe *tf)
 	if (tf->tf_cs == GD_KT)
 		panic("unhandled trap in kernel");
 	else {
+		if(curenv->env_judging)
+		{
+			// RE
+			curenv->env_judging = 0;
+			curenv->env_tf = curenv->env_judge_tf;
+			
+			lcr3(PADDR(judger_env->env_pgdir));
+			judger_env->env_judge_res->time_cycles += read_tsc();
+			judger_env->env_judge_res->verdict = VERDICT_RE;
+			lcr3(PADDR(curenv->env_pgdir));
+			timer_single_shot_ns(DEFAULT_TIMER_INTERVAL);
+			sched_yield();
+			return;
+		}
 		env_destroy(curenv);
 		return;
 	}
