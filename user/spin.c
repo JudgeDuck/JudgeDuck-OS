@@ -11,8 +11,11 @@ sort_wrapper(void)
 {
 	cprintf("CHILD:  I am sort_wrapper!\n");
 	// while(1);
-	unsigned sum = 0; int n = 100000000;
-	for(int i = n; i >= 0; --i) sum += n / i;
+	unsigned sum = 0;
+	unsigned n = 20000;
+	for(unsigned i = 0; i < n; i++)
+		for(unsigned j = 0; j < n; j++)
+			sum += i + j;
 	cprintf("CHILD:  sum = %u\n", sum);
 	sys_quit_judge();
 }
@@ -57,7 +60,8 @@ umain(int argc, char **argv)
 		{
 			static const char *verdict_str[] = {"OK", "Time Limit Exceeded", "Runtime Error", "Illegal Syscall", "System Error"};
 			cprintf("PARENT: result verdict = %s\n", verdict_str[(int) res.verdict]);
-			cprintf("PARENT: result time_cycles = %lld\n", res.time_cycles);
+			cprintf("PARENT: result time_Mcycles = %d.%06d\n", (int) (res.time_cycles / 1000000), (int) (res.time_cycles % 1000000));
+			cprintf("PARENT: result time_ms = %d.%06d\n", (int) (res.time_ns / 1000000), (int) (res.time_ns % 1000000));
 			break;
 		}
 		sys_yield();

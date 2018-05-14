@@ -434,8 +434,10 @@ sys_accept_enter_judge(envid_t envid, struct JudgeParams *prm, struct JudgeResul
 	env->env_judge_waiting = 0;
 	env->env_judging = 1;
 	
-	timer_single_shot_ms(ms);
+	judger_env->env_judge_res->time_ns = (uint64_t) 1000000 * ms;
 	res->time_cycles = -read_tsc();
+	
+	timer_single_shot_ms(ms);
 	env_run(env);
 	
 	// won't reach here
@@ -453,6 +455,8 @@ sys_quit_judge()
 	
 	lcr3(PADDR(judger_env->env_pgdir));
 	judger_env->env_judge_res->time_cycles += read_tsc();
+	// cprintf("origin %lld\n", lapic_timer_current_count());
+	judger_env->env_judge_res->time_ns -= lapic_timer_current_count();
 	judger_env->env_judge_res->verdict = VERDICT_OK;
 	lcr3(PADDR(curenv->env_pgdir));
 	

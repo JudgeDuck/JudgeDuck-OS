@@ -61,6 +61,12 @@ lapic_timer_single_shot(uint64_t ns)
 	lapicw(TICR, ns / 128);
 }
 
+uint64_t
+lapic_timer_current_count()
+{
+	return (uint64_t) 128 * lapic[TCCR];
+}
+
 void
 lapic_init(void)
 {

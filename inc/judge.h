@@ -20,6 +20,7 @@ struct JudgeResult
 {
 	enum JudgeVerdict verdict;
 	uint64_t time_cycles;
+	uint64_t time_ns;
 	int mem_kb;
 };
 

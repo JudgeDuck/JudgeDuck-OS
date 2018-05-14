@@ -2,10 +2,12 @@
 #include <inc/assert.h>
 
 uint64_t next_timer_shot = 1000000000;
+bool need_timer_shot = 0;
 
 void timer_single_shot_ns(uint64_t ns)
 {
 	assert(ns < (uint64_t) 4000000000 * 128);
+	need_timer_shot = 1;
 	// cprintf("next = %lld\n", ns);
 	next_timer_shot = ns;
 }

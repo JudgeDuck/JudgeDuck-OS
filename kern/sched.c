@@ -5,6 +5,7 @@
 #include <kern/env.h>
 #include <kern/pmap.h>
 #include <kern/monitor.h>
+#include <kern/timer.h>
 
 void sched_halt(void);
 
@@ -12,7 +13,7 @@ void sched_halt(void);
 void
 sched_yield(void)
 {
-	//cprintf("sched!\n");
+	// cprintf("sched!\n");
 	//struct Env *idle;
 
 	// Implement simple round-robin scheduling.
@@ -44,10 +45,16 @@ sched_yield(void)
 			//print_trapframe(&ne->env_tf);
 		}
 		if(ne->env_status == ENV_RUNNABLE)
+		{
+			timer_single_shot_ns(DEFAULT_TIMER_INTERVAL);
 			env_run(ne);
+		}
 	}
 	if(curenv && curenv->env_status == ENV_RUNNING)
+	{
+		timer_single_shot_ns(DEFAULT_TIMER_INTERVAL);
 		env_run(curenv);
+	}
 
 	// sched_halt never returns
 	sched_halt();

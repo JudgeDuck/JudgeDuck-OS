@@ -558,7 +558,11 @@ env_run(struct Env *e)
 	lcr3(PADDR(e->env_pgdir));
 	
 	// cprintf("next = %lld\n", next_timer_shot);
-	lapic_timer_single_shot(next_timer_shot);
+	if(need_timer_shot)
+	{
+		need_timer_shot = 0;
+		lapic_timer_single_shot(next_timer_shot);
+	}
 	
 	env_pop_tf(&e->env_tf);
 

@@ -265,6 +265,7 @@ trap_dispatch(struct Trapframe *tf)
 			
 			lcr3(PADDR(judger_env->env_pgdir));
 			judger_env->env_judge_res->time_cycles += read_tsc();
+			judger_env->env_judge_res->time_ns -= lapic_timer_current_count();
 			judger_env->env_judge_res->verdict = VERDICT_RE;
 			lcr3(PADDR(curenv->env_pgdir));
 			timer_single_shot_ns(DEFAULT_TIMER_INTERVAL);
@@ -284,6 +285,7 @@ trap_dispatch(struct Trapframe *tf)
 			
 			lcr3(PADDR(judger_env->env_pgdir));
 			judger_env->env_judge_res->time_cycles += read_tsc();
+			judger_env->env_judge_res->time_ns -= lapic_timer_current_count();
 			judger_env->env_judge_res->verdict = VERDICT_RE;
 			lcr3(PADDR(curenv->env_pgdir));
 			timer_single_shot_ns(DEFAULT_TIMER_INTERVAL);
@@ -311,6 +313,7 @@ trap_dispatch(struct Trapframe *tf)
 			
 			lcr3(PADDR(judger_env->env_pgdir));
 			judger_env->env_judge_res->time_cycles += read_tsc();
+			judger_env->env_judge_res->time_ns -= lapic_timer_current_count();
 			judger_env->env_judge_res->verdict = VERDICT_TLE;
 			lcr3(PADDR(curenv->env_pgdir));
 		}
@@ -352,6 +355,7 @@ trap_dispatch(struct Trapframe *tf)
 			
 			lcr3(PADDR(judger_env->env_pgdir));
 			judger_env->env_judge_res->time_cycles += read_tsc();
+			judger_env->env_judge_res->time_ns -= lapic_timer_current_count();
 			judger_env->env_judge_res->verdict = VERDICT_RE;
 			lcr3(PADDR(curenv->env_pgdir));
 			timer_single_shot_ns(DEFAULT_TIMER_INTERVAL);
@@ -369,6 +373,8 @@ trap(struct Trapframe *tf)
 	// The environment may have set DF and some versions
 	// of GCC rely on DF being clear
 	asm volatile("cld" ::: "cc");
+	
+	// cprintf("asdfasdfasdf %lld\n", lapic_timer_current_count());
 
 	// Halt the CPU if some other CPU has called panic()
 	extern char *panicstr;
