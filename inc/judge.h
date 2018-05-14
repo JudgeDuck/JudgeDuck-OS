@@ -1,10 +1,15 @@
 #ifndef JOS_INC_JUDGE_H
 #define JOS_INC_JUDGE_H
 
+#include <inc/syscall.h>
+
 struct JudgeParams
 {
-	// to be implemented, e.g. enable interrupt?
 	int ms, kb;
+	int syscall_enabled[NSYSCALLS];
+	// writable_addr_begin and (writable_addr_end + 1) must be page-aligned
+	void *writable_addr_begin, *writable_addr_end;
+	bool defrag_mem; // to be implemented
 };
 
 enum JudgeVerdict
@@ -21,7 +26,7 @@ struct JudgeResult
 	enum JudgeVerdict verdict;
 	uint64_t time_cycles;
 	uint64_t time_ns;
-	int mem_kb;
+	int mem_kb; // to be implemented
 };
 
 #endif
