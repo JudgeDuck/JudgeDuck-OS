@@ -118,9 +118,9 @@ sys_ipc_recv(void *dstva)
 }
 
 int
-sys_enter_judge(void *eip, void *esp)
+sys_enter_judge(void *eip)
 {
-	return syscall(SYS_enter_judge, 1, (uint32_t)eip, (uint32_t)esp, 0, 0, 0);
+	return syscall(SYS_enter_judge, 1, (uint32_t)eip, 0, 0, 0, 0);
 }
 
 int

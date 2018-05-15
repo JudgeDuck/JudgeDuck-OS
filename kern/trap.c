@@ -268,7 +268,6 @@ trap_dispatch(struct Trapframe *tf)
 			judger_env->env_judge_res->time_ns -= lapic_timer_current_count();
 			judger_env->env_judge_res->verdict = VERDICT_RE;
 			lcr3(PADDR(curenv->env_pgdir));
-			timer_single_shot_ns(DEFAULT_TIMER_INTERVAL);
 			sched_yield();
 			return;
 		}
@@ -288,7 +287,6 @@ trap_dispatch(struct Trapframe *tf)
 			judger_env->env_judge_res->time_ns -= lapic_timer_current_count();
 			judger_env->env_judge_res->verdict = VERDICT_RE;
 			lcr3(PADDR(curenv->env_pgdir));
-			timer_single_shot_ns(DEFAULT_TIMER_INTERVAL);
 			sched_yield();
 			return;
 		}
@@ -297,6 +295,21 @@ trap_dispatch(struct Trapframe *tf)
 	}
 	else if(tf->tf_trapno == T_SYSCALL)
 	{
+		if(curenv->env_judging && !curenv->env_judge_prm.syscall_enabled[tf->tf_regs.reg_eax])
+		{
+			// IS
+			curenv->env_judging = 0;
+			curenv->env_tf = curenv->env_judge_tf;
+			
+			lcr3(PADDR(judger_env->env_pgdir));
+			judger_env->env_judge_res->time_cycles += read_tsc();
+			judger_env->env_judge_res->time_ns -= lapic_timer_current_count();
+			judger_env->env_judge_res->verdict = VERDICT_IS;
+			judger_env->env_judge_res->syscall_id = tf->tf_regs.reg_eax;
+			lcr3(PADDR(curenv->env_pgdir));
+			sched_yield();
+			return;
+		}
 		tf->tf_regs.reg_eax = syscall(
 			tf->tf_regs.reg_eax, tf->tf_regs.reg_edx, tf->tf_regs.reg_ecx,
 			tf->tf_regs.reg_ebx, tf->tf_regs.reg_edi, tf->tf_regs.reg_esi
@@ -324,7 +337,6 @@ trap_dispatch(struct Trapframe *tf)
 		++cnt;
 		last_tsc = cur_tsc;
 		lapic_eoi();
-		timer_single_shot_ns(DEFAULT_TIMER_INTERVAL);
 		sched_yield();
 		return;
 	}
@@ -371,7 +383,6 @@ trap_dispatch(struct Trapframe *tf)
 			judger_env->env_judge_res->time_ns -= lapic_timer_current_count();
 			judger_env->env_judge_res->verdict = VERDICT_RE;
 			lcr3(PADDR(curenv->env_pgdir));
-			timer_single_shot_ns(DEFAULT_TIMER_INTERVAL);
 			sched_yield();
 			return;
 		}

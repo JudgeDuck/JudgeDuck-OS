@@ -42,7 +42,7 @@ umain(int argc, char **argv)
 	if ((env = fork()) == 0) {
 		cprintf("CHILD:  I am the child.\n");
 		cprintf("CHILD:  before sys_enter_judge......\n");
-		int ret = sys_enter_judge(sort_wrapper, TMPSTK + sizeof(TMPSTK));
+		int ret = sys_enter_judge(sort_wrapper);
 		cprintf("CHILD:  sys_enter_judge returned %d!\n", ret);
 		sys_env_destroy(0);
 	}

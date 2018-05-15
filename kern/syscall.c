@@ -420,14 +420,14 @@ sys_ipc_recv(void *dstva)
 }
 
 static int
-sys_enter_judge(void *eip, void *esp)
+sys_enter_judge(void *eip)
 {
 	// TODO: validate
 	curenv->env_status = ENV_NOT_RUNNABLE;
 	curenv->env_judge_waiting = 1;
 	curenv->env_judge_tf = curenv->env_tf;
 	curenv->env_judge_tf.tf_eip = (uint32_t) eip;
-	curenv->env_judge_tf.tf_esp = (uint32_t) esp;
+	// curenv->env_judge_tf.tf_esp = (uint32_t) esp;
 	sched_yield();
 	return 0;
 }
@@ -446,10 +446,12 @@ sys_accept_enter_judge(envid_t envid, struct JudgeParams *prm, struct JudgeResul
 	
 	struct Trapframe tmp = env->env_judge_tf;
 	env->env_judge_tf = env->env_tf; env->env_tf = tmp;
+	env->env_tf.tf_esp = 0x10001000 + prm->kb * 1024;
 	env->env_judge_tf.tf_regs.reg_eax = 0;
 	
 	curenv->env_tf.tf_regs.reg_eax = 0; // return 0
 	curenv->env_judge_res = res;
+	env->env_judge_prm = *prm;
 	res->verdict = VERDICT_SE;
 	judger_env = curenv;
 	
@@ -528,7 +530,7 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 	case SYS_ipc_recv:
 		return sys_ipc_recv((void *) a1);
 	case SYS_enter_judge:
-		return sys_enter_judge((void *) a1, (void *) a2);
+		return sys_enter_judge((void *) a1);
 	case SYS_accept_enter_judge:
 		return sys_accept_enter_judge(a1, (void *) a2, (void *) a3);
 	case SYS_quit_judge:
