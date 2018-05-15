@@ -51,6 +51,9 @@ i386_detect_memory(void)
 		totalmem = 1 * 1024 + extmem;
 	else
 		totalmem = basemem;
+	
+	if (totalmem > 4194304)
+		totalmem = 4194304;
 
 	npages = totalmem / (PGSIZE / 1024);
 	npages_basemem = basemem / (PGSIZE / 1024);
