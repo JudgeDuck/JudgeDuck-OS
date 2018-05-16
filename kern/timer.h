@@ -18,6 +18,9 @@ void timer_single_shot_s(uint64_t);
 extern uint64_t next_timer_shot;
 extern bool need_timer_shot;
 
+extern uint64_t tsc_when_trap_begin;
+extern uint64_t lapic_tccr_when_trap_begin;
+
 #define DEFAULT_TIMER_INTERVAL 1000000000
 
 #endif

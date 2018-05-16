@@ -339,7 +339,8 @@ trap(struct Trapframe *tf)
 	// of GCC rely on DF being clear
 	asm volatile("cld" ::: "cc");
 	
-	// cprintf("asdfasdfasdf %lld\n", lapic_timer_current_count());
+	lapic_tccr_when_trap_begin = lapic_timer_current_count();
+	tsc_when_trap_begin = read_tsc();
 
 	// Halt the CPU if some other CPU has called panic()
 	extern char *panicstr;
