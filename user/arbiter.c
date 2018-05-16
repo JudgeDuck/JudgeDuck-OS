@@ -10,6 +10,40 @@ atoi(const char *s)
 	return ans;
 }
 
+static const char *trapname(int trapno)
+{
+	static const char * const excnames[] = {
+		"Divide error",
+		"Debug",
+		"Non-Maskable Interrupt",
+		"Breakpoint",
+		"Overflow",
+		"BOUND Range Exceeded",
+		"Invalid Opcode",
+		"Device Not Available",
+		"Double Fault",
+		"Coprocessor Segment Overrun",
+		"Invalid TSS",
+		"Segment Not Present",
+		"Stack Fault",
+		"General Protection",
+		"Page Fault",
+		"(unknown trap)",
+		"x87 FPU Floating-Point Error",
+		"Alignment Check",
+		"Machine-Check",
+		"SIMD Floating-Point Exception"
+	};
+
+	if (trapno < ARRAY_SIZE(excnames))
+		return excnames[trapno];
+	if (trapno == T_SYSCALL)
+		return "System call";
+	if (trapno >= IRQ_OFFSET && trapno < IRQ_OFFSET + 16)
+		return "Hardware Interrupt";
+	return "(unknown trap)";
+}
+
 void
 umain(int argc, char **argv)
 {
@@ -48,10 +82,14 @@ umain(int argc, char **argv)
 		{
 			static const char *verdict_str[] = {"OK", "Time Limit Exceeded", "Runtime Error", "Illegal Syscall", "System Error"};
 			cprintf("ARBITER: verdict = %s\n", verdict_str[(int) res.verdict]);
+			if(res.verdict == VERDICT_IS)
+				cprintf("ARBITER: syscall_id = %d\n", res.tf.tf_regs.reg_eax);
+			if(res.verdict == VERDICT_RE)
+			{
+				cprintf("ARBITER: runtime error %d (%s)\n", res.tf.tf_trapno, trapname(res.tf.tf_trapno));
+			}
 			cprintf("ARBITER: time_Mcycles = %d.%06d\n", (int) (res.time_cycles / 1000000), (int) (res.time_cycles % 1000000));
 			cprintf("ARBITER: time_ms = %d.%06d\n", (int) (res.time_ns / 1000000), (int) (res.time_ns % 1000000));
-			if(res.verdict == VERDICT_IS)
-				cprintf("ARBITER: syscall_id = %d\n", res.syscall_id);
 			break;
 		}
 		sys_yield();

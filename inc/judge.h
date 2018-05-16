@@ -2,6 +2,7 @@
 #define JOS_INC_JUDGE_H
 
 #include <inc/syscall.h>
+#include <inc/trap.h>
 
 struct JudgeParams
 {
@@ -26,8 +27,8 @@ struct JudgeResult
 	enum JudgeVerdict verdict;
 	uint64_t time_cycles;
 	uint64_t time_ns;
-	int syscall_id;
 	int mem_kb; // to be implemented
+	struct Trapframe tf;
 };
 
 #endif

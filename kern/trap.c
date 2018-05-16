@@ -273,12 +273,7 @@ trap_dispatch(struct Trapframe *tf)
 	else if(tf->tf_trapno == T_SYSCALL)
 	{
 		if(curenv->env_judging && !curenv->env_judge_prm.syscall_enabled[tf->tf_regs.reg_eax])
-		{
-			lcr3(PADDR(judger_env->env_pgdir));
-			judger_env->env_judge_res->syscall_id = tf->tf_regs.reg_eax;
-			lcr3(PADDR(curenv->env_pgdir));
 			finish_judge(VERDICT_IS);
-		}
 		tf->tf_regs.reg_eax = syscall(
 			tf->tf_regs.reg_eax, tf->tf_regs.reg_edx, tf->tf_regs.reg_ecx,
 			tf->tf_regs.reg_ebx, tf->tf_regs.reg_edi, tf->tf_regs.reg_esi
@@ -321,12 +316,16 @@ trap_dispatch(struct Trapframe *tf)
 	// LAB 5: Your code here.
 
 	// Unexpected trap: The user process or the kernel has a bug.
-	print_trapframe(tf);
 	if (tf->tf_cs == GD_KT)
+	{
+		print_trapframe(tf);
 		panic("unhandled trap in kernel");
-	else {
+	}
+	else
+	{
 		if(curenv->env_judging)
 			finish_judge(VERDICT_RE);
+		print_trapframe(tf);
 		env_destroy(curenv);
 		return;
 	}

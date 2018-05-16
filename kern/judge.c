@@ -1,4 +1,5 @@
 #include <inc/x86.h>
+#include <inc/trap.h>
 #include <kern/pmap.h>
 #include <kern/judge.h>
 #include <kern/env.h>
@@ -9,6 +10,7 @@
 void
 finish_judge(int verdict)
 {
+	struct Trapframe tf = curenv->env_tf;
 	curenv->env_judging = 0;
 	curenv->env_tf = curenv->env_judge_tf;
 	
@@ -18,6 +20,7 @@ finish_judge(int verdict)
 	judger_env->env_judge_res->time_cycles += tsc_when_trap_begin;
 	judger_env->env_judge_res->time_ns -= lapic_tccr_when_trap_begin;
 	judger_env->env_judge_res->verdict = verdict;
+	judger_env->env_judge_res->tf = tf;
 	lcr3(PADDR(curenv->env_pgdir));
 	
 	sched_yield(); // won't return

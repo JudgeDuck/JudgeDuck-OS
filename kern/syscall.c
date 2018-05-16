@@ -451,7 +451,7 @@ sys_accept_enter_judge(envid_t envid, struct JudgeParams *prm, struct JudgeResul
 	env->env_judge_tf.tf_regs.reg_eax = 0;
 	
 	pgdir_reperm(env->env_pgdir, PTE_W, PTE_TDW, NULL, (void *) UTOP);
-	pgdir_reperm(env->env_pgdir, PTE_TDW, PTE_W, (void *) 0x10000000, (void *) env->env_tf.tf_esp);
+	pgdir_reperm(env->env_pgdir, PTE_TDW, PTE_W, (void *) 0x10001000, (void *) env->env_tf.tf_esp);
 	
 	curenv->env_tf.tf_regs.reg_eax = 0; // return 0
 	curenv->env_judge_res = res;
