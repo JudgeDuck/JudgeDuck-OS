@@ -4,12 +4,15 @@
 #include <kern/env.h>
 #include <kern/timer.h>
 #include <kern/sched.h>
+#include <kern/pmap.h>
 
 void
 finish_judge(int verdict)
 {
 	curenv->env_judging = 0;
 	curenv->env_tf = curenv->env_judge_tf;
+	
+	pgdir_reperm(curenv->env_pgdir, PTE_TDW, PTE_W, NULL, (void *) UTOP);
 	
 	lcr3(PADDR(judger_env->env_pgdir));
 	judger_env->env_judge_res->time_cycles += tsc_when_trap_begin;

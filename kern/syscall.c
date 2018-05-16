@@ -443,12 +443,15 @@ sys_accept_enter_judge(envid_t envid, struct JudgeParams *prm, struct JudgeResul
 	int ret = envid2env(envid, &env, 0);
 	if(ret < 0) return -E_INVAL;
 	if(!env->env_judge_waiting) return -E_INVAL;
-	if(ms < 100 || ms > 500000) return -E_INVAL;
+	if(ms < 1 || ms > 500000) return -E_INVAL;
 	
 	struct Trapframe tmp = env->env_judge_tf;
 	env->env_judge_tf = env->env_tf; env->env_tf = tmp;
 	env->env_tf.tf_esp = 0x10001000 + prm->kb * 1024;
 	env->env_judge_tf.tf_regs.reg_eax = 0;
+	
+	pgdir_reperm(env->env_pgdir, PTE_W, PTE_TDW, NULL, (void *) UTOP);
+	pgdir_reperm(env->env_pgdir, PTE_TDW, PTE_W, (void *) 0x10000000, (void *) env->env_tf.tf_esp);
 	
 	curenv->env_tf.tf_regs.reg_eax = 0; // return 0
 	curenv->env_judge_res = res;
