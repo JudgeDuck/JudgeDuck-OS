@@ -13,6 +13,7 @@
 #include <kern/console.h>
 #include <kern/sched.h>
 #include <kern/timer.h>
+#include <kern/judge.h>
 
 // Print a string to the system console.
 // The string is exactly 'len' characters long.
@@ -476,18 +477,9 @@ sys_quit_judge()
 	// cprintf("quit judge!\n");
 	if(!curenv->env_judging) return -E_INVAL;
 	
-	curenv->env_judging = 0;
-	curenv->env_tf = curenv->env_judge_tf;
-	
-	lcr3(PADDR(judger_env->env_pgdir));
-	judger_env->env_judge_res->time_cycles += read_tsc();
-	// cprintf("origin %lld\n", lapic_timer_current_count());
-	judger_env->env_judge_res->time_ns -= lapic_timer_current_count();
-	judger_env->env_judge_res->verdict = VERDICT_OK;
-	lcr3(PADDR(curenv->env_pgdir));
-	
-	timer_single_shot_ns(DEFAULT_TIMER_INTERVAL);
-	return 0;
+	finish_judge(VERDICT_OK);
+	// won't reach here
+	return 233;
 }
 
 // Dispatches to the correct kernel function, passing the arguments.

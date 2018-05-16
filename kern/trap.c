@@ -13,6 +13,7 @@
 #include <kern/picirq.h>
 #include <kern/cpu.h>
 #include <kern/timer.h>
+#include <kern/judge.h>
 #include <kern/spinlock.h>
 
 static struct Taskstate ts;
@@ -258,38 +259,14 @@ trap_dispatch(struct Trapframe *tf)
 	if(tf->tf_trapno == T_PGFLT)
 	{
 		if(curenv->env_judging)
-		{
-			// RE
-			curenv->env_judging = 0;
-			curenv->env_tf = curenv->env_judge_tf;
-			
-			lcr3(PADDR(judger_env->env_pgdir));
-			judger_env->env_judge_res->time_cycles += read_tsc();
-			judger_env->env_judge_res->time_ns -= lapic_timer_current_count();
-			judger_env->env_judge_res->verdict = VERDICT_RE;
-			lcr3(PADDR(curenv->env_pgdir));
-			sched_yield();
-			return;
-		}
+			finish_judge(VERDICT_RE);
 		page_fault_handler(tf);
 		return;
 	}
 	else if(tf->tf_trapno == T_BRKPT)
 	{
 		if(curenv->env_judging)
-		{
-			// RE
-			curenv->env_judging = 0;
-			curenv->env_tf = curenv->env_judge_tf;
-			
-			lcr3(PADDR(judger_env->env_pgdir));
-			judger_env->env_judge_res->time_cycles += read_tsc();
-			judger_env->env_judge_res->time_ns -= lapic_timer_current_count();
-			judger_env->env_judge_res->verdict = VERDICT_RE;
-			lcr3(PADDR(curenv->env_pgdir));
-			sched_yield();
-			return;
-		}
+			finish_judge(VERDICT_RE);
 		monitor(tf);
 		return;
 	}
@@ -297,18 +274,10 @@ trap_dispatch(struct Trapframe *tf)
 	{
 		if(curenv->env_judging && !curenv->env_judge_prm.syscall_enabled[tf->tf_regs.reg_eax])
 		{
-			// IS
-			curenv->env_judging = 0;
-			curenv->env_tf = curenv->env_judge_tf;
-			
 			lcr3(PADDR(judger_env->env_pgdir));
-			judger_env->env_judge_res->time_cycles += read_tsc();
-			judger_env->env_judge_res->time_ns -= lapic_timer_current_count();
-			judger_env->env_judge_res->verdict = VERDICT_IS;
 			judger_env->env_judge_res->syscall_id = tf->tf_regs.reg_eax;
 			lcr3(PADDR(curenv->env_pgdir));
-			sched_yield();
-			return;
+			finish_judge(VERDICT_IS);
 		}
 		tf->tf_regs.reg_eax = syscall(
 			tf->tf_regs.reg_eax, tf->tf_regs.reg_edx, tf->tf_regs.reg_ecx,
@@ -318,25 +287,9 @@ trap_dispatch(struct Trapframe *tf)
 	}
 	else if(tf->tf_trapno == IRQ_OFFSET + IRQ_TIMER)
 	{
-		if(curenv->env_judging)
-		{
-			// TLE
-			curenv->env_judging = 0;
-			curenv->env_tf = curenv->env_judge_tf;
-			
-			lcr3(PADDR(judger_env->env_pgdir));
-			judger_env->env_judge_res->time_cycles += read_tsc();
-			judger_env->env_judge_res->time_ns -= lapic_timer_current_count();
-			judger_env->env_judge_res->verdict = VERDICT_TLE;
-			lcr3(PADDR(curenv->env_pgdir));
-		}
-		static int cnt = 0;
-		static uint64_t last_tsc = 0;
-		uint64_t cur_tsc = read_tsc();
-		// if(cnt) cprintf("hehe %d | %lld\n", cnt, (cur_tsc - last_tsc));
-		++cnt;
-		last_tsc = cur_tsc;
 		lapic_eoi();
+		if(curenv->env_judging)
+			finish_judge(VERDICT_TLE);
 		sched_yield();
 		return;
 	}
@@ -373,19 +326,7 @@ trap_dispatch(struct Trapframe *tf)
 		panic("unhandled trap in kernel");
 	else {
 		if(curenv->env_judging)
-		{
-			// RE
-			curenv->env_judging = 0;
-			curenv->env_tf = curenv->env_judge_tf;
-			
-			lcr3(PADDR(judger_env->env_pgdir));
-			judger_env->env_judge_res->time_cycles += read_tsc();
-			judger_env->env_judge_res->time_ns -= lapic_timer_current_count();
-			judger_env->env_judge_res->verdict = VERDICT_RE;
-			lcr3(PADDR(curenv->env_pgdir));
-			sched_yield();
-			return;
-		}
+			finish_judge(VERDICT_RE);
 		env_destroy(curenv);
 		return;
 	}
