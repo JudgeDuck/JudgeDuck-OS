@@ -644,24 +644,28 @@ mmio_map_region(physaddr_t pa, size_t size)
 int
 pgdir_reperm(pde_t *pgdir, int old_perm, int new_perm, void *begin, void *end)
 {
-	if(!(old_perm & PTE_SYSCALL)) return -E_INVAL;
-	if(!(new_perm & PTE_SYSCALL)) return -E_INVAL;
+	// if(!(old_perm & PTE_SYSCALL)) return -E_INVAL;
+	// if(!(new_perm & PTE_SYSCALL) && new_perm) return -E_INVAL;
 	if((old_perm & -old_perm) != old_perm) return -E_INVAL;
 	if((new_perm & -new_perm) != new_perm) return -E_INVAL;
 	// cprintf("REPERM %p to %p\n", begin, end);
 	begin = ROUNDDOWN(begin, PGSIZE);
 	end = ROUNDDOWN(end, PGSIZE);
 	if(begin > end) return -E_INVAL;
+	int ret = 0;
 	for(void *cur = begin;; cur += PGSIZE)
 	{
 		// cprintf("REPERM %p\n", cur);
 		pte_t *pte = pgdir_walk(pgdir, cur, 0);
 		if(pte && (*pte & old_perm))
+		{
 			*pte = (*pte & ~old_perm) | new_perm;
+			++ret;
+		}
 		if(cur == end) break;
 	}
-	// cprintf("REPERM END!\n");
-	return 0;
+	// cprintf("REPERM END %d\n", ret);
+	return ret;
 }
 
 static uintptr_t user_mem_check_addr;

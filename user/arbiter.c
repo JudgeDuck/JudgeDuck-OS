@@ -90,6 +90,7 @@ umain(int argc, char **argv)
 			}
 			cprintf("ARBITER: time_Mcycles = %d.%06d\n", (int) (res.time_cycles / 1000000), (int) (res.time_cycles % 1000000));
 			cprintf("ARBITER: time_ms = %d.%06d\n", (int) (res.time_ns / 1000000), (int) (res.time_ns % 1000000));
+			cprintf("ARBITER: mem_kb = %d\n", res.mem_kb);
 			break;
 		}
 		sys_yield();
