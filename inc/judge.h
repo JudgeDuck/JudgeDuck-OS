@@ -10,7 +10,7 @@ struct JudgeParams
 	int syscall_enabled[NSYSCALLS];
 	// writable_addr_begin and (writable_addr_end + 1) must be page-aligned
 	void *writable_addr_begin, *writable_addr_end;
-	bool defrag_mem; // to be implemented
+	bool defrag_mem;
 };
 
 enum JudgeVerdict

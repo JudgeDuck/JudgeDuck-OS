@@ -445,6 +445,10 @@ sys_accept_enter_judge(envid_t envid, struct JudgeParams *prm, struct JudgeResul
 	if(!env->env_judge_waiting) return -E_INVAL;
 	if(ms < 1 || ms > 500000) return -E_INVAL;
 	
+	lapic_timer_disable();
+	
+	if(prm->defrag_mem) pmem_defrag();
+	
 	struct Trapframe tmp = env->env_judge_tf;
 	env->env_judge_tf = env->env_tf; env->env_tf = tmp;
 	env->env_tf.tf_esp = 0x10001000 + prm->kb * 1024;

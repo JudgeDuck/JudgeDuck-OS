@@ -111,6 +111,9 @@ boot_alloc(uint32_t n)
 	// LAB 2: Your code here.
 	void *ret = nextfree;
 	nextfree = ROUNDUP(nextfree + n, PGSIZE);
+	cprintf("boot_alloc: %p / %p\n", nextfree, 0xf0400000);
+	if (nextfree >= (char *) 0xf0400000)
+		panic("boot_alloc: out of memory");
 	return ret;
 }
 
@@ -337,8 +340,7 @@ page_init(void)
 	// NB: DO NOT actually touch the physical memory corresponding to
 	// free pages!
 	assert(MPENTRY_PADDR % PGSIZE == 0);
-	size_t i;
-	for(i = 0; i < npages; i++)
+	for(int i = npages - 1; i >= 0; i--)
 		if(i == 0 || (i * PGSIZE >= IOPHYSMEM && i * PGSIZE < EXTPHYSMEM + (4 << 20)) || i * PGSIZE == MPENTRY_PADDR)
 		{
 			pages[i].pp_ref = 233; // 233?
@@ -666,6 +668,86 @@ pgdir_reperm(pde_t *pgdir, int old_perm, int new_perm, void *begin, void *end)
 	}
 	// cprintf("REPERM END %d\n", ret);
 	return ret;
+}
+
+static void
+rebuild_free_list()
+{
+	page_free_list = NULL;
+	for(int i = npages - 1; i >= 0; i--)
+		if(pages[i].pp_ref == 0)
+		{
+			pages[i].pp_link = page_free_list;
+			page_free_list = &pages[i];
+		}
+}
+
+static void
+pages_apply_target()
+{
+	for(int i = 0; i < NENV; i++)
+		if(envs[i].env_status != ENV_FREE)
+			for(void *va = 0; va < (void *) UTOP; va += PGSIZE)
+			{
+				pte_t *pte;
+				struct PageInfo *pp = page_lookup(envs[i].env_pgdir, va, &pte);
+				if(pp)
+				{
+				assert(pp->target_pp);
+					*pte = (pp->target_pp * PGSIZE) | (*pte & 0xfff);
+				}
+			}
+	for(size_t i = 0; i < npages; i++)
+	{
+		if(!pages[i].pp_ref) continue;
+		size_t j = pages[i].target_pp;
+		if(i == j) continue;
+		// TODO: switch to physical mode
+		static char tmp_page[PGSIZE];
+		void *pi = KADDR(i * PGSIZE), *pj = KADDR(j * PGSIZE);
+		memcpy(tmp_page, pi, PGSIZE);
+		memcpy(pi, pj, PGSIZE);
+		memcpy(pj, tmp_page, PGSIZE);
+		
+		struct PageInfo tmp = pages[i];
+		pages[i] = pages[j]; pages[j] = tmp;
+	}
+	rebuild_free_list();
+}
+
+void
+pmem_defrag()
+{
+	for(size_t i = 0; i < npages; i++)
+	{
+		pages[i].min_envid = 0x7fffffff;
+		pages[i].v = (void *) -1;
+	}
+	for(int i = 0; i < NENV; i++)
+		if(envs[i].env_status != ENV_FREE)
+			for(void *va = 0; va < (void *) UTOP; va += PGSIZE)
+			{
+				struct PageInfo *pp = page_lookup(envs[i].env_pgdir, va, NULL);
+				if(pp && envs[i].env_id < pp->min_envid)
+				{
+					pp->min_envid = envs[i].env_id;
+					pp->v = va;
+				}
+			}
+	// for(size_t i = 0; i < npages; i++)
+		// if(pages[i].pp_ref && pages[i].v == (void *) -1)
+			// cprintf("wow %p\n", i * PGSIZE);
+	// cprintf("total %p\n", npages * PGSIZE);
+	for(int i = npages - 1, j = npages - 1; i >= 0; i--)
+		if(pages[i].pp_ref && pages[i].v != (void *) -1)
+		{
+			pages[i].target_pp = j--;
+			while(pages[j].pp_ref && pages[j].v == (void *) -1) --j;
+		}
+		else if(pages[i].pp_ref) pages[i].target_pp = i;
+		else pages[i].target_pp = 0;
+	pages_apply_target();
+	cprintf("DEFRAG:  OK!\n");
 }
 
 static uintptr_t user_mem_check_addr;

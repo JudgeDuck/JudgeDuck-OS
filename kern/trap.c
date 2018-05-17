@@ -259,7 +259,10 @@ trap_dispatch(struct Trapframe *tf)
 	if(tf->tf_trapno == T_PGFLT)
 	{
 		if(curenv->env_judging)
+		{
+			// print_trapframe(tf);
 			finish_judge(VERDICT_RE);
+		}
 		page_fault_handler(tf);
 		return;
 	}

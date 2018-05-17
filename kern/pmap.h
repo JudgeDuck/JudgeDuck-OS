@@ -93,4 +93,6 @@ pte_t *pgdir_walk(pde_t *pgdir, const void *va, int create);
 // [begin, end]
 int pgdir_reperm(pde_t *pgdir, int old_perm, int new_perm, void *begin, void *end);
 
+void pmem_defrag();
+
 #endif /* !JOS_KERN_PMAP_H */
