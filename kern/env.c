@@ -563,6 +563,7 @@ env_run(struct Env *e)
 	lcr3(PADDR(e->env_pgdir));
 	
 	// cprintf("next = %lld\n", next_timer_shot);
+	// cprintf("env_run %x\n", e->env_id);
 	if(need_timer_shot)
 	{
 		need_timer_shot = 0;

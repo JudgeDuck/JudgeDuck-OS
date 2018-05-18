@@ -675,11 +675,24 @@ rebuild_free_list()
 {
 	page_free_list = NULL;
 	for(int i = npages - 1; i >= 0; i--)
-		if(pages[i].pp_ref == 0)
+		if(pages[i].pp_ref)
+			pages[i].pp_link = NULL;
+		else
 		{
 			pages[i].pp_link = page_free_list;
 			page_free_list = &pages[i];
 		}
+}
+
+static void
+qsort_pages_target_inv(int l, int r)
+{
+	for(int i = l; i <= r; i++)
+	{
+		if(!(pages[i].pp_ref && pages[i].v == (void *) -1)) break;
+		if(i == r) return;
+	}
+	int i = l, j = r;
 }
 
 static void
@@ -693,24 +706,31 @@ pages_apply_target()
 				struct PageInfo *pp = page_lookup(envs[i].env_pgdir, va, &pte);
 				if(pp)
 				{
-				assert(pp->target_pp);
+					assert(pp->target_pp);
 					*pte = (pp->target_pp * PGSIZE) | (*pte & 0xfff);
 				}
 			}
-	for(size_t i = 0; i < npages; i++)
+	while(1)
 	{
-		if(!pages[i].pp_ref) continue;
-		size_t j = pages[i].target_pp;
-		if(i == j) continue;
-		// TODO: switch to physical mode
-		static char tmp_page[PGSIZE];
-		void *pi = KADDR(i * PGSIZE), *pj = KADDR(j * PGSIZE);
-		memcpy(tmp_page, pi, PGSIZE);
-		memcpy(pi, pj, PGSIZE);
-		memcpy(pj, tmp_page, PGSIZE);
-		
-		struct PageInfo tmp = pages[i];
-		pages[i] = pages[j]; pages[j] = tmp;
+		bool ok = 1;
+		for(size_t i = 0; i < npages; i++)
+		{
+			if(!pages[i].pp_ref) continue;
+			size_t j = pages[i].target_pp;
+			if(i == j) continue;
+			ok = 0;
+			// cprintf("swap %d %d\n", i, j);
+			// TODO: switch to physical mode
+			static char tmp_page[PGSIZE];
+			void *pi = KADDR(i * PGSIZE), *pj = KADDR(j * PGSIZE);
+			memcpy(tmp_page, pi, PGSIZE);
+			memcpy(pi, pj, PGSIZE);
+			memcpy(pj, tmp_page, PGSIZE);
+			
+			struct PageInfo tmp = pages[i];
+			pages[i] = pages[j]; pages[j] = tmp;
+		}
+		if(ok) break;
 	}
 	rebuild_free_list();
 }
@@ -718,6 +738,7 @@ pages_apply_target()
 void
 pmem_defrag()
 {
+	cprintf("DEFRAG:  begin\n");
 	for(size_t i = 0; i < npages; i++)
 	{
 		pages[i].min_envid = 0x7fffffff;
@@ -739,13 +760,13 @@ pmem_defrag()
 			// cprintf("wow %p\n", i * PGSIZE);
 	// cprintf("total %p\n", npages * PGSIZE);
 	for(int i = npages - 1, j = npages - 1; i >= 0; i--)
-		if(pages[i].pp_ref && pages[i].v != (void *) -1)
-		{
-			pages[i].target_pp = j--;
-			while(pages[j].pp_ref && pages[j].v == (void *) -1) --j;
-		}
+	{
+		while(pages[j].pp_ref && pages[j].v == (void *) -1) --j;
+		if(pages[i].pp_ref && pages[i].v != (void *) -1) pages[i].target_pp = j--;
 		else if(pages[i].pp_ref) pages[i].target_pp = i;
-		else pages[i].target_pp = 0;
+		else pages[i].target_pp = -233;
+	}
+	cprintf("DEFRAG:  applying...\n");
 	pages_apply_target();
 	cprintf("DEFRAG:  OK!\n");
 }
