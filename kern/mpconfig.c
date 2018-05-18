@@ -180,6 +180,7 @@ mp_init(void)
 	for (p = conf->entries, i = 0; i < conf->entry; i++) {
 		switch (*p) {
 		case MPPROC:
+			continue;
 			proc = (struct mpproc *)p;
 			if (proc->flags & MPPROC_BOOT)
 				bootcpu = &cpus[ncpu];
