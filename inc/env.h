@@ -42,6 +42,7 @@ enum {
 // Special environment types
 enum EnvType {
 	ENV_TYPE_USER = 0,
+	ENV_TYPE_FS,		// File system server
 };
 
 struct Env {
@@ -70,7 +71,8 @@ struct Env {
 	// Judge
 	bool env_judge_waiting, env_judging;
 	struct Trapframe env_judge_tf;
-	struct JudgeResult *env_judge_res;
+	struct JudgeResult *env_judge_res; // stored in judger
+	struct JudgeParams env_judge_prm; // stored in judged env
 };
 
 #endif // !JOS_INC_ENV_H

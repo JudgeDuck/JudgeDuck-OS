@@ -111,6 +111,9 @@ boot_alloc(uint32_t n)
 	// LAB 2: Your code here.
 	void *ret = nextfree;
 	nextfree = ROUNDUP(nextfree + n, PGSIZE);
+	cprintf("boot_alloc: %p / %p\n", nextfree, 0xf0400000);
+	if (nextfree >= (char *) 0xf0400000)
+		panic("boot_alloc: out of memory");
 	return ret;
 }
 
@@ -337,8 +340,7 @@ page_init(void)
 	// NB: DO NOT actually touch the physical memory corresponding to
 	// free pages!
 	assert(MPENTRY_PADDR % PGSIZE == 0);
-	size_t i;
-	for(i = 0; i < npages; i++)
+	for(int i = npages - 1; i >= 0; i--)
 		if(i == 0 || (i * PGSIZE >= IOPHYSMEM && i * PGSIZE < EXTPHYSMEM + (4 << 20)) || i * PGSIZE == MPENTRY_PADDR)
 		{
 			pages[i].pp_ref = 233; // 233?
@@ -638,6 +640,135 @@ mmio_map_region(physaddr_t pa, size_t size)
 	base += size;
 	//panic("mmio_map_region not implemented");
 	return ret;
+}
+
+// [begin, end]
+int
+pgdir_reperm(pde_t *pgdir, int old_perm, int new_perm, void *begin, void *end)
+{
+	// if(!(old_perm & PTE_SYSCALL)) return -E_INVAL;
+	// if(!(new_perm & PTE_SYSCALL) && new_perm) return -E_INVAL;
+	if((old_perm & -old_perm) != old_perm) return -E_INVAL;
+	if((new_perm & -new_perm) != new_perm) return -E_INVAL;
+	// cprintf("REPERM %p to %p\n", begin, end);
+	begin = ROUNDDOWN(begin, PGSIZE);
+	end = ROUNDDOWN(end, PGSIZE);
+	if(begin > end) return -E_INVAL;
+	int ret = 0;
+	for(void *cur = begin;; cur += PGSIZE)
+	{
+		// cprintf("REPERM %p\n", cur);
+		pte_t *pte = pgdir_walk(pgdir, cur, 0);
+		if(pte && (*pte & old_perm))
+		{
+			*pte = (*pte & ~old_perm) | new_perm;
+			++ret;
+		}
+		if(cur == end) break;
+	}
+	// cprintf("REPERM END %d\n", ret);
+	return ret;
+}
+
+static void
+rebuild_free_list()
+{
+	page_free_list = NULL;
+	for(int i = npages - 1; i >= 0; i--)
+		if(pages[i].pp_ref)
+			pages[i].pp_link = NULL;
+		else
+		{
+			pages[i].pp_link = page_free_list;
+			page_free_list = &pages[i];
+		}
+}
+
+static void
+qsort_pages_target_inv(int l, int r)
+{
+	for(int i = l; i <= r; i++)
+	{
+		if(!(pages[i].pp_ref && pages[i].v == (void *) -1)) break;
+		if(i == r) return;
+	}
+	int i = l, j = r;
+}
+
+static void
+pages_apply_target()
+{
+	for(int i = 0; i < NENV; i++)
+		if(envs[i].env_status != ENV_FREE)
+			for(void *va = 0; va < (void *) UTOP; va += PGSIZE)
+			{
+				pte_t *pte;
+				struct PageInfo *pp = page_lookup(envs[i].env_pgdir, va, &pte);
+				if(pp)
+				{
+					assert(pp->target_pp);
+					*pte = (pp->target_pp * PGSIZE) | (*pte & 0xfff);
+				}
+			}
+	while(1)
+	{
+		bool ok = 1;
+		for(size_t i = 0; i < npages; i++)
+		{
+			if(!pages[i].pp_ref) continue;
+			size_t j = pages[i].target_pp;
+			if(i == j) continue;
+			ok = 0;
+			// cprintf("swap %d %d\n", i, j);
+			// TODO: switch to physical mode
+			static char tmp_page[PGSIZE];
+			void *pi = KADDR(i * PGSIZE), *pj = KADDR(j * PGSIZE);
+			memcpy(tmp_page, pi, PGSIZE);
+			memcpy(pi, pj, PGSIZE);
+			memcpy(pj, tmp_page, PGSIZE);
+			
+			struct PageInfo tmp = pages[i];
+			pages[i] = pages[j]; pages[j] = tmp;
+		}
+		if(ok) break;
+	}
+	rebuild_free_list();
+}
+
+void
+pmem_defrag()
+{
+	cprintf("DEFRAG:  begin\n");
+	for(size_t i = 0; i < npages; i++)
+	{
+		pages[i].min_envid = 0x7fffffff;
+		pages[i].v = (void *) -1;
+	}
+	for(int i = 0; i < NENV; i++)
+		if(envs[i].env_status != ENV_FREE)
+			for(void *va = 0; va < (void *) UTOP; va += PGSIZE)
+			{
+				struct PageInfo *pp = page_lookup(envs[i].env_pgdir, va, NULL);
+				if(pp && envs[i].env_id < pp->min_envid)
+				{
+					pp->min_envid = envs[i].env_id;
+					pp->v = va;
+				}
+			}
+	// for(size_t i = 0; i < npages; i++)
+		// if(pages[i].pp_ref && pages[i].v == (void *) -1)
+			// cprintf("wow %p\n", i * PGSIZE);
+	// cprintf("total %p\n", npages * PGSIZE);
+	for(int i = npages - 1, j = npages - 1; i >= 0; i--)
+	{
+		while(pages[j].pp_ref && pages[j].v == (void *) -1) --j;
+		if(pages[i].pp_ref && pages[i].v != (void *) -1) pages[i].target_pp = j--;
+		else if(pages[i].pp_ref) pages[i].target_pp = i;
+		else pages[i].target_pp = -233;
+	}
+	cprintf("DEFRAG:  applying...\n");
+	pages_apply_target();
+	cprintf("DEFRAG:  OK!\n");
 }
 
 static uintptr_t user_mem_check_addr;

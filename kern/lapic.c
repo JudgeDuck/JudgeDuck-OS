@@ -61,6 +61,12 @@ lapic_timer_single_shot(uint64_t ns)
 	lapicw(TICR, ns / 128);
 }
 
+void
+lapic_timer_disable()
+{
+	lapicw(TICR, -1);
+}
+
 uint64_t
 lapic_timer_current_count()
 {
@@ -87,7 +93,7 @@ lapic_init(void)
 	lapicw(TDCR, X128);
 	lapicw(TIMER, SINGLESHOT | (IRQ_OFFSET + IRQ_TIMER));
 	//lapicw(TICR, 1000000000); 
-	timer_single_shot_s(1);
+	// timer_single_shot_s(1);
 
 	// Leave LINT0 of the BSP enabled so that it can get
 	// interrupts from the 8259A chip.

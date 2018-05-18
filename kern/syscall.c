@@ -13,6 +13,7 @@
 #include <kern/console.h>
 #include <kern/sched.h>
 #include <kern/timer.h>
+#include <kern/judge.h>
 
 // Print a string to the system console.
 // The string is exactly 'len' characters long.
@@ -58,10 +59,6 @@ sys_env_destroy(envid_t envid)
 
 	if ((r = envid2env(envid, &e, 1)) < 0)
 		return r;
-	if (e == curenv)
-		cprintf("[%08x] exiting gracefully\n", curenv->env_id);
-	else
-		cprintf("[%08x] destroying %08x\n", curenv->env_id, e->env_id);
 	env_destroy(e);
 	return 0;
 }
@@ -124,6 +121,34 @@ sys_env_set_status(envid_t envid, int status)
 	e->env_status = status;
 	return 0;
 	//panic("sys_env_set_status not implemented");
+}
+
+// Set envid's trap frame to 'tf'.
+// tf is modified to make sure that user environments always run at code
+// protection level 3 (CPL 3) with interrupts enabled.
+//
+// Returns 0 on success, < 0 on error.  Errors are:
+//	-E_BAD_ENV if environment envid doesn't currently exist,
+//		or the caller doesn't have permission to change envid.
+static int
+sys_env_set_trapframe(envid_t envid, struct Trapframe *tf)
+{
+	// LAB 5: Your code here.
+	// Remember to check whether the user has supplied us with a good
+	// address!
+	//panic("sys_env_set_trapframe not implemented");
+	struct Env *e;
+	int ret = envid2env(envid, &e, 1);
+	if(ret < 0)
+		return ret;
+	user_mem_assert(curenv, tf, sizeof(struct Trapframe), PTE_U);
+	e->env_tf = *tf;
+	e->env_tf.tf_ds = GD_UD | 3;
+	e->env_tf.tf_es = GD_UD | 3;
+	e->env_tf.tf_ss = GD_UD | 3;
+	e->env_tf.tf_cs = GD_UT | 3;
+	e->env_tf.tf_eflags |= FL_IF;
+	return 0;
 }
 
 // Set the page fault upcall for 'envid' by modifying the corresponding struct
@@ -396,14 +421,14 @@ sys_ipc_recv(void *dstva)
 }
 
 static int
-sys_enter_judge(void *eip, void *esp)
+sys_enter_judge(void *eip)
 {
 	// TODO: validate
 	curenv->env_status = ENV_NOT_RUNNABLE;
 	curenv->env_judge_waiting = 1;
 	curenv->env_judge_tf = curenv->env_tf;
 	curenv->env_judge_tf.tf_eip = (uint32_t) eip;
-	curenv->env_judge_tf.tf_esp = (uint32_t) esp;
+	// curenv->env_judge_tf.tf_esp = (uint32_t) esp;
 	sched_yield();
 	return 0;
 }
@@ -418,14 +443,24 @@ sys_accept_enter_judge(envid_t envid, struct JudgeParams *prm, struct JudgeResul
 	int ret = envid2env(envid, &env, 0);
 	if(ret < 0) return -E_INVAL;
 	if(!env->env_judge_waiting) return -E_INVAL;
-	if(ms < 100 || ms > 500000) return -E_INVAL;
+	if(ms < 1 || ms > 500000) return -E_INVAL;
+	
+	lapic_timer_disable();
+	
+	if(prm->defrag_mem) pmem_defrag();
 	
 	struct Trapframe tmp = env->env_judge_tf;
 	env->env_judge_tf = env->env_tf; env->env_tf = tmp;
+	env->env_tf.tf_esp = 0x10001000 + prm->kb * 1024;
 	env->env_judge_tf.tf_regs.reg_eax = 0;
+	
+	pgdir_reperm(env->env_pgdir, PTE_D, 0, NULL, (void *) UTOP);
+	pgdir_reperm(env->env_pgdir, PTE_W, PTE_TDW, NULL, (void *) UTOP);
+	pgdir_reperm(env->env_pgdir, PTE_TDW, PTE_W, (void *) 0x10001000, (void *) env->env_tf.tf_esp);
 	
 	curenv->env_tf.tf_regs.reg_eax = 0; // return 0
 	curenv->env_judge_res = res;
+	env->env_judge_prm = *prm;
 	res->verdict = VERDICT_SE;
 	judger_env = curenv;
 	
@@ -450,18 +485,9 @@ sys_quit_judge()
 	// cprintf("quit judge!\n");
 	if(!curenv->env_judging) return -E_INVAL;
 	
-	curenv->env_judging = 0;
-	curenv->env_tf = curenv->env_judge_tf;
-	
-	lcr3(PADDR(judger_env->env_pgdir));
-	judger_env->env_judge_res->time_cycles += read_tsc();
-	// cprintf("origin %lld\n", lapic_timer_current_count());
-	judger_env->env_judge_res->time_ns -= lapic_timer_current_count();
-	judger_env->env_judge_res->verdict = VERDICT_OK;
-	lcr3(PADDR(curenv->env_pgdir));
-	
-	timer_single_shot_ns(DEFAULT_TIMER_INTERVAL);
-	return 0;
+	finish_judge(VERDICT_OK);
+	// won't reach here
+	return 233;
 }
 
 // Dispatches to the correct kernel function, passing the arguments.
@@ -504,11 +530,13 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 	case SYS_ipc_recv:
 		return sys_ipc_recv((void *) a1);
 	case SYS_enter_judge:
-		return sys_enter_judge((void *) a1, (void *) a2);
+		return sys_enter_judge((void *) a1);
 	case SYS_accept_enter_judge:
 		return sys_accept_enter_judge(a1, (void *) a2, (void *) a3);
 	case SYS_quit_judge:
 		return sys_quit_judge();
+	case SYS_env_set_trapframe:
+		return sys_env_set_trapframe(a1, (struct Trapframe *) a2);
 	default:
 		return -E_INVAL;
 	}

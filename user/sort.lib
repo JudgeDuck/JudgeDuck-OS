@@ -1,0 +1,39 @@
+#include <inc/lib.h>
+
+void sort(unsigned *a, int n);
+
+static union
+{
+	char USER_STACK[1 << 20];
+	struct
+	{
+		unsigned a[10007]; int n;
+	};
+} u;
+
+void
+sort_wrapper(void)
+{
+	sort(u.a, u.n);
+	sys_quit_judge();
+}
+
+void
+umain(int argc, char **argv)
+{
+	cprintf("SORTLIB: I am sort.lib, making data at %p......\n", u.a);
+	u.n = 10000;
+	u.a[0] = 998244353u;
+	for(int i = 1; i < u.n; i++)
+		u.a[i] = u.a[i - 1] * 13131u + 3131313u;
+	cprintf("SORTLIB: data ready, before sys_enter_judge......\n");
+	int ret = sys_enter_judge(sort_wrapper);
+	cprintf("SORTLIB: sys_enter_judge returned %d\n", ret);
+	for(int i = 1; i < u.n; i++)
+		if(u.a[i] < u.a[i - 1])
+		{
+			cprintf("SORTLIB: Wrong Answer at %d\n", i);
+			return;
+		}
+	cprintf("SORTLIB: Correct Answer!\n");
+}

@@ -2,6 +2,7 @@
 #define JOS_INC_JUDGE_H
 
 #include <inc/syscall.h>
+#include <inc/trap.h>
 
 struct JudgeParams
 {
@@ -9,7 +10,7 @@ struct JudgeParams
 	int syscall_enabled[NSYSCALLS];
 	// writable_addr_begin and (writable_addr_end + 1) must be page-aligned
 	void *writable_addr_begin, *writable_addr_end;
-	bool defrag_mem; // to be implemented
+	bool defrag_mem;
 };
 
 enum JudgeVerdict
@@ -27,6 +28,7 @@ struct JudgeResult
 	uint64_t time_cycles;
 	uint64_t time_ns;
 	int mem_kb; // to be implemented
+	struct Trapframe tf;
 };
 
 #endif

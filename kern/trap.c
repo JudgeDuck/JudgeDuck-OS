@@ -13,6 +13,7 @@
 #include <kern/picirq.h>
 #include <kern/cpu.h>
 #include <kern/timer.h>
+#include <kern/judge.h>
 #include <kern/spinlock.h>
 
 static struct Taskstate ts;
@@ -259,18 +260,8 @@ trap_dispatch(struct Trapframe *tf)
 	{
 		if(curenv->env_judging)
 		{
-			// RE
-			curenv->env_judging = 0;
-			curenv->env_tf = curenv->env_judge_tf;
-			
-			lcr3(PADDR(judger_env->env_pgdir));
-			judger_env->env_judge_res->time_cycles += read_tsc();
-			judger_env->env_judge_res->time_ns -= lapic_timer_current_count();
-			judger_env->env_judge_res->verdict = VERDICT_RE;
-			lcr3(PADDR(curenv->env_pgdir));
-			timer_single_shot_ns(DEFAULT_TIMER_INTERVAL);
-			sched_yield();
-			return;
+			// print_trapframe(tf);
+			finish_judge(VERDICT_RE);
 		}
 		page_fault_handler(tf);
 		return;
@@ -278,25 +269,14 @@ trap_dispatch(struct Trapframe *tf)
 	else if(tf->tf_trapno == T_BRKPT)
 	{
 		if(curenv->env_judging)
-		{
-			// RE
-			curenv->env_judging = 0;
-			curenv->env_tf = curenv->env_judge_tf;
-			
-			lcr3(PADDR(judger_env->env_pgdir));
-			judger_env->env_judge_res->time_cycles += read_tsc();
-			judger_env->env_judge_res->time_ns -= lapic_timer_current_count();
-			judger_env->env_judge_res->verdict = VERDICT_RE;
-			lcr3(PADDR(curenv->env_pgdir));
-			timer_single_shot_ns(DEFAULT_TIMER_INTERVAL);
-			sched_yield();
-			return;
-		}
+			finish_judge(VERDICT_RE);
 		monitor(tf);
 		return;
 	}
 	else if(tf->tf_trapno == T_SYSCALL)
 	{
+		if(curenv->env_judging && !curenv->env_judge_prm.syscall_enabled[tf->tf_regs.reg_eax])
+			finish_judge(VERDICT_IS);
 		tf->tf_regs.reg_eax = syscall(
 			tf->tf_regs.reg_eax, tf->tf_regs.reg_edx, tf->tf_regs.reg_ecx,
 			tf->tf_regs.reg_ebx, tf->tf_regs.reg_edi, tf->tf_regs.reg_esi
@@ -305,27 +285,20 @@ trap_dispatch(struct Trapframe *tf)
 	}
 	else if(tf->tf_trapno == IRQ_OFFSET + IRQ_TIMER)
 	{
-		if(curenv->env_judging)
-		{
-			// TLE
-			curenv->env_judging = 0;
-			curenv->env_tf = curenv->env_judge_tf;
-			
-			lcr3(PADDR(judger_env->env_pgdir));
-			judger_env->env_judge_res->time_cycles += read_tsc();
-			judger_env->env_judge_res->time_ns -= lapic_timer_current_count();
-			judger_env->env_judge_res->verdict = VERDICT_TLE;
-			lcr3(PADDR(curenv->env_pgdir));
-		}
-		static int cnt = 0;
-		static uint64_t last_tsc = 0;
-		uint64_t cur_tsc = read_tsc();
-		// if(cnt) cprintf("hehe %d | %lld\n", cnt, (cur_tsc - last_tsc));
-		++cnt;
-		last_tsc = cur_tsc;
 		lapic_eoi();
-		timer_single_shot_ns(DEFAULT_TIMER_INTERVAL);
+		if(curenv->env_judging)
+			finish_judge(VERDICT_TLE);
 		sched_yield();
+		return;
+	}
+	else if(tf->tf_trapno == IRQ_OFFSET + IRQ_KBD)
+	{
+		kbd_intr();
+		return;
+	}
+	else if(tf->tf_trapno == IRQ_OFFSET + IRQ_SERIAL)
+	{
+		serial_intr();
 		return;
 	}
 
@@ -342,26 +315,20 @@ trap_dispatch(struct Trapframe *tf)
 	// interrupt using lapic_eoi() before calling the scheduler!
 	// LAB 4: Your code here.
 
+	// Handle keyboard and serial interrupts.
+	// LAB 5: Your code here.
+
 	// Unexpected trap: The user process or the kernel has a bug.
-	print_trapframe(tf);
 	if (tf->tf_cs == GD_KT)
+	{
+		print_trapframe(tf);
 		panic("unhandled trap in kernel");
-	else {
+	}
+	else
+	{
 		if(curenv->env_judging)
-		{
-			// RE
-			curenv->env_judging = 0;
-			curenv->env_tf = curenv->env_judge_tf;
-			
-			lcr3(PADDR(judger_env->env_pgdir));
-			judger_env->env_judge_res->time_cycles += read_tsc();
-			judger_env->env_judge_res->time_ns -= lapic_timer_current_count();
-			judger_env->env_judge_res->verdict = VERDICT_RE;
-			lcr3(PADDR(curenv->env_pgdir));
-			timer_single_shot_ns(DEFAULT_TIMER_INTERVAL);
-			sched_yield();
-			return;
-		}
+			finish_judge(VERDICT_RE);
+		print_trapframe(tf);
 		env_destroy(curenv);
 		return;
 	}
@@ -374,7 +341,8 @@ trap(struct Trapframe *tf)
 	// of GCC rely on DF being clear
 	asm volatile("cld" ::: "cc");
 	
-	// cprintf("asdfasdfasdf %lld\n", lapic_timer_current_count());
+	lapic_tccr_when_trap_begin = lapic_timer_current_count();
+	tsc_when_trap_begin = read_tsc();
 
 	// Halt the CPU if some other CPU has called panic()
 	extern char *panicstr;
@@ -461,13 +429,14 @@ page_fault_handler(struct Trapframe *tf)
 	// we branch to the page fault upcall recursively, pushing another
 	// page fault stack frame on top of the user exception stack.
 	//
-	// The trap handler needs one word of scratch space at the top of the
-	// trap-time stack in order to return.  In the non-recursive case, we
-	// don't have to worry about this because the top of the regular user
-	// stack is free.  In the recursive case, this means we have to leave
-	// an extra word between the current top of the exception stack and
-	// the new stack frame because the exception stack _is_ the trap-time
-	// stack.
+	// It is convenient for our code which returns from a page fault
+	// (lib/pfentry.S) to have one word of scratch space at the top of the
+	// trap-time stack; it allows us to more easily restore the eip/esp. In
+	// the non-recursive case, we don't have to worry about this because
+	// the top of the regular user stack is free.  In the recursive case,
+	// this means we have to leave an extra word between the current top of
+	// the exception stack and the new stack frame because the exception
+	// stack _is_ the trap-time stack.
 	//
 	// If there's no page fault upcall, the environment didn't allocate a
 	// page for its exception stack or can't write to it, or the exception
@@ -527,6 +496,7 @@ trap_gg:
 	cprintf("[%08x] user fault va %08x ip %08x\n",
 		curenv->env_id, fault_va, tf->tf_eip);
 	print_trapframe(tf);
+	monitor(tf);
 	env_destroy(curenv);
 }
 
