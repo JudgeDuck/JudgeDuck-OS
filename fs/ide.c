@@ -17,9 +17,13 @@ static int diskno = 1;
 static int
 ide_wait_ready(bool check_error)
 {
+	// for(int i = 0; i < 1000000000; i++) asm volatile("");
+	// return 0;
+	
 	int r;
 
 	while (((r = inb(0x1F7)) & (IDE_BSY|IDE_DRDY)) != IDE_DRDY)
+	// while (((r = inb(0x1F7)) & (IDE_DRDY)) != IDE_DRDY)
 		/* do nothing */;
 
 	if (check_error && (r & (IDE_DF|IDE_ERR)) != 0)
@@ -92,6 +96,7 @@ ide_write(uint32_t secno, const void *src, size_t nsecs)
 
 	assert(nsecs <= 256);
 
+	cprintf("ide_wait_ready\n");
 	ide_wait_ready(0);
 
 	outb(0x1F2, nsecs);
@@ -102,8 +107,10 @@ ide_write(uint32_t secno, const void *src, size_t nsecs)
 	outb(0x1F7, 0x30);	// CMD 0x30 means write sector
 
 	for (; nsecs > 0; nsecs--, src += SECTSIZE) {
+		cprintf("asdf %d\n", nsecs);
 		if ((r = ide_wait_ready(1)) < 0)
 			return r;
+		cprintf("endf %d\n", nsecs);
 		outsl(0x1F0, src, SECTSIZE/4);
 	}
 

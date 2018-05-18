@@ -12,7 +12,10 @@ void
 check_super(void)
 {
 	if (super->s_magic != FS_MAGIC)
+	{
+		cprintf("magic = %08x vs %08x", super->s_magic, FS_MAGIC);
 		panic("bad file system magic number");
+	}
 
 	if (super->s_nblocks > DISKSIZE/BLKSIZE)
 		panic("file system is too large");
@@ -105,19 +108,23 @@ fs_init(void)
 {
 	static_assert(sizeof(struct File) == 256);
 
+	cprintf("ide_probe_disk\n");
 	// Find a JOS disk.  Use the second IDE disk (number 1) if available
 	if (ide_probe_disk1())
 		ide_set_disk(1);
 	else
 		ide_set_disk(0);
+	cprintf("bc_init\n");
 	bc_init();
 
 	// Set "super" to point to the super block.
 	super = diskaddr(1);
+	cprintf("check_super\n");
 	check_super();
 
 	// Set "bitmap" to the beginning of the first bitmap block.
 	bitmap = diskaddr(2);
+	cprintf("check_bitmap\n");
 	check_bitmap();
 	
 }

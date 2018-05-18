@@ -85,7 +85,9 @@ flush_block(void *addr)
 	addr = (void *) ROUNDDOWN(addr, BLKSIZE);
 	if(va_is_mapped(addr) && va_is_dirty(addr))
 	{
+		cprintf("before ide_write\n");
 		ide_write(blockno * BLKSECTS, addr, BLKSECTS);
+		cprintf("after ide_write\n");
 		if ((r = sys_page_map(0, addr, 0, addr, uvpt[PGNUM(addr)] & PTE_SYSCALL)) < 0)
 			panic("in flush_block, sys_page_map: %e", r);
 	}
@@ -98,23 +100,31 @@ static void
 check_bc(void)
 {
 	struct Super backup;
-
+	
+	cprintf("back up super block\n");
 	// back up super block
 	memmove(&backup, diskaddr(1), sizeof backup);
 
+	cprintf("smash it\n");
 	// smash it
+	cprintf("strcpy\n");
 	strcpy(diskaddr(1), "OOPS!\n");
+	cprintf("flush\n");
 	flush_block(diskaddr(1));
+	cprintf("assert\n");
 	assert(va_is_mapped(diskaddr(1)));
 	assert(!va_is_dirty(diskaddr(1)));
 
+	cprintf("clear it out\n");
 	// clear it out
 	sys_page_unmap(0, diskaddr(1));
 	assert(!va_is_mapped(diskaddr(1)));
 
+	cprintf("read it back in\n");
 	// read it back in
 	assert(strcmp(diskaddr(1), "OOPS!\n") == 0);
 
+	cprintf("fix it\n");
 	// fix it
 	memmove(diskaddr(1), &backup, sizeof backup);
 	flush_block(diskaddr(1));
@@ -127,6 +137,7 @@ bc_init(void)
 {
 	struct Super super;
 	set_pgfault_handler(bc_pgfault);
+	cprintf("check_bc\n");
 	check_bc();
 
 	// cache the super block by reading it once

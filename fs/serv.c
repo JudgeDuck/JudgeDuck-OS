@@ -361,9 +361,13 @@ umain(int argc, char **argv)
 	outw(0x8A00, 0x8A00);
 	cprintf("FS can do I/O\n");
 
+	cprintf("serve_init\n");
 	serve_init();
+	cprintf("fs_init\n");
 	fs_init();
-        fs_test();
+	cprintf("fs_test\n");
+    fs_test();
+	cprintf("serve\n");
 	serve();
 }
 
