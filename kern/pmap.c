@@ -111,8 +111,8 @@ boot_alloc(uint32_t n)
 	// LAB 2: Your code here.
 	void *ret = nextfree;
 	nextfree = ROUNDUP(nextfree + n, PGSIZE);
-	cprintf("boot_alloc: %p / %p\n", nextfree, 0xf0400000);
-	if (nextfree >= (char *) 0xf0400000)
+	cprintf("boot_alloc: %p / %p\n", nextfree, 0xf0800000);
+	if (nextfree >= (char *) 0xf0800000)
 		panic("boot_alloc: out of memory");
 	return ret;
 }
@@ -209,9 +209,9 @@ mem_init(void)
 	// LAB 3: Your code here.
 	//cprintf("vaddr envs %p\n", envs);
 	boot_map_region(kern_pgdir, UENVS, ROUNDUP(envs_size, PGSIZE), PADDR(envs), PTE_U | PTE_P);
-	cprintf("uenvs %p size %p pa %p\n", UENVS, ROUNDUP(envs_size, PGSIZE), PADDR(envs));
-	cprintf("kern walk %p %p\n", pgdir_walk(kern_pgdir, (void *) 0xeec60000, 0), *pgdir_walk(kern_pgdir, (void *) 0xeec60000, 0));
-	cprintf("kern walk %p %p\n", pgdir_walk(kern_pgdir, (void *) 0xeec60048, 0), *pgdir_walk(kern_pgdir, (void *) 0xeec60048, 0));
+	// cprintf("uenvs %p size %p pa %p\n", UENVS, ROUNDUP(envs_size, PGSIZE), PADDR(envs));
+	// cprintf("kern walk %p %p\n", pgdir_walk(kern_pgdir, (void *) 0xeec60000, 0), *pgdir_walk(kern_pgdir, (void *) 0xeec60000, 0));
+	// cprintf("kern walk %p %p\n", pgdir_walk(kern_pgdir, (void *) 0xeec60048, 0), *pgdir_walk(kern_pgdir, (void *) 0xeec60048, 0));
 	//while(1);
 
 	//////////////////////////////////////////////////////////////////////
@@ -341,7 +341,7 @@ page_init(void)
 	// free pages!
 	assert(MPENTRY_PADDR % PGSIZE == 0);
 	for(int i = npages - 1; i >= 0; i--)
-		if(i == 0 || (i * PGSIZE >= IOPHYSMEM && i * PGSIZE < EXTPHYSMEM + (4 << 20)) || i * PGSIZE == MPENTRY_PADDR)
+		if(i == 0 || (i * PGSIZE >= IOPHYSMEM && i * PGSIZE < EXTPHYSMEM + (8 << 20)) || i * PGSIZE == MPENTRY_PADDR)
 		{
 			pages[i].pp_ref = 233; // 233?
 		}

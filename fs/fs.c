@@ -107,6 +107,8 @@ void
 fs_init(void)
 {
 	static_assert(sizeof(struct File) == 256);
+	extern void ide_init(void);
+	ide_init();
 
 	cprintf("ide_probe_disk\n");
 	// Find a JOS disk.  Use the second IDE disk (number 1) if available

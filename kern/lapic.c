@@ -84,7 +84,8 @@ lapic_init(void)
 	lapic = mmio_map_region(lapicaddr, 4096);
 
 	// Enable local APIC; set spurious interrupt vector.
-	lapicw(SVR, ENABLE | (IRQ_OFFSET + IRQ_SPURIOUS));
+	// lapicw(SVR, ENABLE | (IRQ_OFFSET + IRQ_SPURIOUS));
+	lapicw(SVR, MASKED);
 
 	// The timer repeatedly counts down at bus frequency
 	// from lapic[TICR] and then issues an interrupt.  

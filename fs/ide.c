@@ -7,113 +7,245 @@
 #include "fs.h"
 #include <inc/x86.h>
 
-#define IDE_BSY		0x80
-#define IDE_DRDY	0x40
-#define IDE_DF		0x20
-#define IDE_ERR		0x01
+#define ISA_DATA                0x00
+#define ISA_ERROR               0x01
+#define ISA_PRECOMP             0x01
+#define ISA_CTRL                0x02
+#define ISA_SECCNT              0x02
+#define ISA_SECTOR              0x03
+#define ISA_CYL_LO              0x04
+#define ISA_CYL_HI              0x05
+#define ISA_SDH                 0x06
+#define ISA_COMMAND             0x07
+#define ISA_STATUS              0x07
 
-static int diskno = 1;
+#define IDE_BSY                 0x80
+#define IDE_DRDY                0x40
+#define IDE_DF                  0x20
+#define IDE_DRQ                 0x08
+#define IDE_ERR                 0x01
+
+#define IDE_CMD_READ            0x20
+#define IDE_CMD_WRITE           0x30
+#define IDE_CMD_IDENTIFY        0xEC
+
+#define IDE_IDENT_SECTORS       20
+#define IDE_IDENT_MODEL         54
+#define IDE_IDENT_CAPABILITIES  98
+#define IDE_IDENT_CMDSETS       164
+#define IDE_IDENT_MAX_LBA       120
+#define IDE_IDENT_MAX_LBA_EXT   200
+
+#define IO_BASE0                0x1F0
+#define IO_BASE1                0x170
+#define IO_CTRL0                0x3F4
+#define IO_CTRL1                0x374
+
+#define MAX_IDE                 4
+#define MAX_NSECS               128
+#define MAX_DISK_NSECS          0x10000000U
+#define VALID_IDE(ideno)        (((ideno) >= 0) && ((ideno) < MAX_IDE) && (ide_devices[ideno].valid))
+
+static const struct {
+    unsigned short base;        // I/O Base
+    unsigned short ctrl;        // Control Base
+} channels[2] = {
+    {IO_BASE0, IO_CTRL0},
+    {IO_BASE1, IO_CTRL1},
+};
+
+#define IO_BASE(ideno)          (channels[(ideno) >> 1].base)
+#define IO_CTRL(ideno)          (channels[(ideno) >> 1].ctrl)
+
+static struct ide_device {
+    unsigned char valid;        // 0 or 1 (If Device Really Exists)
+    unsigned int sets;          // Commend Sets Supported
+    unsigned int size;          // Size in Sectors
+    unsigned char model[41];    // Model in String
+} ide_devices[MAX_IDE];
+
+static int
+ucore_ide_wait_ready(unsigned short iobase, bool check_error) {
+    int r;
+    while ((r = inb(iobase + ISA_STATUS)) & IDE_BSY)
+        /* nothing */;
+    if (check_error && (r & (IDE_DF | IDE_ERR)) != 0) {
+        return -1;
+    }
+    return 0;
+}
+
+void
+ide_init(void) {
+    static_assert((SECTSIZE % 4) == 0);
+    unsigned short ideno, iobase;
+    for (ideno = 0; ideno < MAX_IDE; ideno ++) {
+        /* assume that no device here */
+        ide_devices[ideno].valid = 0;
+
+        iobase = IO_BASE(ideno);
+
+        /* wait device ready */
+        ucore_ide_wait_ready(iobase, 0);
+
+        /* step1: select drive */
+        outb(iobase + ISA_SDH, 0xE0 | ((ideno & 1) << 4));
+        ucore_ide_wait_ready(iobase, 0);
+
+        /* step2: send ATA identify command */
+        outb(iobase + ISA_COMMAND, IDE_CMD_IDENTIFY);
+        ucore_ide_wait_ready(iobase, 0);
+
+        /* step3: polling */
+        if (inb(iobase + ISA_STATUS) == 0 || ucore_ide_wait_ready(iobase, 1) != 0) {
+            continue ;
+        }
+
+        /* device is ok */
+        ide_devices[ideno].valid = 1;
+
+        /* read identification space of the device */
+        unsigned int buffer[128];
+        insl(iobase + ISA_DATA, buffer, sizeof(buffer) / sizeof(unsigned int));
+
+        unsigned char *ident = (unsigned char *)buffer;
+        unsigned int sectors;
+        unsigned int cmdsets = *(unsigned int *)(ident + IDE_IDENT_CMDSETS);
+        /* device use 48-bits or 28-bits addressing */
+        if (cmdsets & (1 << 26)) {
+            sectors = *(unsigned int *)(ident + IDE_IDENT_MAX_LBA_EXT);
+        }
+        else {
+            sectors = *(unsigned int *)(ident + IDE_IDENT_MAX_LBA);
+        }
+        ide_devices[ideno].sets = cmdsets;
+        ide_devices[ideno].size = sectors;
+
+        /* check if supports LBA */
+        assert((*(unsigned short *)(ident + IDE_IDENT_CAPABILITIES) & 0x200) != 0);
+
+        unsigned char *model = ide_devices[ideno].model, *data = ident + IDE_IDENT_MODEL;
+        unsigned int i, length = 40;
+        for (i = 0; i < length; i += 2) {
+            model[i] = data[i + 1], model[i + 1] = data[i];
+        }
+        do {
+            model[i] = '\0';
+        } while (i -- > 0 && model[i] == ' ');
+
+        cprintf("ide %d: %10u(sectors), '%s'.\n", ideno, ide_devices[ideno].size, ide_devices[ideno].model);
+    }
+	cprintf("ide ok\n");
+	// while(1);
+}
+
+bool
+ucore_ide_device_valid(unsigned short ideno) {
+    return VALID_IDE(ideno);
+}
+
+size_t
+ucore_ide_device_size(unsigned short ideno) {
+    if (ucore_ide_device_valid(ideno)) {
+        return ide_devices[ideno].size;
+    }
+    return 0;
+}
+
+int
+ucore_ide_read_secs(unsigned short ideno, uint32_t secno, void *dst, size_t nsecs) {
+    assert(nsecs <= MAX_NSECS && VALID_IDE(ideno));
+    assert(secno < MAX_DISK_NSECS && secno + nsecs <= MAX_DISK_NSECS);
+    unsigned short iobase = IO_BASE(ideno), ioctrl = IO_CTRL(ideno);
+
+    ucore_ide_wait_ready(iobase, 0);
+
+    // generate interrupt
+    // outb(ioctrl + ISA_CTRL, 0);
+    outb(iobase + ISA_SECCNT, nsecs);
+    outb(iobase + ISA_SECTOR, secno & 0xFF);
+    outb(iobase + ISA_CYL_LO, (secno >> 8) & 0xFF);
+    outb(iobase + ISA_CYL_HI, (secno >> 16) & 0xFF);
+    outb(iobase + ISA_SDH, 0xE0 | ((ideno & 1) << 4) | ((secno >> 24) & 0xF));
+    outb(iobase + ISA_COMMAND, IDE_CMD_READ);
+
+    int ret = 0;
+    for (; nsecs > 0; nsecs --, dst += SECTSIZE) {
+        if ((ret = ucore_ide_wait_ready(iobase, 1)) != 0) {
+            goto out;
+        }
+        insl(iobase, dst, SECTSIZE / sizeof(uint32_t));
+    }
+
+out:
+    return ret;
+}
+
+int
+ucore_ide_write_secs(unsigned short ideno, uint32_t secno, const void *src, size_t nsecs) {
+    assert(nsecs <= MAX_NSECS && VALID_IDE(ideno));
+    assert(secno < MAX_DISK_NSECS && secno + nsecs <= MAX_DISK_NSECS);
+    unsigned short iobase = IO_BASE(ideno), ioctrl = IO_CTRL(ideno);
+
+    ucore_ide_wait_ready(iobase, 0);
+
+    // generate interrupt
+    // outb(ioctrl + ISA_CTRL, 0);
+    outb(iobase + ISA_SECCNT, nsecs);
+    outb(iobase + ISA_SECTOR, secno & 0xFF);
+    outb(iobase + ISA_CYL_LO, (secno >> 8) & 0xFF);
+    outb(iobase + ISA_CYL_HI, (secno >> 16) & 0xFF);
+    outb(iobase + ISA_SDH, 0xE0 | ((ideno & 1) << 4) | ((secno >> 24) & 0xF));
+    outb(iobase + ISA_COMMAND, IDE_CMD_WRITE);
+
+    int ret = 0;
+    for (; nsecs > 0; nsecs --, src += SECTSIZE) {
+        if ((ret = ucore_ide_wait_ready(iobase, 1)) != 0) {
+            goto out;
+        }
+        outsl(iobase, src, SECTSIZE / sizeof(uint32_t));
+    }
+
+out:
+    return ret;
+}
+
+
+static int ideno = 1;
 
 static int
 ide_wait_ready(bool check_error)
 {
-	// for(int i = 0; i < 1000000000; i++) asm volatile("");
-	// return 0;
-	
-	int r;
-
-	while (((r = inb(0x1F7)) & (IDE_BSY|IDE_DRDY)) != IDE_DRDY)
-	// while (((r = inb(0x1F7)) & (IDE_DRDY)) != IDE_DRDY)
-		/* do nothing */;
-
-	if (check_error && (r & (IDE_DF|IDE_ERR)) != 0)
-		return -1;
-	return 0;
+	return ucore_ide_wait_ready(IO_BASE(ideno), check_error);
 }
 
 bool
 ide_probe_disk1(void)
 {
-	int r, x;
-
-	// wait for Device 0 to be ready
-	ide_wait_ready(0);
-
-	// switch to Device 1
-	outb(0x1F6, 0xE0 | (1<<4));
-
-	// check for Device 1 to be ready for a while
-	for (x = 0;
-	     x < 1000 && ((r = inb(0x1F7)) & (IDE_BSY|IDE_DF|IDE_ERR)) != 0;
-	     x++)
-		/* do nothing */;
-
-	// switch back to Device 0
-	outb(0x1F6, 0xE0 | (0<<4));
-
-	cprintf("Device 1 presence: %d\n", (x < 1000));
-	return (x < 1000);
+	cprintf("force not use 1\n");
+	return 0;
 }
 
 void
 ide_set_disk(int d)
 {
-	if (d != 0 && d != 1)
-		panic("bad disk number");
-	diskno = d;
+	return;
 }
 
+extern char _binary_obj_fs_fs_img_start[];
 
 int
 ide_read(uint32_t secno, void *dst, size_t nsecs)
 {
-	int r;
-
-	assert(nsecs <= 256);
-
-	ide_wait_ready(0);
-
-	outb(0x1F2, nsecs);
-	outb(0x1F3, secno & 0xFF);
-	outb(0x1F4, (secno >> 8) & 0xFF);
-	outb(0x1F5, (secno >> 16) & 0xFF);
-	outb(0x1F6, 0xE0 | ((diskno&1)<<4) | ((secno>>24)&0x0F));
-	outb(0x1F7, 0x20);	// CMD 0x20 means read sector
-
-	for (; nsecs > 0; nsecs--, dst += SECTSIZE) {
-		if ((r = ide_wait_ready(1)) < 0)
-			return r;
-		insl(0x1F0, dst, SECTSIZE/4);
-	}
-
+	memcpy(dst, _binary_obj_fs_fs_img_start + secno * SECTSIZE, nsecs * SECTSIZE);
 	return 0;
+	// return ucore_ide_read_secs(ideno, secno, dst, nsecs);
 }
 
 int
 ide_write(uint32_t secno, const void *src, size_t nsecs)
 {
-	int r;
-
-	assert(nsecs <= 256);
-
-	cprintf("ide_wait_ready\n");
-	ide_wait_ready(0);
-
-	outb(0x1F2, nsecs);
-	outb(0x1F3, secno & 0xFF);
-	outb(0x1F4, (secno >> 8) & 0xFF);
-	outb(0x1F5, (secno >> 16) & 0xFF);
-	outb(0x1F6, 0xE0 | ((diskno&1)<<4) | ((secno>>24)&0x0F));
-	outb(0x1F7, 0x30);	// CMD 0x30 means write sector
-
-	for (; nsecs > 0; nsecs--, src += SECTSIZE) {
-		cprintf("asdf %d\n", nsecs);
-		if ((r = ide_wait_ready(1)) < 0)
-			return r;
-		cprintf("endf %d\n", nsecs);
-		outsl(0x1F0, src, SECTSIZE/4);
-	}
-
+	memcpy(_binary_obj_fs_fs_img_start + secno * SECTSIZE, src, nsecs * SECTSIZE);
 	return 0;
+	// return ucore_ide_write_secs(ideno, secno, src, nsecs);
 }
-
