@@ -7,6 +7,9 @@
 #include <inc/mmu.h>
 #include <inc/env.h>
 
+void sm_init();
+int external_clock_frequency;
+
 // Maximum number of CPUs
 #define NCPU  8
 

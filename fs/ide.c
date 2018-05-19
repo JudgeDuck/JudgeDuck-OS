@@ -77,6 +77,7 @@ ucore_ide_wait_ready(unsigned short iobase, bool check_error) {
 
 void
 ide_init(void) {
+	return;
     static_assert((SECTSIZE % 4) == 0);
     unsigned short ideno, iobase;
     for (ideno = 0; ideno < MAX_IDE; ideno ++) {

@@ -2,12 +2,20 @@
 
 void sort(unsigned *a, int n);
 
+int
+atoi(const char *s)
+{
+	int ans = 0;
+	while(*s) ans = ans * 10 + (*s++ - '0');
+	return ans;
+}
+
 static union
 {
-	char USER_STACK[1 << 20];
+	char USER_STACK[64 << 20];
 	struct
 	{
-		unsigned a[10007]; int n;
+		unsigned a[10000007]; int n;
 	};
 } u;
 
@@ -21,8 +29,13 @@ sort_wrapper(void)
 void
 umain(int argc, char **argv)
 {
+	if(argc != 2)
+	{
+		cprintf("usage: %s [n]", argv[0]);
+		return;
+	}
 	cprintf("SORTLIB: I am sort.lib, making data at %p......\n", u.a);
-	u.n = 10000;
+	u.n = atoi(argv[1]);
 	u.a[0] = 998244353u;
 	for(int i = 1; i < u.n; i++)
 		u.a[i] = u.a[i - 1] * 13131u + 3131313u;

@@ -47,9 +47,9 @@ static const char *trapname(int trapno)
 void
 umain(int argc, char **argv)
 {
-	if(argc != 5)
+	if(argc < 5)
 	{
-		cprintf("ARBITER: Usage: %s [program] [time_ms] [memory_kb] [defrag_mem]\n", argv[0]);
+		cprintf("ARBITER: Usage: %s [program] [time_ms] [memory_kb] [defrag_mem] [extra params]\n", argv[0]);
 		return;
 	}
 	int time_ms = atoi(argv[2]);
@@ -59,14 +59,15 @@ umain(int argc, char **argv)
 
 	cprintf("ARBITER: spawning %s...\n", argv[1]);
 	
-	envid_t env = spawn(argv[1], child_argv);
+	argv[4] = argv[1];
+	envid_t env = spawn(argv[1], (const char **) (argv + 4));
 	if(env < 0)
 	{
 		cprintf("ARBITER: Spawning failed...\n");
 		sys_env_destroy(0);
 	}
 
-	while(1)
+	for(int i = 0; i < 5; i++)
 	{
 		struct JudgeParams prm;
 		prm.ms = time_ms;

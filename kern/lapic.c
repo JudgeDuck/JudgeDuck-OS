@@ -58,7 +58,9 @@ lapicw(int index, int value)
 void
 lapic_timer_single_shot(uint64_t ns)
 {
-	lapicw(TICR, ns / 128);
+	uint64_t to_set = ns * external_clock_frequency / TIMER_EX / 1000;
+	assert(to_set < (uint64_t) 4000000000);
+	lapicw(TICR, to_set);
 }
 
 void
@@ -70,7 +72,7 @@ lapic_timer_disable()
 uint64_t
 lapic_timer_current_count()
 {
-	return (uint64_t) 128 * lapic[TCCR];
+	return (uint64_t) TIMER_EX * lapic[TCCR] * 1000 / external_clock_frequency;
 }
 
 void
@@ -85,13 +87,13 @@ lapic_init(void)
 
 	// Enable local APIC; set spurious interrupt vector.
 	// lapicw(SVR, ENABLE | (IRQ_OFFSET + IRQ_SPURIOUS));
-	lapicw(SVR, MASKED);
+	// lapicw(SVR, MASKED);
 
 	// The timer repeatedly counts down at bus frequency
 	// from lapic[TICR] and then issues an interrupt.  
 	// If we cared more about precise timekeeping,
 	// TICR would be calibrated using an external time source.
-	lapicw(TDCR, X128);
+	lapicw(TDCR, TIMER_EX_T);
 	lapicw(TIMER, SINGLESHOT | (IRQ_OFFSET + IRQ_TIMER));
 	//lapicw(TICR, 1000000000); 
 	// timer_single_shot_s(1);

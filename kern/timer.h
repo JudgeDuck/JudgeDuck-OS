@@ -7,6 +7,9 @@
 
 #include <inc/types.h>
 
+#define TIMER_EX 128
+#define TIMER_EX_T X128
+
 void lapic_timer_single_shot(uint64_t ns);
 void lapic_timer_disable();
 uint64_t lapic_timer_current_count();
