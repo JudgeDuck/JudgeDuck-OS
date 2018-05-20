@@ -175,6 +175,13 @@ extern volatile pde_t uvpd[];     // VA of current page directory
  * You can map a struct PageInfo * to the corresponding physical address
  * with page2pa() in kern/pmap.h.
  */
+
+struct PagePos
+{
+	int32_t min_envid;
+	void *v;
+};
+
 struct PageInfo {
 	// Next page on the free list.
 	struct PageInfo *pp_link;
@@ -183,9 +190,8 @@ struct PageInfo {
 	// to this page, for pages allocated using page_alloc.
 	// Pages allocated at boot time using pmap.c's
 	// boot_alloc do not have valid reference count fields.
+	struct PagePos pos;
 	
-	int32_t min_envid;
-	void *v;
 	int target_pp;
 	int target_pp_inv;
 

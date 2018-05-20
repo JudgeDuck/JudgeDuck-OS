@@ -23,5 +23,7 @@ qsort(unsigned *a, int l, int r)
 void
 sort(unsigned *a, int n)
 {
+	for(int i = 0; i < 10; i++)
+		cprintf("uvpt %d = %p\n", i, uvpt[PGNUM(a) + i]);
 	qsort(a, 0, n - 1);
 }

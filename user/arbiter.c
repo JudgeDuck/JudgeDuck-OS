@@ -75,7 +75,7 @@ umain(int argc, char **argv)
 		prm.defrag_mem = defrag_mem;
 		memset(prm.syscall_enabled, 0, sizeof(prm.syscall_enabled));
 		prm.syscall_enabled[SYS_quit_judge] = 1;
-		// prm.syscall_enabled[SYS_cputs] = 1;
+		prm.syscall_enabled[SYS_cputs] = 1;
 		
 		struct JudgeResult res;
 		cprintf("ARBITER: before sys_accept_enter_judge......\n");

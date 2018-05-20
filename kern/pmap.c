@@ -684,15 +684,54 @@ rebuild_free_list()
 		}
 }
 
+static int
+rand()
+{
+	static unsigned a = 233u;
+	a = a * 1103515245u + 12345u;
+	return (int) a & 0x7fffffff;
+}
+
+static bool
+cmp_pos(struct PagePos *a, struct PagePos *b)
+{
+	if(a->min_envid != b->min_envid) return a->min_envid < b->min_envid;
+	return a->v < b->v;
+}
+
 static void
 qsort_pages_target_inv(int l, int r)
 {
 	for(int i = l; i <= r; i++)
 	{
-		if(!(pages[i].pp_ref && pages[i].v == (void *) -1)) break;
+		if(!(pages[i].pp_ref && pages[i].pos.v == (void *) -1)) break;
 		if(i == r) return;
 	}
 	int i = l, j = r;
+	int xi;
+	do
+		xi = l + rand() % (r - l + 1);
+	while(pages[xi].pp_ref && pages[xi].pos.v == (void *) -1);
+	struct PagePos x = pages[pages[xi].target_pp_inv].pos;
+	do
+	{
+		while((pages[i].pp_ref && pages[i].pos.v == (void *) -1)
+			|| cmp_pos(&pages[pages[i].target_pp_inv].pos, &x))
+			if(++i > r) break;
+		while((pages[j].pp_ref && pages[j].pos.v == (void *) -1)
+			|| cmp_pos(&x, &pages[pages[j].target_pp_inv].pos))
+			if(--j < l) break;
+		if(i <= j)
+		{
+			int y = pages[i].target_pp_inv;
+			pages[i].target_pp_inv = pages[j].target_pp_inv;
+			pages[j].target_pp_inv = y;
+			++i; --j;
+		}
+	}
+	while(i <= j);
+	if(l < j) qsort_pages_target_inv(l, j);
+	if(i < r) qsort_pages_target_inv(i, r);
 }
 
 static void
@@ -700,16 +739,26 @@ pages_apply_target()
 {
 	for(int i = 0; i < NENV; i++)
 		if(envs[i].env_status != ENV_FREE)
-			for(void *va = 0; va < (void *) UTOP; va += PGSIZE)
-			{
-				pte_t *pte;
-				struct PageInfo *pp = page_lookup(envs[i].env_pgdir, va, &pte);
-				if(pp)
+		{
+			pde_t *pde = envs[i].env_pgdir;
+			for(int j = 0; j < UTOP / PTSIZE; j++)
+				if(pde[j] & PTE_P)
 				{
-					assert(pp->target_pp);
-					*pte = (pp->target_pp * PGSIZE) | (*pte & 0xfff);
+					for(void *va = (void *) (j * PTSIZE); va < (void *) ((j + 1) * PTSIZE); va += PGSIZE)
+					{
+						if(va >= (void *) UTOP) break;
+						pte_t *pte;
+						struct PageInfo *pp = page_lookup(envs[i].env_pgdir, va, &pte);
+						if(pp)
+						{
+							assert(pp->target_pp >= 0);
+							*pte = (pp->target_pp * PGSIZE) | (*pte & 0xfff);
+						}
+					}
+					*pde = (pages[*pde >> 12].target_pp * PGSIZE) | (*pde & 0xfff);
 				}
-			}
+			envs[i].env_pgdir = KADDR(pages[PADDR(pde) >> 12].target_pp * PGSIZE);
+		}
 	while(1)
 	{
 		bool ok = 1;
@@ -738,37 +787,58 @@ pages_apply_target()
 void
 pmem_defrag()
 {
+	lcr3(PADDR(kern_pgdir));
 	cprintf("DEFRAG:  begin\n");
 	for(size_t i = 0; i < npages; i++)
 	{
-		pages[i].min_envid = 0x7fffffff;
-		pages[i].v = (void *) -1;
+		pages[i].pos.min_envid = 0x7fffffff;
+		pages[i].pos.v = (void *) -1;
 	}
 	for(int i = 0; i < NENV; i++)
 		if(envs[i].env_status != ENV_FREE)
-			for(void *va = 0; va < (void *) UTOP; va += PGSIZE)
-			{
-				struct PageInfo *pp = page_lookup(envs[i].env_pgdir, va, NULL);
-				if(pp && envs[i].env_id < pp->min_envid)
+		{
+			pde_t *pde = envs[i].env_pgdir;
+			for(int j = 0; j < UTOP / PTSIZE; j++)
+				if(pde[j] & PTE_P)
 				{
-					pp->min_envid = envs[i].env_id;
-					pp->v = va;
+					for(void *va = (void *) (j * PTSIZE); va < (void *) ((j + 1) * PTSIZE); va += PGSIZE)
+					{
+						if(va >= (void *) UTOP) break;
+						struct PageInfo *pp = page_lookup(envs[i].env_pgdir, va, NULL);
+						if(pp && envs[i].env_id < pp->pos.min_envid)
+						{
+							pp->pos.min_envid = envs[i].env_id;
+							pp->pos.v = va;
+						}
+					}
+					// pages[*pde >> 12].pos.min_envid = 1;
+					// pages[*pde >> 12].pos.v = (void *) (i * 1024 + j);
 				}
-			}
+			// pages[PADDR(pde) >> 12].pos.min_envid = 0;
+			// pages[PADDR(pde) >> 12].pos.v = (void *) i;
+		}
 	// for(size_t i = 0; i < npages; i++)
 		// if(pages[i].pp_ref && pages[i].v == (void *) -1)
 			// cprintf("wow %p\n", i * PGSIZE);
 	// cprintf("total %p\n", npages * PGSIZE);
-	for(int i = npages - 1, j = npages - 1; i >= 0; i--)
-	{
-		while(pages[j].pp_ref && pages[j].v == (void *) -1) --j;
-		if(pages[i].pp_ref && pages[i].v != (void *) -1) pages[i].target_pp = j--;
-		else if(pages[i].pp_ref) pages[i].target_pp = i;
-		else pages[i].target_pp = -233;
-	}
+	for(size_t i = 0; i < npages; i++)
+		++pages[i].pos.min_envid;
+	for(size_t i = 0; i < npages; i++)
+		pages[i].target_pp_inv = i;
+	qsort_pages_target_inv(0, npages - 1);
+	for(size_t i = 0; i < npages; i++)
+		pages[pages[i].target_pp_inv].target_pp = i;
+	// for(int i = npages - 1, j = npages - 1; i >= 0; i--)
+	// {
+		// while(pages[j].pp_ref && pages[j].pos.v == (void *) -1) --j;
+		// if(pages[i].pp_ref && pages[i].pos.v != (void *) -1) pages[i].target_pp = j--;
+		// else if(pages[i].pp_ref) pages[i].target_pp = i;
+		// else pages[i].target_pp = -233;
+	// }
 	cprintf("DEFRAG:  applying...\n");
 	pages_apply_target();
 	cprintf("DEFRAG:  OK!\n");
+	lcr3(PADDR(curenv->env_pgdir));
 }
 
 static uintptr_t user_mem_check_addr;
