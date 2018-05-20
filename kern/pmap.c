@@ -117,6 +117,8 @@ boot_alloc(uint32_t n)
 	return ret;
 }
 
+static int inited = 0;
+
 // Set up a two-level page table:
 //    kern_pgdir is its linear (virtual) address of the root
 //
@@ -271,6 +273,8 @@ mem_init(void)
 
 	// Some more checks, only possible after kern_pgdir is installed.
 	check_page_installed_pgdir();
+	
+	inited = 1;
 }
 
 // Modify mappings in kern_pgdir to support SMP
@@ -341,7 +345,7 @@ page_init(void)
 	// free pages!
 	assert(MPENTRY_PADDR % PGSIZE == 0);
 	for(int i = npages - 1; i >= 0; i--)
-		if(i == 0 || (i * PGSIZE >= IOPHYSMEM && i * PGSIZE < EXTPHYSMEM + (32 << 20)) || i * PGSIZE == MPENTRY_PADDR)
+		if(i == 0 || (i * PGSIZE >= IOPHYSMEM && i * PGSIZE < EXTPHYSMEM + (40 << 20)) || i * PGSIZE == MPENTRY_PADDR)
 		{
 			pages[i].pp_ref = 233; // 233?
 		}
@@ -365,6 +369,24 @@ page_init(void)
 // Returns NULL if out of free memory.
 //
 // Hint: use page2kva and memset
+struct PageInfo *
+pte_page_alloc(void)
+{
+	int pp_begin = (EXTPHYSMEM + (32 << 20)) / PGSIZE;
+	int pp_end   = (EXTPHYSMEM + (40 << 20)) / PGSIZE;
+	for(int i = pp_begin; i < pp_end; ++i)
+		if(pages[i].pp_ref == 233)
+		{
+			// cprintf("pte alloc %p\n", i * PGSIZE);
+			struct PageInfo *ret = pages + i;
+			// cprintf("gg %p\n", page2kva(ret));
+			memset(page2kva(ret), 0, PGSIZE);
+			// cprintf("pte asdf %p\n", i * PGSIZE);
+			return ret;
+		}
+	return NULL;
+}
+
 struct PageInfo *
 page_alloc(int alloc_flags)
 {
@@ -432,6 +454,7 @@ page_decref(struct PageInfo* pp)
 // Hint 3: look at inc/mmu.h for useful macros that mainipulate page
 // table and page directory entries.
 //
+
 pte_t *
 pgdir_walk(pde_t *pgdir, const void *va, int create)
 {
@@ -442,7 +465,7 @@ pgdir_walk(pde_t *pgdir, const void *va, int create)
 		return KADDR((physaddr_t) (PTX(va) + (pte_t *) PTE_ADDR(*ent)));
 	else if(create)
 	{
-		struct PageInfo *pi = page_alloc(ALLOC_ZERO);
+		struct PageInfo *pi = inited ? pte_page_alloc() : page_alloc(ALLOC_ZERO);
 		if(!pi)
 			return NULL;
 		*ent = page2pa(pi) | PTE_P | PTE_W | PTE_U;

@@ -323,8 +323,17 @@ umain(int argc, char **argv)
 		if (r == 0) {
 			runcmd(buf);
 			exit();
-		} else
-			;//wait(r);
+		} else {
+			int rr;
+			if ((rr = fork()) < 0)
+				panic("fork: %e", r);
+			if (rr == 0)
+			{
+				wait(r);
+				cprintf("(exited) %s\n$ ", buf);
+				exit();
+			}
+		}
 	}
 }
 
