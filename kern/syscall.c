@@ -5,6 +5,7 @@
 #include <inc/string.h>
 #include <inc/assert.h>
 #include <inc/judge.h>
+#include <inc/ns.h>
 
 #include <kern/env.h>
 #include <kern/pmap.h>
@@ -14,6 +15,8 @@
 #include <kern/sched.h>
 #include <kern/timer.h>
 #include <kern/judge.h>
+#include <kern/time.h>
+#include <kern/e1000.h>
 
 // Print a string to the system console.
 // The string is exactly 'len' characters long.
@@ -149,6 +152,24 @@ sys_env_set_trapframe(envid_t envid, struct Trapframe *tf)
 	e->env_tf.tf_cs = GD_UT | 3;
 	e->env_tf.tf_eflags |= FL_IF;
 	return 0;
+}
+
+static int sys_net_try_transmit(void *buf, int size)
+{
+	if(size > PGSIZE)
+		return -E_INVAL;
+	user_mem_assert(curenv, buf, size, PTE_U);
+	pte_t *pte;
+	struct PageInfo *pp = page_lookup(curenv->env_pgdir, buf, &pte);
+	if(!pp)
+		return -E_INVAL;
+	return try_transmit(page2pa(pp) + ((uint32_t) buf & 0xfff), size);
+}
+
+static int sys_net_try_receive(struct jif_pkt *jp)
+{
+	user_mem_assert(curenv, jp, PGSIZE, PTE_U | PTE_W);
+	return try_receive(jp);
 }
 
 // Set the page fault upcall for 'envid' by modifying the corresponding struct
@@ -489,6 +510,14 @@ sys_quit_judge()
 	// won't reach here
 	return 233;
 }
+// Return the current time.
+static int
+sys_time_msec(void)
+{
+	// LAB 6: Your code here.
+	//panic("sys_time_msec not implemented");
+	return time_msec();
+}
 
 // Dispatches to the correct kernel function, passing the arguments.
 int32_t
@@ -537,6 +566,12 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 		return sys_quit_judge();
 	case SYS_env_set_trapframe:
 		return sys_env_set_trapframe(a1, (struct Trapframe *) a2);
+	case SYS_time_msec:
+		return sys_time_msec();
+	case SYS_net_try_transmit:
+		return sys_net_try_transmit((void *) a1, a2);
+	case SYS_net_try_receive:
+		return sys_net_try_receive((struct jif_pkt *) a1);
 	default:
 		return -E_INVAL;
 	}

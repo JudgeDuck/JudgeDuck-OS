@@ -111,8 +111,8 @@ boot_alloc(uint32_t n)
 	// LAB 2: Your code here.
 	void *ret = nextfree;
 	nextfree = ROUNDUP(nextfree + n, PGSIZE);
-	cprintf("boot_alloc: %p / %p\n", nextfree, 0xf0800000);
-	if (nextfree >= (char *) 0xf0800000)
+	cprintf("boot_alloc: %p / %p\n", nextfree, 0xf2000000);
+	if (nextfree >= (char *) 0xf2000000)
 		panic("boot_alloc: out of memory");
 	return ret;
 }
@@ -341,7 +341,7 @@ page_init(void)
 	// free pages!
 	assert(MPENTRY_PADDR % PGSIZE == 0);
 	for(int i = npages - 1; i >= 0; i--)
-		if(i == 0 || (i * PGSIZE >= IOPHYSMEM && i * PGSIZE < EXTPHYSMEM + (8 << 20)) || i * PGSIZE == MPENTRY_PADDR)
+		if(i == 0 || (i * PGSIZE >= IOPHYSMEM && i * PGSIZE < EXTPHYSMEM + (32 << 20)) || i * PGSIZE == MPENTRY_PADDR)
 		{
 			pages[i].pp_ref = 233; // 233?
 		}

@@ -14,6 +14,9 @@
 #include <kern/picirq.h>
 #include <kern/cpu.h>
 #include <kern/spinlock.h>
+#include <kern/time.h>
+#include <kern/pci.h>
+#include <kern/e1000.h>
 
 static void boot_aps(void);
 
@@ -50,6 +53,10 @@ i386_init(void)
 	// Lab 4 multitasking initialization functions
 	pic_init();
 
+	// Lab 6 hardware initialization functions
+	time_init();
+	pci_init();
+
 	// Acquire the big kernel lock before waking up APs
 	// Your code here:
 	lock_kernel();
@@ -59,6 +66,11 @@ i386_init(void)
 
 	// Start fs.
 	ENV_CREATE(fs_fs, ENV_TYPE_FS);
+
+#if !defined(TEST_NO_NS)
+	// Start ns.
+	// ENV_CREATE(net_ns, ENV_TYPE_NS);
+#endif
 
 #if defined(TEST)
 	// Don't touch -- used by grading script!
@@ -70,6 +82,15 @@ i386_init(void)
 
 	// Should not be necessary - drains keyboard because interrupt has given up.
 	kbd_intr();
+	
+	/*struct TransDesc td;
+	memset(&td, 0, sizeof(td));
+	char c[256] = "asdfasdfasfd";
+	td.addr = PADDR(c);
+	td.length = 1;
+	cprintf("transmit %d\n", try_transmit(&td));
+	td.length = 8;
+	cprintf("transmit %d\n", try_transmit(&td));*/
 
 	// Schedule and run the first user environment!
 	sched_yield();

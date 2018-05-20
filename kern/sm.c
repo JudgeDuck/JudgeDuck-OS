@@ -50,7 +50,7 @@ get_sm_entry()
         mem += 16;
     }
 	cprintf("SM entry %p\n", mem);
-	if ((unsigned int) mem == 0xF0100000) {
+	if ((unsigned int) mem == 0x00100000) {
         panic("No SMBIOS found!");
     }
 	entry = (struct SMBIOSEntryPoint *) mem;
@@ -71,6 +71,9 @@ void
 sm_init()
 {
 	cprintf("sm_init\n");
+	external_clock_frequency = 1000;
+	cprintf("force 1000\n");
+	return;
 	get_sm_entry();
 	// cprintf("Major Version: %d\n", (int) entry->MajorVersion);
 	// cprintf("Minor Version: %d\n", (int) entry->MinorVersion);
@@ -89,10 +92,10 @@ sm_init()
 		external_clock_frequency = *(unsigned short *) ((void *) cur_head + 0x12);
 		cprintf("detected ext clock freq = %d MHz\n", external_clock_frequency);
 		if(external_clock_frequency == 0) break;
-		for(int i = 0; i < 2000000000; i++) asm volatile("");
+		// for(int i = 0; i < 2000000000; i++) asm volatile("");
 		return;
 	}
 	external_clock_frequency = 1000;
 	cprintf("cannot detected ext clock freq, assume 1000\n");
-	for(int i = 0; i < 2000000000; i++) asm volatile("");
+	// for(int i = 0; i < 2000000000; i++) asm volatile("");
 }

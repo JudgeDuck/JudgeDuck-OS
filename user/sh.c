@@ -324,7 +324,7 @@ umain(int argc, char **argv)
 			runcmd(buf);
 			exit();
 		} else
-			wait(r);
+			;//wait(r);
 	}
 }
 

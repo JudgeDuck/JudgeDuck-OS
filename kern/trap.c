@@ -15,6 +15,7 @@
 #include <kern/timer.h>
 #include <kern/judge.h>
 #include <kern/spinlock.h>
+#include <kern/time.h>
 
 static struct Taskstate ts;
 
@@ -286,6 +287,7 @@ trap_dispatch(struct Trapframe *tf)
 	else if(tf->tf_trapno == IRQ_OFFSET + IRQ_TIMER)
 	{
 		lapic_eoi();
+		time_tick();
 		if(curenv->env_judging)
 			finish_judge(VERDICT_TLE);
 		sched_yield();
@@ -314,6 +316,12 @@ trap_dispatch(struct Trapframe *tf)
 	// Handle clock interrupts. Don't forget to acknowledge the
 	// interrupt using lapic_eoi() before calling the scheduler!
 	// LAB 4: Your code here.
+
+	// Add time tick increment to clock interrupts.
+	// Be careful! In multiprocessors, clock interrupts are
+	// triggered on every CPU.
+	// LAB 6: Your code here.
+
 
 	// Handle keyboard and serial interrupts.
 	// LAB 5: Your code here.
@@ -414,8 +422,8 @@ page_fault_handler(struct Trapframe *tf)
 	// LAB 3: Your code here.
 	if(!(tf->tf_err & 4))
 	{
-		panic("kernel pagefault\n");
 		print_trapframe(tf);
+		panic("kernel pagefault\n");
 	}
 
 	// We've already handled kernel-mode exceptions, so if we get here,

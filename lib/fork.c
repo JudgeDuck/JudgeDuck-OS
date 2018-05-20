@@ -34,7 +34,7 @@ pgfault(struct UTrapframe *utf)
 	
 	if(!(uvpd[PDX(addr)] & PTE_P))
 	{
-		cprintf("not present qwerqwerqwer %p %p %p %p | uvpd %p\n", addr, PDX(addr), uvpd + PDX(addr), uvpd[PDX(addr)], uvpd);
+		// cprintf("not present qwerqwerqwer %p %p %p %p | uvpd %p\n", addr, PDX(addr), uvpd + PDX(addr), uvpd[PDX(addr)], uvpd);
 		panic("fork pgfault: not present dir");
 	}
 	if(!(uvpt[PGNUM(addr)] & PTE_P))
@@ -46,7 +46,7 @@ pgfault(struct UTrapframe *utf)
 		panic("fork pgfault: not a write");
 	if(!(uvpt[PGNUM(addr)] & PTE_COW))
 	{
-		cprintf("sb addr %p eip %p\n", addr, utf->utf_eip);
+		// cprintf("sb addr %p eip %p\n", addr, utf->utf_eip);
 		panic("fork pgfault: not a copy-on-write page");
 	}
 

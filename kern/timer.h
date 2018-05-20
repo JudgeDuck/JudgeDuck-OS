@@ -25,6 +25,6 @@ extern uint64_t tsc_when_trap_begin;
 extern uint64_t lapic_tccr_when_trap_begin;
 
 // #define DEFAULT_TIMER_INTERVAL ((uint64_t) 500000000000ll)
-#define DEFAULT_TIMER_INTERVAL ((uint64_t) 1000000000)
+#define DEFAULT_TIMER_INTERVAL ((uint64_t) 10000000)
 
 #endif
