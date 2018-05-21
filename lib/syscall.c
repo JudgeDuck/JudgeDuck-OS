@@ -134,15 +134,15 @@ int	sys_net_try_receive(struct jif_pkt *jp)
 }
 
 int
-sys_enter_judge(void *eip)
+sys_enter_judge(void *eip, struct JudgeParams *prm)
 {
-	return syscall(SYS_enter_judge, 1, (uint32_t)eip, 0, 0, 0, 0);
+	return syscall(SYS_enter_judge, 1, (uint32_t)eip, (uint32_t) prm, 0, 0, 0);
 }
 
 int
-sys_accept_enter_judge(envid_t envid, struct JudgeParams *prm, struct JudgeResult *res)
+sys_accept_enter_judge(envid_t envid, struct JudgeResult *res)
 {
-	return syscall(SYS_accept_enter_judge, 0, envid, (uint32_t)prm, (uint32_t) res, 0, 0);
+	return syscall(SYS_accept_enter_judge, 0, envid, (uint32_t) res, 0, 0, 0);
 }
 
 int

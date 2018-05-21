@@ -442,46 +442,46 @@ sys_ipc_recv(void *dstva)
 }
 
 static int
-sys_enter_judge(void *eip)
+sys_enter_judge(void *eip, struct JudgeParams *prm)
 {
+	int ms = prm->ms;
+	if(ms < 1 || ms > 500000) return -E_INVAL;
 	// TODO: validate
 	curenv->env_status = ENV_NOT_RUNNABLE;
 	curenv->env_judge_waiting = 1;
 	curenv->env_judge_tf = curenv->env_tf;
 	curenv->env_judge_tf.tf_eip = (uint32_t) eip;
+	curenv->env_judge_prm = *prm;
 	// curenv->env_judge_tf.tf_esp = (uint32_t) esp;
 	sched_yield();
 	return 0;
 }
 
 static int
-sys_accept_enter_judge(envid_t envid, struct JudgeParams *prm, struct JudgeResult *res)
+sys_accept_enter_judge(envid_t envid, struct JudgeResult *res)
 {
 	// TODO: validate
-	int ms = prm->ms;
-	
 	struct Env *env;
 	int ret = envid2env(envid, &env, 0);
 	if(ret < 0) return -E_INVAL;
 	if(!env->env_judge_waiting) return -E_INVAL;
-	if(ms < 1 || ms > 500000) return -E_INVAL;
 	
 	lapic_timer_disable();
 	
-	if(prm->defrag_mem) pmem_defrag();
-	
 	struct Trapframe tmp = env->env_judge_tf;
+	struct JudgeParams prm = env->env_judge_prm;
+	
+	if(prm.defrag_mem) pmem_defrag();
 	env->env_judge_tf = env->env_tf; env->env_tf = tmp;
-	env->env_tf.tf_esp = 0x10001000 + prm->kb * 1024;
+	env->env_tf.tf_esp = (unsigned) env->env_judge_prm.data_begin + prm.kb * 1024;
 	env->env_judge_tf.tf_regs.reg_eax = 0;
 	
 	pgdir_reperm(env->env_pgdir, PTE_D, 0, NULL, (void *) UTOP);
 	pgdir_reperm(env->env_pgdir, PTE_W, PTE_TDW, NULL, (void *) UTOP);
-	pgdir_reperm(env->env_pgdir, PTE_TDW, PTE_W, (void *) 0x10001000, (void *) env->env_tf.tf_esp);
+	pgdir_reperm(env->env_pgdir, PTE_TDW, PTE_W, env->env_judge_prm.data_begin, (void *) env->env_tf.tf_esp);
 	
 	curenv->env_tf.tf_regs.reg_eax = 0; // return 0
 	curenv->env_judge_res = res;
-	env->env_judge_prm = *prm;
 	res->verdict = VERDICT_SE;
 	judger_env = curenv;
 	
@@ -490,10 +490,10 @@ sys_accept_enter_judge(envid_t envid, struct JudgeParams *prm, struct JudgeResul
 	env->env_judge_waiting = 0;
 	env->env_judging = 1;
 	
-	judger_env->env_judge_res->time_ns = (uint64_t) 1000000 * ms;
+	judger_env->env_judge_res->time_ns = (uint64_t) 1000000 * prm.ms;
 	res->time_cycles = -read_tsc();
 	
-	timer_single_shot_ms(ms);
+	timer_single_shot_ms(prm.ms);
 	env_run(env);
 	
 	// won't reach here
@@ -559,9 +559,9 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 	case SYS_ipc_recv:
 		return sys_ipc_recv((void *) a1);
 	case SYS_enter_judge:
-		return sys_enter_judge((void *) a1);
+		return sys_enter_judge((void *) a1, (void *) a2);
 	case SYS_accept_enter_judge:
-		return sys_accept_enter_judge(a1, (void *) a2, (void *) a3);
+		return sys_accept_enter_judge(a1, (void *) a2);
 	case SYS_quit_judge:
 		return sys_quit_judge();
 	case SYS_env_set_trapframe:

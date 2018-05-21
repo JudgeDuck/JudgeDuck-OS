@@ -108,9 +108,9 @@ try_receive(struct jif_pkt *jp)
 	pte_t *pte;
 	lcr3(PADDR(curenv->env_pgdir));
 	jp->jp_len = rd->length;
-	page_insert(curenv->env_pgdir, pa2page(rd->addr), NULL, PTE_P | PTE_W);
+	boot_map_region(curenv->env_pgdir, 0, PGSIZE, rd->addr, PTE_W);
+	invlpg(0);
 	memcpy(jp->jp_data, NULL, jp->jp_len);
-	page_remove(curenv->env_pgdir, NULL);
 	lcr3(PADDR(kern_pgdir));
 	rdt = (rdt + 1) % TQSIZE;
 	*(volatile uint32_t *) (e1000 + 0x2818) = rdt;

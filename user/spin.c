@@ -42,7 +42,7 @@ umain(int argc, char **argv)
 	if ((env = fork()) == 0) {
 		cprintf("CHILD:  I am the child.\n");
 		cprintf("CHILD:  before sys_enter_judge......\n");
-		int ret = sys_enter_judge(sort_wrapper);
+		int ret = sys_enter_judge(sort_wrapper, 0);
 		cprintf("CHILD:  sys_enter_judge returned %d!\n", ret);
 		sys_env_destroy(0);
 	}
@@ -54,7 +54,7 @@ umain(int argc, char **argv)
 		struct JudgeParams prm;
 		struct JudgeResult res;
 		prm.ms = 5000;
-		int ret = sys_accept_enter_judge(env, &prm, &res);
+		int ret = sys_accept_enter_judge(env, &res);
 		cprintf("PARENT: sys_accept_enter_judge returned %d\n", ret);
 		if(!ret)
 		{

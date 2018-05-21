@@ -8,8 +8,7 @@ struct JudgeParams
 {
 	int ms, kb;
 	int syscall_enabled[NSYSCALLS];
-	// writable_addr_begin and (writable_addr_end + 1) must be page-aligned
-	void *writable_addr_begin, *writable_addr_end;
+	void *data_begin;
 	bool defrag_mem;
 };
 

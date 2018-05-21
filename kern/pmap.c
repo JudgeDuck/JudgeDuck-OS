@@ -52,8 +52,8 @@ i386_detect_memory(void)
 	else
 		totalmem = basemem;
 	
-	if(totalmem > 131072)
-		totalmem = 131072;
+	if(totalmem > 4194304)
+		totalmem = 4194304;
 
 	npages = totalmem / (PGSIZE / 1024);
 	npages_basemem = basemem / (PGSIZE / 1024);
@@ -68,7 +68,6 @@ i386_detect_memory(void)
 // --------------------------------------------------------------
 
 static void mem_init_mp(void);
-static void boot_map_region(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm);
 static void check_page_free_list(bool only_low_memory);
 static void check_page_alloc(void);
 static void check_kern_pgdir(void);
@@ -144,6 +143,9 @@ mem_init(void)
 	// create initial page directory.
 	kern_pgdir = (pde_t *) boot_alloc(PGSIZE);
 	memset(kern_pgdir, 0, PGSIZE);
+	
+	// kern_phys_pgdir = (pde_t *) boot_alloc(PGSIZE);
+	// memset(kern_phys_pgdir, 0, PGSIZE);
 
 	//////////////////////////////////////////////////////////////////////
 	// Recursively insert PD in itself as a page table, to form
@@ -345,7 +347,7 @@ page_init(void)
 	// free pages!
 	assert(MPENTRY_PADDR % PGSIZE == 0);
 	for(int i = npages - 1; i >= 0; i--)
-		if(i == 0 || (i * PGSIZE >= IOPHYSMEM && i * PGSIZE < EXTPHYSMEM + (40 << 20)) || i * PGSIZE == MPENTRY_PADDR)
+		if(i == 0 || (i * PGSIZE >= IOPHYSMEM && i * PGSIZE < EXTPHYSMEM + (64 << 20)) || i * PGSIZE == MPENTRY_PADDR)
 		{
 			pages[i].pp_ref = 233; // 233?
 		}
@@ -373,7 +375,7 @@ struct PageInfo *
 pte_page_alloc(void)
 {
 	int pp_begin = (EXTPHYSMEM + (32 << 20)) / PGSIZE;
-	int pp_end   = (EXTPHYSMEM + (40 << 20)) / PGSIZE;
+	int pp_end   = (EXTPHYSMEM + (64 << 20)) / PGSIZE;
 	for(int i = pp_begin; i < pp_end; ++i)
 		if(pages[i].pp_ref == 233)
 		{
@@ -397,7 +399,17 @@ page_alloc(int alloc_flags)
 	page_free_list = ret->pp_link;
 	ret->pp_link = NULL;
 	if(alloc_flags & ALLOC_ZERO)
-		memset(page2kva(ret), 0, PGSIZE);
+	{
+		if((ret - pages) * PGSIZE <= 0x10000000)
+			memset(page2kva(ret), 0, PGSIZE);
+		else
+		{
+			lcr3(PADDR(kern_pgdir));
+			boot_map_region(kern_pgdir, 0, PGSIZE, (ret - pages) * PGSIZE, PTE_W);
+			invlpg(0);
+			memset(0, 0, PGSIZE);
+		}
+	}
 	//cprintf("alloc %d\n", ret->pp_ref);
 	//mon_backtrace(0, NULL, NULL);
 	return ret;
@@ -487,7 +499,7 @@ pgdir_walk(pde_t *pgdir, const void *va, int create)
 // mapped pages.
 //
 // Hint: the TA solution uses pgdir_walk
-static void
+void
 boot_map_region(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm)
 {
 	// Fill this function in
@@ -496,7 +508,6 @@ boot_map_region(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm
 		pte_t *pte = pgdir_walk(pgdir, (const void *) (va + offset), 1);
 		if(!pte)
 			panic("map failed\n");
-		//cprintf("bootmap pte %p ent %p\n", pte, (pa + offset) | perm | PTE_P);
 		*pte = (pa + offset) | perm | PTE_P;
 	}
 }
@@ -791,10 +802,14 @@ pages_apply_target()
 			size_t j = pages[i].target_pp;
 			if(i == j) continue;
 			ok = 0;
-			// cprintf("swap %d %d\n", i, j);
 			// TODO: switch to physical mode
+			// cprintf("swap %d %d\n", i, j);
+			boot_map_region(kern_pgdir, 0, PGSIZE, i * PGSIZE, PTE_W);
+			boot_map_region(kern_pgdir, PGSIZE, PGSIZE, j * PGSIZE, PTE_W);
+			invlpg(0);
+			invlpg((void *) PGSIZE);
 			static char tmp_page[PGSIZE];
-			void *pi = KADDR(i * PGSIZE), *pj = KADDR(j * PGSIZE);
+			void *pi = (void *) 0, *pj = (void *) PGSIZE;
 			memcpy(tmp_page, pi, PGSIZE);
 			memcpy(pi, pj, PGSIZE);
 			memcpy(pj, tmp_page, PGSIZE);
@@ -932,6 +947,7 @@ user_mem_assert(struct Env *env, const void *va, size_t len, int perm)
 static void
 check_page_free_list(bool only_low_memory)
 {
+	return;
 	struct PageInfo *pp;
 	unsigned pdx_limit = only_low_memory ? 1 : NPDENTRIES;
 	int nfree_basemem = 0, nfree_extmem = 0;
@@ -1078,6 +1094,7 @@ check_page_alloc(void)
 static void
 check_kern_pgdir(void)
 {
+	return;
 	uint32_t i, n;
 	pde_t *pgdir;
 

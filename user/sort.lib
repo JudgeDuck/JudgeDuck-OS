@@ -10,40 +10,66 @@ atoi(const char *s)
 	return ans;
 }
 
+struct Data
+{
+	unsigned a[10000007]; int n;
+} d;
+
+#define MAX_MEM_KB 65536
+
 static union
 {
-	char USER_STACK[64 << 20];
-	struct
-	{
-		unsigned a[10000007]; int n;
-	};
-} u;
+	char USER_STACK[MAX_MEM_KB << 10];
+	struct Data d;
+} u __attribute__((aligned(PGSIZE)));
 
 void
 sort_wrapper(void)
 {
-	sort(u.a, u.n);
+	sort(u.d.a, u.d.n);
 	sys_quit_judge();
 }
 
 void
 umain(int argc, char **argv)
 {
-	if(argc != 2)
+	if(argc != 5)
 	{
-		cprintf("usage: %s [n]", argv[0]);
+		cprintf("SORTLIB: usage: %s [time_ms] [mem_kb] [defrag_mem] [n]\n", argv[0]);
 		return;
 	}
-	cprintf("SORTLIB: I am sort.lib, making data at %p......\n", u.a);
-	u.n = atoi(argv[1]);
-	u.a[0] = 998244353u;
-	for(int i = 1; i < u.n; i++)
-		u.a[i] = u.a[i - 1] * 13131u + 3131313u;
+	int time_ms = atoi(argv[1]);
+	int mem_kb = atoi(argv[2]);
+	int defrag_mem = atoi(argv[3]);
+	cprintf("SORTLIB: time %d ms, mem %d kb, defrag %d\n", time_ms, mem_kb, defrag_mem);
+	
+	if(mem_kb > MAX_MEM_KB)
+	{
+		cprintf("SORTLIB: too large memory limit!\n");
+		return;
+	}
+	
+	struct JudgeParams prm;
+	prm.ms = time_ms;
+	prm.kb = mem_kb;
+	prm.defrag_mem = defrag_mem;
+	prm.data_begin = &u;
+	
+	memset(prm.syscall_enabled, 0, sizeof(prm.syscall_enabled));
+	prm.syscall_enabled[SYS_quit_judge] = 1;
+	prm.syscall_enabled[SYS_cputs] = 1;
+	
+	d.n = atoi(argv[4]);
+	d.a[0] = 998244353u;
+	for(int i = 1; i < d.n; i++)
+		d.a[i] = d.a[i - 1] * 13131u + 3131313u;
+	cprintf("SORTLIB: n = %d, making data at %p......\n", d.n, &u);
+	memcpy(&u, &d, sizeof(d));
 	cprintf("SORTLIB: data ready, before sys_enter_judge......\n");
-	int ret = sys_enter_judge(sort_wrapper);
+	int ret = sys_enter_judge(sort_wrapper, &prm);
 	cprintf("SORTLIB: sys_enter_judge returned %d\n", ret);
-	for(int i = 1; i < u.n; i++)
-		if(u.a[i] < u.a[i - 1])
+	for(int i = 1; i < d.n; i++)
+		if(u.d.a[i] < u.d.a[i - 1])
 		{
 			cprintf("SORTLIB: Wrong Answer at %d\n", i);
 			return;
