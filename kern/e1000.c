@@ -112,7 +112,8 @@ try_receive(struct jif_pkt *jp)
 	invlpg(0);
 	memcpy(jp->jp_data, NULL, jp->jp_len);
 	lcr3(PADDR(kern_pgdir));
-	rdt = (rdt + 1) % TQSIZE;
+	rd->status &= ~1;
+	rdt = (rdt + 1) % RQSIZE;
 	*(volatile uint32_t *) (e1000 + 0x2818) = rdt;
 	return 0;
 }

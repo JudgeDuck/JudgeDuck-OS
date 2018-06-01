@@ -71,9 +71,9 @@ void
 sm_init()
 {
 	cprintf("sm_init\n");
-	external_clock_frequency = 1000;
-	cprintf("force 1000\n");
-	return;
+	// external_clock_frequency = 1000;
+	// cprintf("force 1000\n");
+	// return;
 	get_sm_entry();
 	// cprintf("Major Version: %d\n", (int) entry->MajorVersion);
 	// cprintf("Minor Version: %d\n", (int) entry->MinorVersion);

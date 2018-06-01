@@ -298,6 +298,7 @@ serve(void) {
 		args->whom = whom;
 		args->req = va;
 
+		// cprintf("create to serve! from %d reqno %d\n", whom, reqno);
 		thread_create(0, "serve_thread", serve_thread, (uint32_t)args);
 		thread_yield(); // let the thread created run
 	}

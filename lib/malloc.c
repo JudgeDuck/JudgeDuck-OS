@@ -38,6 +38,9 @@ isfree(void *v, size_t n)
 	return 1;
 }
 
+static size_t cnt;
+static size_t cnt2;
+
 void*
 malloc(size_t n)
 {
@@ -52,7 +55,11 @@ malloc(size_t n)
 	n = ROUNDUP(n, 4);
 
 	if (n >= MAXMALLOC)
+	{
+		// cprintf("malloc fail hehe!\n");
 		return 0;
+	}
+	// if(++cnt2 >= 3000) panic("???\n");
 
 	if ((uintptr_t) mptr % PGSIZE){
 		/*
@@ -65,11 +72,13 @@ malloc(size_t n)
 			(*ref)++;
 			v = mptr;
 			mptr += n;
+			// cprintf("malloc = %ld\n", ++cnt);
 			return v;
 		}
 		/*
 		 * stop working on this page and move on.
 		 */
+		++cnt;
 		free(mptr);	/* drop reference to this page */
 		mptr = ROUNDDOWN(mptr + PGSIZE, PGSIZE);
 	}
@@ -88,7 +97,10 @@ malloc(size_t n)
 		if (mptr == mend) {
 			mptr = mbegin;
 			if (++nwrap == 2)
+			{
+				// cprintf("malloc fail! out of address space\n");
 				return 0;	/* out of address space */
+			}
 		}
 	}
 
@@ -100,6 +112,7 @@ malloc(size_t n)
 		if (sys_page_alloc(0, mptr + i, PTE_P|PTE_U|PTE_W|cont) < 0){
 			for (; i >= 0; i -= PGSIZE)
 				sys_page_unmap(0, mptr + i);
+			// cprintf("malloc fail!\n");
 			return 0;	/* out of physical memory */
 		}
 	}
@@ -108,6 +121,7 @@ malloc(size_t n)
 	*ref = 2;	/* reference for mptr, reference for returned block */
 	v = mptr;
 	mptr += n;
+	// cprintf("malloc = %ld\n", ++cnt);
 	return v;
 }
 
@@ -119,6 +133,8 @@ free(void *v)
 
 	if (v == 0)
 		return;
+	
+	// cprintf("free = %ld | %ld\n", --cnt, cnt2);
 	assert(mbegin <= (uint8_t*) v && (uint8_t*) v < mend);
 
 	c = ROUNDDOWN(v, PGSIZE);

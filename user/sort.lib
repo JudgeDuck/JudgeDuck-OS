@@ -68,11 +68,15 @@ umain(int argc, char **argv)
 	cprintf("SORTLIB: data ready, before sys_enter_judge......\n");
 	int ret = sys_enter_judge(sort_wrapper, &prm);
 	cprintf("SORTLIB: sys_enter_judge returned %d\n", ret);
+	int fd = open("arbiter.in", O_RDWR | O_CREAT);
 	for(int i = 1; i < d.n; i++)
 		if(u.d.a[i] < u.d.a[i - 1])
 		{
 			cprintf("SORTLIB: Wrong Answer at %d\n", i);
+			fprintf(fd, "Wrong Answer at %d\n", i);
 			return;
 		}
 	cprintf("SORTLIB: Correct Answer!\n");
+	fprintf(fd, "Correct Answer!\n");
+	close(fd);
 }

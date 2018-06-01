@@ -112,6 +112,7 @@ spawn(const char *prog, const char **argv)
 
 	// Set up program segments as defined in ELF header.
 	ph = (struct Proghdr*) (elf_buf + elf->e_phoff);
+	cprintf("ph = %p + %p = %p\n", elf_buf, elf->e_phoff, ph);
 	for (i = 0; i < elf->e_phnum; i++, ph++) {
 		if (ph->p_type != ELF_PROG_LOAD)
 			continue;

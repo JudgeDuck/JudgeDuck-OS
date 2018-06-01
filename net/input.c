@@ -20,7 +20,7 @@ input(envid_t ns_envid)
 	memset(buf, 0, sizeof(buf));
 	for(;;)
 	{
-		sys_yield();
+		for(int i = 0; i < 50; i++) sys_yield();
 		if(sys_net_try_receive(pkt) < 0)
 			continue;
 		ipc_send(ns_envid, NSREQ_INPUT, pkt, PTE_U | PTE_P);

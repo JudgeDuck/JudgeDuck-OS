@@ -52,8 +52,8 @@ i386_detect_memory(void)
 	else
 		totalmem = basemem;
 	
-	if(totalmem > 4194304)
-		totalmem = 4194304;
+	if(totalmem > 524288)
+		totalmem = 524288;
 
 	npages = totalmem / (PGSIZE / 1024);
 	npages_basemem = basemem / (PGSIZE / 1024);
@@ -182,9 +182,9 @@ mem_init(void)
 	// or page_insert
 	page_init();
 
-	check_page_free_list(1);
-	check_page_alloc();
-	check_page();
+	// check_page_free_list(1);
+	// check_page_alloc();
+	// check_page();
 
 	//////////////////////////////////////////////////////////////////////
 	// Now we set up virtual memory
@@ -253,7 +253,7 @@ mem_init(void)
 	mem_init_mp();
 
 	// Check that the initial page directory has been set up correctly.
-	check_kern_pgdir();
+	// check_kern_pgdir();
 
 	// Switch from the minimal entry page directory to the full kern_pgdir
 	// page table we just created.	Our instruction pointer should be
@@ -264,7 +264,7 @@ mem_init(void)
 	// kern_pgdir wrong.
 	lcr3(PADDR(kern_pgdir));
 
-	check_page_free_list(0);
+	// check_page_free_list(0);
 
 	// entry.S set the really important flags in cr0 (including enabling
 	// paging).  Here we configure the rest of the flags that we care about.
@@ -274,7 +274,7 @@ mem_init(void)
 	lcr0(cr0);
 
 	// Some more checks, only possible after kern_pgdir is installed.
-	check_page_installed_pgdir();
+	// check_page_installed_pgdir();
 	
 	inited = 1;
 }

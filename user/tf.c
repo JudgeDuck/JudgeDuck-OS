@@ -3,7 +3,7 @@
 void
 umain(int argc, char **argv)
 {
-	int ret = fork();
-	cprintf("asdfasdfklja;skldfjl;ajsl;dfj;alskjdf;klajs;dfj;alskdjfl;ja;sdlfjasdkl;fj fork returned %x\n", ret);
+	int a = argv[1][0] - '0';
+	float c = 1.6 * a;
+	cprintf("floor(1.6 * %d) = %d\n", a, (int) c);
 }
-

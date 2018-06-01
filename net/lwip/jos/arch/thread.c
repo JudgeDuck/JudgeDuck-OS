@@ -103,7 +103,10 @@ thread_create(thread_id_t *tid, const char *name,
 		void (*entry)(uint32_t), uint32_t arg) {
     struct thread_context *tc = malloc(sizeof(struct thread_context));
     if (!tc)
-	return -E_NO_MEM;
+	{
+		cprintf("create thread failed1\n");
+		return -E_NO_MEM;
+	}
 
     memset(tc, 0, sizeof(struct thread_context));
     
@@ -112,8 +115,9 @@ thread_create(thread_id_t *tid, const char *name,
 
     tc->tc_stack_bottom = malloc(stack_size);
     if (!tc->tc_stack_bottom) {
-	free(tc);
-	return -E_NO_MEM;
+		free(tc);
+		cprintf("create thread failed2\n");
+		return -E_NO_MEM;
     }
 
     void *stacktop = tc->tc_stack_bottom + stack_size;
@@ -131,6 +135,7 @@ thread_create(thread_id_t *tid, const char *name,
 
     if (tid)
 	*tid = tc->tc_tid;
+	// cprintf("create thread ok %d\n", tc->tc_tid);
     return 0;
 }
 

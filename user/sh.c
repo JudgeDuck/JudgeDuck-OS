@@ -267,11 +267,12 @@ usage(void)
 void
 umain(int argc, char **argv)
 {
-	int r, interactive, echocmds;
+	int r, interactive, echocmds, waitall;
 	struct Argstate args;
 
 	interactive = '?';
 	echocmds = 0;
+	waitall = 0;
 	argstart(&argc, argv, &args);
 	while ((r = argnext(&args)) >= 0)
 		switch (r) {
@@ -283,6 +284,9 @@ umain(int argc, char **argv)
 			break;
 		case 'x':
 			echocmds = 1;
+			break;
+		case 'w':
+			waitall = 1;
 			break;
 		default:
 			usage();
@@ -333,6 +337,8 @@ umain(int argc, char **argv)
 				cprintf("(exited) %s\n$ ", buf);
 				exit();
 			}
+			if(waitall)
+				wait(r);
 		}
 	}
 }
