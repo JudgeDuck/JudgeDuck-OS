@@ -44,7 +44,6 @@ USERAPPS :=		$(USERAPPS) \
 			$(OBJDIR)/net/testoutput \
 			$(OBJDIR)/user/tf \
 			$(OBJDIR)/user/judged \
-			$(OBJDIR)/user/judging \
 			$(OBJDIR)/user/bh \
 			$(OBJDIR)/net/ns \
 
