@@ -2,12 +2,32 @@
 
 void sort(unsigned *a, int n);
 
-int
+static int
 atoi(const char *s)
 {
 	int ans = 0;
 	while(*s) ans = ans * 10 + (*s++ - '0');
 	return ans;
+}
+
+static void
+GGGqsort(unsigned *a, int l, int r)
+{
+	int i = l, j = r;
+	unsigned x = a[(l + r) / 2];
+	do
+	{
+		while(a[i] < x) ++i;
+		while(x < a[j]) --j;
+		if(i <= j)
+		{
+			unsigned y = a[i]; a[i] = a[j]; a[j] = y;
+			++i; --j;
+		}
+	}
+	while(i <= j);
+	if(l < j) GGGqsort(a, l, j);
+	if(i < r) GGGqsort(a, i, r);
 }
 
 struct Data
@@ -23,7 +43,7 @@ static union
 	struct Data d;
 } u __attribute__((aligned(PGSIZE)));
 
-void
+static void
 sort_wrapper(void)
 {
 	sort(u.d.a, u.d.n);
@@ -68,9 +88,12 @@ umain(int argc, char **argv)
 	cprintf("SORTLIB: data ready, before sys_enter_judge......\n");
 	int ret = sys_enter_judge(sort_wrapper, &prm);
 	cprintf("SORTLIB: sys_enter_judge returned %d\n", ret);
-	int fd = open("arbiter.in", O_RDWR | O_CREAT);
-	for(int i = 1; i < d.n; i++)
-		if(u.d.a[i] < u.d.a[i - 1])
+	
+	GGGqsort(d.a, 0, d.n - 1);
+	
+	int fd = open("arbiter.in", O_RDWR | O_CREAT | O_TRUNC);
+	for(int i = 0; i < d.n; i++)
+		if(u.d.a[i] != d.a[i])
 		{
 			cprintf("SORTLIB: Wrong Answer at %d\n", i);
 			fprintf(fd, "Wrong Answer at %d\n", i);

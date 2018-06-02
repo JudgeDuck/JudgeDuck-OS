@@ -4,6 +4,10 @@
 #include <QDataStream>
 #include <QDebug>
 #include <bits/stdc++.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
 using namespace std;
 
 QTcpSocket sock;
@@ -60,12 +64,33 @@ QString fileContent(string fn)
 	return ts.readAll();
 }
 
+size_t fileSize(const char *fn)
+{
+	struct stat st;
+	if(stat(fn, &st))
+		return 0;
+	return st.st_size;
+}
+
 // fn = ***.c
 QString judgeFile(const char *fn)
 {
+	size_t sz = fileSize(fn);
+	if(sz <= 0) return "source too small";
+	if(sz >= 10000) return "source too large";
 	string cmd = string("rm -f /home/yjp/OS2018spring-projects-g04/obj/user/judging && cp ") + fn + " /home/yjp/OS2018spring-projects-g04/user/judging.c && make -C /home/yjp/OS2018spring-projects-g04/ obj/user/judging > /dev/null";
 	int r = system(cmd.c_str());
 	if(r) return "compile error";
+	
+	sz = fileSize("/home/yjp/OS2018spring-projects-g04/obj/user/judging");
+	if(sz <= 0) return "binary too small";
+	if(sz >= 131072) return "binary too large";
+	
+	sock.connectToHost("localhost", 26002);
+	sock.waitForConnected();
+	ts.setDevice(&sock);
+	ds.setDevice(&sock);
+	
 	sendFile("/home/yjp/OS2018spring-projects-g04/obj/user/judging", "judging");
 	runCmd("arbiter judging 5000 65536 0 10000 > arbiter.out");
 	return fileContent("arbiter.out");
@@ -74,10 +99,6 @@ QString judgeFile(const char *fn)
 int main(int argc, char **argv)
 {
 	QCoreApplication a(argc, argv);
-	sock.connectToHost("localhost", 26002);
-	sock.waitForConnected();
-	ts.setDevice(&sock);
-	ds.setDevice(&sock);
 
 	QTextStream qout(stdout);
 	
