@@ -45,6 +45,7 @@ USERAPPS :=		$(USERAPPS) \
 			$(OBJDIR)/user/tf \
 			$(OBJDIR)/user/judged \
 			$(OBJDIR)/user/bh \
+			$(OBJDIR)/user/idle \
 			$(OBJDIR)/net/ns \
 
 FSIMGTXTFILES :=	$(FSIMGTXTFILES) \

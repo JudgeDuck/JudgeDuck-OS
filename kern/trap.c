@@ -259,7 +259,7 @@ trap_dispatch(struct Trapframe *tf)
 	//print_trapframe(tf);
 	if(tf->tf_trapno == T_PGFLT)
 	{
-		if(curenv->env_judging)
+		if(curenv && curenv->env_judging)
 		{
 			// print_trapframe(tf);
 			finish_judge(VERDICT_RE);
@@ -269,14 +269,14 @@ trap_dispatch(struct Trapframe *tf)
 	}
 	else if(tf->tf_trapno == T_BRKPT)
 	{
-		if(curenv->env_judging)
+		if(curenv && curenv->env_judging)
 			finish_judge(VERDICT_RE);
 		monitor(tf);
 		return;
 	}
 	else if(tf->tf_trapno == T_SYSCALL)
 	{
-		if(curenv->env_judging && !curenv->env_judge_prm.syscall_enabled[tf->tf_regs.reg_eax])
+		if(curenv && curenv->env_judging && !curenv->env_judge_prm.syscall_enabled[tf->tf_regs.reg_eax])
 			finish_judge(VERDICT_IS);
 		tf->tf_regs.reg_eax = syscall(
 			tf->tf_regs.reg_eax, tf->tf_regs.reg_edx, tf->tf_regs.reg_ecx,
@@ -288,7 +288,7 @@ trap_dispatch(struct Trapframe *tf)
 	{
 		lapic_eoi();
 		time_tick();
-		if(curenv->env_judging)
+		if(curenv && curenv->env_judging)
 			finish_judge(VERDICT_TLE);
 		sched_yield();
 		return;
@@ -334,7 +334,7 @@ trap_dispatch(struct Trapframe *tf)
 	}
 	else
 	{
-		if(curenv->env_judging)
+		if(curenv && curenv->env_judging)
 			finish_judge(VERDICT_RE);
 		print_trapframe(tf);
 		env_destroy(curenv);

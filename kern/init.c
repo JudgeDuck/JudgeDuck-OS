@@ -63,6 +63,7 @@ i386_init(void)
 
 	// Starting non-boot CPUs
 	// boot_aps();
+	// ENV_CREATE(user_idle, ENV_TYPE_USER);
 
 	// Start fs.
 	ENV_CREATE(fs_fs, ENV_TYPE_FS);

@@ -6,10 +6,10 @@
 #include <kern/pmap.h>
 #include <kern/monitor.h>
 #include <kern/timer.h>
-
-void sched_halt(void);
+#include <kern/sched.h>
 
 // Choose a user environment to run and run it.
+static int last_cid;
 void
 sched_yield(void)
 {
@@ -35,8 +35,10 @@ sched_yield(void)
 	int cid = 0;
 	if(curenv)
 		cid = curenv - envs;
+	else
+		cid = last_cid;
 	//cprintf("enter sched yield cid %d\n", cid);
-	for(int i = 0; i < NENV; i++)
+	for(int i = 1; i <= NENV; i++)
 	{
 		struct Env *ne = envs + (cid + i) % NENV;
 		if(ne->env_status != ENV_FREE)
@@ -50,11 +52,11 @@ sched_yield(void)
 			env_run(ne);
 		}
 	}
-	if(curenv && curenv->env_status == ENV_RUNNING)
+	/*if(curenv && curenv->env_status == ENV_RUNNING)
 	{
 		timer_single_shot_ns(DEFAULT_TIMER_INTERVAL);
 		env_run(curenv);
-	}
+	}*/
 
 	// sched_halt never returns
 	sched_halt();
@@ -66,6 +68,11 @@ sched_yield(void)
 void
 sched_halt(void)
 {
+	if(curenv && curenv->env_status == ENV_RUNNING)
+	{
+		last_cid = curenv - envs;
+		curenv->env_status = ENV_RUNNABLE;
+	}
 	int i;
 
 	// For debugging and testing purposes, if there are no runnable
@@ -105,5 +112,7 @@ sched_halt(void)
 		"hlt\n"
 		"jmp 1b\n"
 	: : "a" (thiscpu->cpu_ts.ts_esp0));
+	cprintf("fail to halt!\n");
+	while(1);
 }
 

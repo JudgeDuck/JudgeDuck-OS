@@ -151,3 +151,9 @@ sys_quit_judge()
 	return syscall(SYS_quit_judge, 1, 0, 0, 0, 0, 0);
 }
 
+void
+sys_halt()
+{
+	syscall(SYS_halt, 0, 0, 0, 0, 0, 0);
+}
+

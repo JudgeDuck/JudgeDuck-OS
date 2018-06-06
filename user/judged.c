@@ -2,11 +2,15 @@
 #include <lwip/sockets.h>
 #include <lwip/inet.h>
 
+envid_t idle_env;
+
 static void
 handle_client(int sock)
 {
+	int r = sys_env_destroy(idle_env);
+	if(r)
+		cprintf("Fail to destroy idle\n");
 	cprintf("handle sock %d\n", sock);
-	int r;
 	char s[512];
 	int received = -1;
 	for(;;)
@@ -96,6 +100,11 @@ handle_client(int sock)
 		}
 	}
 	close(sock);
+	
+	idle_env = spawnl("idle", "idle", 0);
+	if(idle_env < 0)
+		cprintf("Failed to spawn idle\n");
+	
 	// exit();
 }
 
@@ -124,6 +133,10 @@ umain(int argc, char **argv)
 		cprintf("Failed to listen on server socket");
 
 	cprintf("Waiting for connections...\n");
+	
+	idle_env = spawnl("idle", "idle", 0);
+	if(idle_env < 0)
+		cprintf("Failed to spawn idle\n");
 
 	while(1)
 	{

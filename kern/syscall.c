@@ -71,6 +71,12 @@ static void
 sys_yield(void)
 {
 	sched_yield();
+	// sched_halt();
+}
+static void
+sys_halt(void)
+{
+	sched_halt();
 }
 
 // Allocate a new environment.
@@ -572,6 +578,9 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 		return sys_net_try_transmit((void *) a1, a2);
 	case SYS_net_try_receive:
 		return sys_net_try_receive((struct jif_pkt *) a1);
+	case SYS_halt:
+		sys_halt();
+		return 0;
 	default:
 		return -E_INVAL;
 	}

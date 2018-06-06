@@ -47,7 +47,7 @@ font-smoothing:subpixel-antialiased;
 <form id="form" method="post" action="/">
 n=10000，5秒，64MB，只支持C语言
 </br>
-<input type="submit" value="提交" />（可能有点慢，请耐心等待半分钟～）
+<input type="submit" value="提交" />（可能有点慢，在前面无人排队时，响应时间约为5秒+你的运行时间）
 </br>
 void sort(unsigned *a, int n){
 <br />
