@@ -159,7 +159,7 @@ QEMUOPTS += -smp $(CPUS)
 QEMUOPTS += -drive file=$(OBJDIR)/fs/fs.img,index=1,media=disk,format=raw
 IMAGES += $(OBJDIR)/fs/fs.img
 QEMUOPTS += -net user -net nic,model=e1000 -redir tcp:$(PORT7)::7 \
-	   -redir tcp:$(PORT80)::80 -redir udp:$(PORT7)::7 -net dump,file=qemu.pcap
+	   -redir tcp:$(PORT80)::80 -redir udp:$(PORT80)::80 -redir udp:$(PORT7)::7 -net dump,file=qemu.pcap
 QEMUOPTS += $(QEMUEXTRA)
 
 .gdbinit: .gdbinit.tmpl

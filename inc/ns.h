@@ -25,6 +25,8 @@ enum {
 	// Recv returns a Nsret_recv on the request page.
 	NSREQ_RECV,
 	NSREQ_SEND,
+	NSREQ_RECVFROM,
+	NSREQ_SENDTO,
 	NSREQ_SOCKET,
 
 	// The following two messages pass a page containing a struct jif_pkt
@@ -84,12 +86,33 @@ union Nsipc {
 		char ret_buf[0];
 	} recvRet;
 
+	struct Nsreq_recvfrom {
+		int req_s;
+		int req_len;
+		unsigned int req_flags;
+	} recvfrom;
+
+	struct Nsret_recvfrom {
+		struct sockaddr ret_addr;
+		socklen_t ret_addrlen;
+		char ret_buf[0];
+	} recvfromRet;
+
 	struct Nsreq_send {
 		int req_s;
 		int req_size;
 		unsigned int req_flags;
 		char req_buf[0];
 	} send;
+
+	struct Nsreq_sendto {
+		int req_s;
+		int req_size;
+		unsigned int req_flags;
+		struct sockaddr req_name;
+		socklen_t req_namelen;
+		char req_buf[0];
+	} sendto;
 
 	struct Nsreq_socket {
 		int req_domain;

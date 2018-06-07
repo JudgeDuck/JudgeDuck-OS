@@ -1,7 +1,9 @@
 #include <inc/lib.h>
 #include <lwip/sockets.h>
 #include <lwip/inet.h>
+#include <lwip/err.h>
 
+int errno;
 envid_t idle_env;
 
 static void
@@ -21,83 +23,6 @@ handle_client(int sock)
 			cprintf("failed to read\n");
 			break;
 		}
-		s[received] = 0;
-		if(s[0] == 'f')
-		{
-			// write file
-			int fd = open(s + 1, O_RDWR | O_CREAT | O_TRUNC);
-			for(;;)
-			{
-				for(int i = 0; i < 50; i++) sys_yield();
-				if(write(sock, "file", 4) != 4)
-				{
-					cprintf("failed to write\n");
-					break;
-				}
-				if((received = read(sock, s, sizeof(s) - 1)) < 0)
-				{
-					cprintf("failed to read\n");
-					break;
-				}
-				if(s[0] == 'e') break;
-				write(fd, s + 1, received - 1);
-			}
-			if(write(sock, "ok", 2) != 2)
-			{
-				cprintf("failed to write\n");
-				break;
-			}
-			close(fd);
-			sync();
-		}
-		else if(s[0] == 'c')
-		{
-			cprintf("command:%s:\n", s + 1);
-			// command
-			int fd = open("tmp", O_RDWR | O_CREAT | O_TRUNC);
-			write(fd, s + 1, received - 1);
-			write(fd, "\n", 1);
-			close(fd);
-			sync();
-			r = spawnl("sh", "sh", "-w", "tmp", 0);
-			if(r < 0)
-			{
-				cprintf("failed to spawn %e\n", r);
-			}
-			wait(r);
-			cprintf("wait ok\n");
-			if(write(sock, "ok", 2) != 2)
-			{
-				cprintf("failed to write\n");
-				break;
-			}
-		}
-		else if(s[0] == 'o')
-		{
-			// open file
-			int fd = open(s + 1, O_RDONLY);
-			if((received = read(fd, s, sizeof(s) - 1)) < 0)
-			{
-				cprintf("failed to read local\n");
-				break;
-			}
-			close(fd);
-			sync();
-			if(write(sock, s, received) != received)
-			{
-				cprintf("failed to write\n");
-				break;
-			}
-			break;
-		}
-		else
-		{
-			if(write(sock, "inv", 3) != 3)
-			{
-				cprintf("failed to write\n");
-				break;
-			}
-		}
 	}
 	close(sock);
 	
@@ -112,25 +37,44 @@ void
 umain(int argc, char **argv)
 {
 	int serversock, clientsock;
-	struct sockaddr_in server, client;
+	struct sockaddr_in server, client, clientStatic;
 
 	// Create the TCP socket
-	if((serversock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0)
+	if((serversock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
+	{
 		cprintf("Failed to create socket");
+		return;
+	}
+	if((clientsock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
+	{
+		cprintf("Failed to create socket");
+		return;
+	}
 
 	// Construct the server sockaddr_in structure
 	memset(&server, 0, sizeof(server));		// Clear struct
 	server.sin_family = AF_INET;			// Internet/IP
 	server.sin_addr.s_addr = htonl(INADDR_ANY);	// IP address
 	server.sin_port = htons(80);			// server port
+	
+	memset(&clientStatic, 0, sizeof(clientStatic));		// Clear struct
+	clientStatic.sin_family = AF_INET;			// Internet/IP
+	clientStatic.sin_addr.s_addr = inet_addr("10.0.2.2");	// IP address
+	clientStatic.sin_port = htons(8008);			// server port
 
 	// Bind the server socket
 	if(bind(serversock, (struct sockaddr *) &server, sizeof(server)) < 0)
+	{
 		cprintf("Failed to bind the server socket");
+		return;
+	}
 
 	// Listen on the server socket
-	if(listen(serversock, 5) < 0)
+	/*if(listen(serversock, 5) < 0)
+	{
 		cprintf("Failed to listen on server socket");
+		return;
+	}*/
 
 	cprintf("Waiting for connections...\n");
 	
@@ -141,10 +85,73 @@ umain(int argc, char **argv)
 	while(1)
 	{
 		unsigned int clientlen = sizeof(client);
-		// Wait for client connection
-		if((clientsock = accept(serversock, (struct sockaddr *) &client, &clientlen)) < 0)
-			cprintf("Failed to accept client connection");
-		handle_client(clientsock);
+		char s[512];
+		int received;
+		errno = 233;
+		clientlen = 233;
+		if((received = recvfrom(serversock, s, sizeof(s) - 1, 0, (struct sockaddr *) &client, &clientlen)) < 0)
+		{
+			cprintf("recvfrom failed %d\n", errno);
+			exit();
+		}
+		s[received] = 0;
+		if(s[0] == 'f')
+		{
+			// write file
+			int fd = open(s + 1, O_RDWR | O_CREAT | O_TRUNC);
+			for(;;)
+			{
+				for(int i = 0; i < 50; i++) sys_yield();
+				if(sendto(clientsock, "file", 4, 0, (struct sockaddr *) &clientStatic, clientlen) < 0)
+					cprintf("sendto error file\n");
+				if((received = recvfrom(serversock, s, sizeof(s) - 1, 0, (struct sockaddr *) &client, &clientlen)) < 0)
+				{
+					cprintf("failed to recvfrom\n");
+					break;
+				}
+				if(s[0] == 'e') break;
+				write(fd, s + 1, received - 1);
+			}
+			close(fd);
+			sync();
+			strcpy(s, "ok"); received = 2;
+		}
+		else if(s[0] == 'c')
+		{
+			cprintf("command:%s:\n", s + 1);
+			// command
+			int fd = open("tmp", O_RDWR | O_CREAT | O_TRUNC);
+			write(fd, s + 1, received - 1);
+			write(fd, "\n", 1);
+			close(fd);
+			sync();
+			int r = spawnl("sh", "sh", "-w", "tmp", 0);
+			if(r < 0)
+			{
+				cprintf("failed to spawn %e\n", r);
+			}
+			wait(r);
+			cprintf("wait ok\n");
+			strcpy(s, "ok"); received = 2;
+		}
+		else if(s[0] == 'o')
+		{
+			// open file
+			int fd = open(s + 1, O_RDONLY);
+			if((received = read(fd, s, sizeof(s) - 1)) < 0)
+			{
+				cprintf("failed to read local\n");
+				break;
+			}
+			close(fd);
+			sync();
+		}
+		else
+		{
+			strcpy(s, "inv"); received = 3;
+		}
+		if(sendto(clientsock, s, received, 0, (struct sockaddr *) &clientStatic, clientlen) < 0)
+			cprintf("sendto error\n");
 	}
 
 	close(serversock);

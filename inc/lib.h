@@ -115,6 +115,8 @@ int     bind(int s, struct sockaddr *name, socklen_t namelen);
 int     shutdown(int s, int how);
 int     connect(int s, const struct sockaddr *name, socklen_t namelen);
 int     listen(int s, int backlog);
+int     recvfrom(int s, void *mem, int len, unsigned int flags, struct sockaddr *addr, socklen_t *addrlen);
+int     sendto(int s, const void *buf, int size, unsigned int flags, struct sockaddr *addr, socklen_t addrlen);
 int     socket(int domain, int type, int protocol);
 
 // nsipc.c
@@ -126,6 +128,8 @@ int     nsipc_connect(int s, const struct sockaddr *name, socklen_t namelen);
 int     nsipc_listen(int s, int backlog);
 int     nsipc_recv(int s, void *mem, int len, unsigned int flags);
 int     nsipc_send(int s, const void *buf, int size, unsigned int flags);
+int     nsipc_recvfrom(int s, void *mem, int len, unsigned int flags, struct sockaddr *addr, socklen_t *addrlen);
+int     nsipc_sendto(int s, const void *buf, int size, unsigned int flags, struct sockaddr *addr, socklen_t addrlen);
 int     nsipc_socket(int domain, int type, int protocol);
 
 // spawn.c

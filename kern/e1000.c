@@ -89,7 +89,7 @@ try_transmit(physaddr_t pa, int cnt)
 	struct TransDesc td;
 	memset(&td, 0, sizeof(td));
 	td.addr = pa;
-	td.length = cnt;
+	td.length = cnt + 4;
 	td.cmd &= ~(1 << 5);
 	td.cmd |= (1 << 3) | (1 << 0);
 	tq[tdt] = td;

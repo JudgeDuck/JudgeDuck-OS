@@ -115,6 +115,33 @@ devsock_write(struct Fd *fd, const void *buf, size_t n)
 	return nsipc_send(fd->fd_sock.sockid, buf, n, 0);
 }
 
+ssize_t
+recvfrom(int s, void *mem, int len, unsigned int flags, struct sockaddr *addr, socklen_t *addrlen)
+{
+	cprintf("before recvfrom\n");
+	int r;
+	if ((r = fd2sockid(s)) < 0)
+		return r;
+	ssize_t ret = nsipc_recvfrom(r, mem, len, flags, addr, addrlen);
+	cprintf("after recvfrom\n");
+	return ret;
+}
+
+ssize_t
+sendto(int s, const void *mem, int len, unsigned int flags, struct sockaddr *addr, socklen_t addrlen)
+{
+	addrlen = sizeof(*addr);
+	cprintf("addrlen = %d\n", addrlen);
+	for(int i = 0; i < addrlen; i++) cprintf("%02x ", i[(char *) addr]);
+	cprintf("\n");
+	int r;
+	if ((r = fd2sockid(s)) < 0)
+		return r;
+	ssize_t ret = nsipc_sendto(r, mem, len, flags, addr, addrlen);
+	cprintf("sendto ok\n");
+	return ret;
+}
+
 static int
 devsock_stat(struct Fd *fd, struct Stat *stat)
 {

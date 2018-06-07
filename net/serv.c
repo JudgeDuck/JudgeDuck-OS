@@ -226,6 +226,19 @@ serve_thread(uint32_t a) {
 		r = lwip_send(req->send.req_s, &req->send.req_buf,
 			      req->send.req_size, req->send.req_flags);
 		break;
+	case NSREQ_RECVFROM:
+		// Note that we read the request fields before we
+		// overwrite it with the response data.
+		r = lwip_recvfrom(req->recvfrom.req_s, req->recvfromRet.ret_buf,
+			      req->recvfrom.req_len, req->recvfrom.req_flags,
+				  &req->recvfromRet.ret_addr, &req->recvfromRet.ret_addrlen);
+		cprintf("addrlen = %d\n", req->recvfromRet.ret_addrlen);
+		break;
+	case NSREQ_SENDTO:
+		r = lwip_sendto(req->sendto.req_s, &req->sendto.req_buf,
+			      req->sendto.req_size, req->sendto.req_flags,
+				  &req->sendto.req_name, req->sendto.req_namelen);
+		break;
 	case NSREQ_SOCKET:
 		r = lwip_socket(req->socket.req_domain, req->socket.req_type,
 				req->socket.req_protocol);

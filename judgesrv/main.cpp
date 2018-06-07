@@ -1,5 +1,6 @@
 #include <QCoreApplication>
-#include <QTcpSocket>
+// #include <QTcpSocket>
+#include <QUdpSocket>
 #include <QTextStream>
 #include <QDataStream>
 #include <QDebug>
@@ -10,7 +11,7 @@
 
 using namespace std;
 
-QTcpSocket sock;
+QUdpSocket sock;
 QTextStream ts;
 QDataStream ds;
 
@@ -23,7 +24,7 @@ void sendFile(const char *sfn, const char *tfn)
 	ts << fn.c_str();
 	ts.flush();
 	sock.waitForReadyRead();
-	ts.readAll();
+	qDebug() << ts.readAll();
 	char buf[512];
 	FILE *fin = fopen(sfn, "rb");
 	int r;
@@ -34,12 +35,12 @@ void sendFile(const char *sfn, const char *tfn)
 		ds.writeRawData(buf, r + 1);
 		sock.flush();
 		sock.waitForReadyRead();
-		ts.readAll();
+		qDebug() << ts.readAll();
 	}
 	ts << "e";
 	ts.flush();
 	sock.waitForReadyRead();
-	ts.readAll();
+	qDebug() << ts.readAll();
 	fclose(fin);
 	printf("send ok\n");
 }
@@ -50,7 +51,7 @@ void runCmd(string cmd)
 	ts << cmd.c_str();
 	ts.flush();
 	sock.waitForReadyRead();
-	ts.readAll();
+	qDebug() << ts.readAll();
 	printf("runCmd ok\n");
 }
 QString fileContent(string fn)
@@ -86,13 +87,14 @@ QString judgeFile(const char *fn)
 	if(sz <= 0) return "binary too small";
 	if(sz >= 131072) return "binary too large";
 	
-	sock.connectToHost("localhost", 26002);
+	qDebug() << sock.bind("10.0.2.2", 8008);
+	sock.connectToHost("10.0.2.15", 80);
 	sock.waitForConnected();
 	ts.setDevice(&sock);
 	ds.setDevice(&sock);
 	
 	sendFile("/home/yjp/OS2018spring-projects-g04/obj/user/judging", "judging");
-	runCmd("arbiter judging 5000 65536 0 10000 > arbiter.out");
+	runCmd("arbiter judging 5000 65536 1 10000 > arbiter.out");
 	return fileContent("arbiter.out");
 }
 

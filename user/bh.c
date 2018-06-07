@@ -11,5 +11,6 @@ umain(int argc, char **argv)
 			return;
 		}
 		wait(r);
+		for(int i = 0; i < 50; i++) sys_yield();
 	}
 }

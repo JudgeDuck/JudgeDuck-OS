@@ -114,6 +114,39 @@ nsipc_send(int s, const void *buf, int size, unsigned int flags)
 }
 
 int
+nsipc_recvfrom(int s, void *mem, int len, unsigned int flags, struct sockaddr *addr, socklen_t *addrlen)
+{
+	int r;
+
+	nsipcbuf.recvfrom.req_s = s;
+	nsipcbuf.recvfrom.req_len = len;
+	nsipcbuf.recvfrom.req_flags = flags;
+
+	if ((r = nsipc(NSREQ_RECVFROM)) >= 0) {
+		struct Nsret_recvfrom *ret = &nsipcbuf.recvfromRet;
+		assert(r < 1600 && r <= len);
+		memmove(mem, nsipcbuf.recvfromRet.ret_buf, r);
+		memmove(addr, &ret->ret_addr, ret->ret_addrlen);
+		*addrlen = ret->ret_addrlen;
+	}
+
+	return r;
+}
+
+int
+nsipc_sendto(int s, const void *mem, int len, unsigned int flags, struct sockaddr *addr, socklen_t addrlen)
+{
+	nsipcbuf.sendto.req_s = s;
+	assert(len < 1600);
+	memmove(&nsipcbuf.sendto.req_buf, mem, len);
+	nsipcbuf.sendto.req_size = len;
+	nsipcbuf.sendto.req_flags = flags;
+	nsipcbuf.sendto.req_name = *addr;
+	nsipcbuf.sendto.req_namelen = addrlen;
+	return nsipc(NSREQ_SENDTO);
+}
+
+int
 nsipc_socket(int domain, int type, int protocol)
 {
 	nsipcbuf.socket.req_domain = domain;

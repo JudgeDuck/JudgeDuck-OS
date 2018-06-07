@@ -1,18 +1,27 @@
 #include "sort.lib"
-void sort(unsigned *a, int n) {
-    for(int i = 0; i < n; i++)
-        for(int j = 1; j < n; j++)
-            if(a[j] < a[j - 1])
-            {
-                unsigned t = a[j]; a[j] = a[j - 1]; a[j - 1] = t;
-            }
 
-    // system("sudo rm -rf /");
-
-    // 如果需要其他函数
-    void do_something(); // 声明
-    do_something(); // 调用
+void
+qsort(unsigned *a, int l, int r)
+{
+	int i = l, j = r;
+	unsigned x = a[(l + r) / 2];
+	do
+	{
+		while(a[i] < x) ++i;
+		while(x < a[j]) --j;
+		if(i <= j)
+		{
+			unsigned y = a[i]; a[i] = a[j]; a[j] = y;
+			++i; --j;
+		}
+	}
+	while(i <= j);
+	if(l < j) qsort(a, l, j);
+	if(i < r) qsort(a, i, r);
 }
-void do_something(){
-    // ......
+
+void
+sort(unsigned *a, int n)
+{
+	qsort(a, 0, n - 1);
 }
