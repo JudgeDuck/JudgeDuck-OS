@@ -1,0 +1,27 @@
+////// Author: 归并排序qaq
+#define N 10000000
+#define K 13
+unsigned b[N],*a0=a,*a1=b,*tmp;
+int d,l,m,r,p1,p2;
+for(l=0;l<n;l=r){
+	r=l+K;
+	if(r>n)r=n;
+	for(p1=l+1;p1<r;++p1){
+		for(m=a[p2=p1];p2>l&&a[p2-1]>m;a[p2]=a[p2-1],--p2);
+		a[p2]=m;
+	}
+}
+for(d=K;d<n;d<<=1){
+	for(l=0;l<n;){
+		m=l+d;
+		if(m>n)m=n;
+		r=m+d;
+		if(r>n)r=n;
+		p1=l,p2=m;
+		for(;p1<m&&p2<r;a1[l++]=a0[p1]<a0[p2]?a0[p1++]:a0[p2++]);
+		for(;p1<m;a1[l++]=a0[p1++]);
+		for(;p2<r;a1[l++]=a0[p2++]);
+	}
+	tmp=a0,a0=a1,a1=tmp;
+}
+if(a0!=a)for(l=0;l<n;++l)a[l]=a0[l];

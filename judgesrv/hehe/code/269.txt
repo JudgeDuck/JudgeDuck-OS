@@ -1,0 +1,17 @@
+////// Author: whzzt_ioi_win
+#include <inc/lib.h>
+void sort(unsigned *a, int n){
+int k,i,j;
+unsigned f[2][10000005];
+for (i=0;i<n;i++) f[0][i]=a[i];
+for (k=1;(1<<(k-1))<=n;k++)
+{int t=(k&1),o=t^1;
+for (i=0;i<n;i+=(1<<k))
+{int p1=i,p2=i+(1<<(k-1)),pos=i;
+int T=(i+(1<<k)>n?n:i+(1<<k)),O=p2;
+while (pos<T) f[t][pos++]=((p2<T&&(p1>=O||f[o][p2]<f[o][p1]))?f[o][p2++]:f[o][p1++]);
+}
+}
+for (i=0;i<n;i++) a[i]=f[0][i];
+
+}

@@ -1,0 +1,28 @@
+////// Author: lzlj
+#include <inc/lib.h>
+void sort(unsigned *a, int n){
+    int ji[5]={0,8,16,24,32};
+    int rdi=256;
+    int b[10000009],c[rdi];
+	for(int j=0;j<rdi;++j)c[j]=0;
+	for(int j=0;j<n;++j)c[(a[j]>>ji[i])&(rdi-1)]++;
+	for(int j=1;j<rdi;++j)c[j]+=c[j-1];
+	for(int j=n-1;j>=0;--j)b[--c[(a[j]>>ji[i])&(rdi-1)]]=a[j];
+	for(int j=0;j<n;++j)a[j]=b[j];
+for(int j=0;j<rdi;++j)c[j]=0;
+	for(int j=0;j<n;++j)c[(a[j]>>ji[i])&(rdi-1)]++;
+	for(int j=1;j<rdi;++j)c[j]+=c[j-1];
+	for(int j=n-1;j>=0;--j)b[--c[(a[j]>>ji[i])&(rdi-1)]]=a[j];
+	for(int j=0;j<n;++j)a[j]=b[j];
+for(int j=0;j<rdi;++j)c[j]=0;
+	for(int j=0;j<n;++j)c[(a[j]>>ji[i])&(rdi-1)]++;
+	for(int j=1;j<rdi;++j)c[j]+=c[j-1];
+	for(int j=n-1;j>=0;--j)b[--c[(a[j]>>ji[i])&(rdi-1)]]=a[j];
+	for(int j=0;j<n;++j)a[j]=b[j];
+for(int j=0;j<rdi;++j)c[j]=0;
+	for(int j=0;j<n;++j)c[(a[j]>>ji[i])&(rdi-1)]++;
+	for(int j=1;j<rdi;++j)c[j]+=c[j-1];
+	for(int j=n-1;j>=0;--j)b[--c[(a[j]>>ji[i])&(rdi-1)]]=a[j];
+	for(int j=0;j<n;++j)a[j]=b[j];
+
+}

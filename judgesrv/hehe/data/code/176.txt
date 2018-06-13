@@ -1,0 +1,29 @@
+#include <inc/lib.h>
+
+typedef unsigned u32;
+inline u32 mul_div(u32 a, u32 b, u32 c) {
+	return ((uint64_t) a * b) / c;
+}
+
+inline int min(int a, int b) {
+	return a < b ? a : b;
+}
+
+inline int max(int a, int b) {
+	return a > b ? a : b;
+}
+
+int binary_search(const unsigned *a, int n, unsigned x) {
+	int pos = mul_div(x, n, a[n - 1] - a[0]);
+	int l = max(0, pos - 10000), r = min(n - 1, pos + 10000);
+	pos = l + mul_div(x - a[l], r - l - 1, a[r] - a[l] + 1);
+	l = max(l, pos - 1000), r = min(r, pos + 1000);
+	int mid;
+	#define A mid = l + mul_div(r - l - 1, x - a[l], a[r] - a[l] + 1); if (a[mid] < x) l = mid + 1; else r = mid;
+	#define B mid = (l + r) >> 1; if (a[mid] < x) l = mid + 1; else r = mid;
+	while (l + 5 < r) {
+		B
+	}
+	while (a[l] != x) ++l;
+	return l;
+}

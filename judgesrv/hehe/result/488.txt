@@ -1,0 +1,7 @@
+compiling...
+compile success!
+verdict = Run Finished
+time_Mcycles = 3805.335312
+time_ms = 1119.216640
+mem_kb = 39068
+Correct Answer!

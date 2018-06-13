@@ -1,0 +1,5 @@
+#include <math.h>
+int plus(int a, int b)
+{
+return sin(a);
+}

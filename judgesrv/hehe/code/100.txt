@@ -1,0 +1,35 @@
+////// Author: wxh010610
+#include <inc/lib.h>
+void sort(unsigned *a, int n){
+////// Author: wxh010610
+
+	void qsort(unsigned *, int, int);
+	qsort(a, 0, n - 1);
+}
+    const int SIZ=256,S=SIZ-1;
+    unsigned b[10001000],sum[SIZ+1];
+    void sort2(unsigned * a,int n){
+    	for(int i=0;i<=SIZ;++i)sum[i]=0;
+        for(int i=1;i<=n;i++)++sum[a[i]&S];
+        for(int i=1;i<SIZ;i++)sum[i]+=sum[i-1];
+        for(int i=n;i;i--)b[sum[a[i]&S]--]=a[i];
+    	for(int i=0;i<=SIZ;++i)sum[i]=0;
+for(int i=1;i<=n;i++)++sum[b[i]>>8&S];
+        for(int i=1;i<SIZ;i++)sum[i]+=sum[i-1];
+        for(int i=n;i;i--)a[sum[b[i]>>8&S]--]=b[i];
+    	for(int i=0;i<=SIZ;++i)sum[i]=0;
+        for(int i=1;i<=n;i++)++sum[a[i]>>16&S];
+        for(int i=1;i<SIZ;i++)sum[i]+=sum[i-1];
+        for(int i=n;i;i--)b[sum[a[i]>>16&S]--]=a[i];
+    	for(int i=0;i<=SIZ;++i)sum[i]=0;
+        for(int i=1;i<=n;i++)++sum[b[i]>>24&S];
+        for(int i=1;i<SIZ;i++)sum[i]+=sum[i-1];
+        for(int i=n;i;i--)a[sum[b[i]>>24&S]--]=b[i];
+    }
+
+void
+qsort(unsigned *a, int l, int r)
+{
+sort2(a+l-1,r-l+1);
+
+}

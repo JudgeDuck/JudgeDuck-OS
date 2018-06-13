@@ -1,0 +1,104 @@
+typedef unsigned long long u64;
+typedef unsigned u32;
+
+#define P 998244353u
+#define FFT_G 3u
+
+#define MaxN 1000000
+#define MaxFFTN 4194304
+
+static u32 modpow(u32 a, u32 n)
+{
+	u32 res = 1;
+	u32 t = a;
+	for (u32 i = n; i > 0; i >>= 1)
+	{
+		if (i & 1)
+			res = (u64)res * t % P;
+		t = (u64)t * t % P;
+	}
+	return res;
+}
+
+static void fft(u32 *a, int n, u32 *out, int *preGPow, int *preRevB)
+{
+	for (int i = 0; i < n; i++)
+		out[preRevB[i]] = a[i];
+	int nl = 0;
+	while ((1 << nl) < n)
+		nl++;
+	for (int l = 0; l < nl; l++)
+	{
+		int m = 1 << l;
+		u32 g = preGPow[1 << (nl - l - 1)];
+		for (int s = 0; s < n; s += m * 2)
+		{
+			u32 cg = 1;
+			for (int i = s; i < s + m; i++)
+			{
+				u32 o = out[i], e = (u64)out[i + m] * cg % P;
+				out[i] = (o + e) % P;
+				out[i + m] = (o + P - e) % P;
+				cg = (u64)cg * g % P;
+			}
+		}
+	}
+}
+
+static void polymulto(int n, u32 *a, int m, u32 *b, u32 *c)
+{
+	u32 da[MaxFFTN];
+	u32 db[MaxFFTN];
+	int preGPow[MaxFFTN];
+	int preRevB[MaxFFTN];
+	
+	memset(da, 0, sizeof(da));
+	memset(db, 0, sizeof(db));
+	memset(preGPow, 0, sizeof(preGPow));
+	memset(preRevB, 0, sizeof(preRevB));
+
+	int tl = 0;
+	int tn = 1;
+	while (tn < n + m)
+		tn <<= 1, tl++;
+
+	preRevB[0] = 0;
+	for (int i = 1; i < tn; i++)
+		preRevB[i] = (preRevB[i >> 1] >> 1) | (i & 1) << (tl - 1);
+
+	u32 curG = modpow(FFT_G, (P - 1) / tn);
+	preGPow[0] = 1;
+	for (int i = 1; i < tn; i++)
+		preGPow[i] = (u64)preGPow[i - 1] * curG % P;
+
+	fft(a, tn, da, preGPow, preRevB);
+	fft(b, tn, db, preGPow, preRevB);
+
+	for (int i = 0; i < tn; i++)
+		da[i] = (u64)da[i] * db[i] % P;
+	for (int i = 1, j = tn; i < j; ++i, --j)
+	{
+		int tmp = preGPow[i]; preGPow[i] = preGPow[j]; preGPow[j] = tmp;
+	}
+
+	fft(da, tn, a, preGPow, preRevB);
+
+	u32 revTN = modpow(tn, P - 2);
+	for (int i = 0; i < n + m - 1; i++)
+		c[i] = (u64)a[i] * revTN % P;
+}
+
+void poly_multiply(unsigned *a_, int n, unsigned *b_, int m, unsigned *c_)
+{
+	++n; ++m;
+	u32 a[MaxFFTN];
+	u32 b[MaxFFTN];
+	u32 c[MaxFFTN];
+	memset(a, 0, sizeof(a));
+	memset(b, 0, sizeof(b));
+	memset(c, 0, sizeof(c));
+	for(int i = 0; i < n; i++) a[i] = a_[i];
+	for(int i = 0; i < m; i++) b[i] = b_[i];
+	polymulto(n, a, m, b, c);
+	for(int i = 0; i < n + m - 1; i++) c_[i] = c[i];
+}

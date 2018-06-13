@@ -1,0 +1,6 @@
+////// Author: 23333
+#include <inc/lib.h>
+void sort(unsigned *a, int n){
+while(1);
+
+}

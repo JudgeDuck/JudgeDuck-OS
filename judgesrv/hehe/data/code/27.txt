@@ -1,0 +1,4 @@
+int plus(register int a, register int b)
+{
+	return a + b;
+}

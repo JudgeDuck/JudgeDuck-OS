@@ -1,0 +1,1 @@
+contestant.o: contestant.c

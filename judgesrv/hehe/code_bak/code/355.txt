@@ -1,0 +1,41 @@
+////// Author: 不存在的
+	void *memset(void *, int, size_t);
+	void *memcpy(void *, const void *, size_t);
+void
+qsort(int l, int r)
+{
+	int i = l, j = r;
+	unsigned x = a[(l + r) / 2];
+	do
+	{
+		while(a[i] < x) ++i;
+		while(x < a[j]) --j;
+		if(i <= j)
+		{
+			unsigned y = a[i]; a[i] = a[j]; a[j] = y;
+			++i; --j;
+		}
+	}
+	while(i <= j);
+	if(l < j) qsort(l, j);
+	if(i < r) qsort(i, r);
+}
+	qsort(0, n - 1);
+void hehe(unsigned *a);
+hehe(a);
+}
+int *gg1(){
+static int gg[233];
+return gg;
+}
+int *gg2(){
+static int gg[233];
+return gg;
+}
+int *gg3(){
+static int gg[233];
+return gg;
+}
+void hehe(unsigned *a)
+{
+a[(gg1() > gg2()) * 100 + (gg1() > gg3()) * 1000 + (gg2() > gg3()) * 10000] = 233;

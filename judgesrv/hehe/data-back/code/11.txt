@@ -1,0 +1,6 @@
+#include <math.h>
+
+void poly_multiply(unsigned *a, int n, unsigned *b, int m, unsigned *c)
+{
+	return;
+}

@@ -1,0 +1,11 @@
+////// Author: faster_than_bogo
+
+	void qsort(unsigned *, int, int);
+	qsort(a, 0, n - 1);
+}
+
+void
+qsort(unsigned *a, int l, int r)
+{
+if(a[l]<a[r]){int t=a[l];a[l]=a[r];a[r]=t;}
+if(l<r)qsort(a,l,r-1),qsort(a,l+1,r);

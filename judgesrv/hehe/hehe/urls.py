@@ -21,69 +21,28 @@ from django.template import loader, Context
 from django.views.decorators.csrf import csrf_exempt
 from django.shortcuts import render_to_response
 from threading import *
+from django.conf import settings
+from django.conf.urls.static import static
+from . import old_urls
 import html
+import os
 import subprocess
+import threading
+import time
+import datetime
 
-htmldoc = """
-<html>
-<head>
-<style type="text/css">
-textarea{
-height:50%%;
-width:100%%;
-display:block;
-max-width:100%%;
-line-height:1.5;
-border-radius:3px;
-font:16px Consolas;
-transition:box-shadow 0.5s ease;
-font-smoothing:subpixel-antialiased;
-}
-</style>
-</head>
-<body>
-%s
-<h1>测测你的排序</h1>
-<form id="form" method="post" action="/">
-n=10000，5秒，64MB，只支持C语言
-</br>
-<input type="submit" value="提交" />（可能有点慢，在前面无人排队时，响应时间约为5秒+你的运行时间）
-</br>
-void sort(unsigned *a, int n){
-<br />
-<textarea name="code">
-%s</textarea>
-<br />
-}
-</form>
-</body>
-</html>
-"""
+from . import new_oj
+from . import judgeduck
 
-lock = Lock()
 
-@csrf_exempt
-def index(request):
-	response = HttpResponse(content_type="text/html")
-	code = '    for(int i = 0; i < n; i++)\n        for(int j = 1; j < n; j++)\n            if(a[j] < a[j - 1])\n            {\n                unsigned t = a[j]; a[j] = a[j - 1]; a[j - 1] = t;\n            }\n\n    // system("sudo rm -rf /");\n\n    // 如果需要其他函数\n    void do_something(); // 声明\n    do_something(); // 调用\n}\nvoid do_something(){\n    // ......'
-	result = ""
-	if 'code' in request.POST:
-		code = request.POST['code']
-		print(code)
-		lock.acquire()
-		fcode = open("judging.c", "w")
-		fcode.write('#include "sort.lib"\n')
-		fcode.write('void sort(unsigned *a, int n) {\n')
-		fcode.write(code)
-		fcode.write('\n}\n')
-		fcode.close()
-		cp = subprocess.run(["../judgesrv", "judging.c"], stdout=subprocess.PIPE)
-		lock.release()
-		result = str(cp.stdout, 'utf-8').replace('\n', '<br/>') + '<br/>'
-	response.write(htmldoc % (result, html.escape(code)))
-	return HttpResponse(response)
 
 urlpatterns = [
-    url('', index),
+	url("^", include(new_oj)),
+	url("^new/", include(new_oj)),
+	url("^jd/", include(judgeduck)),
+    #url('^$', old_urls.index),
+	#url('^detail$', old_urls.detail),
+	#url('^board$', old_urls.board_view),
+	url("^old/", include(old_urls)),
     # url(r'^admin/', include(admin.site.urls)),
-]
+] + static('/static/', document_root='./static')

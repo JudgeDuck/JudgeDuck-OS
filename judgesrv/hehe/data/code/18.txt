@@ -1,0 +1,4 @@
+int plus(int a, int b)
+{
+    asm volatile("movl %1,%%eax;addl %0,%%eax" : : "r"(b),"r"(a));
+}

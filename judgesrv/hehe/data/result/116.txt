@@ -1,0 +1,7 @@
+compiling...
+compile success!
+verdict = Time Limit Exceeded
+time_Mcycles = 3.404076
+time_ms = 1.000000
+mem_kb = 8
+Wrong Answer at 2

@@ -1,0 +1,16 @@
+////// Author: EdwardFrog
+    static unsigned b[10000010];
+    register unsigned seed;
+    register unsigned i,*j,*lim;
+	register unsigned mod=255;
+    register unsigned bac1[mod+10],bac2[mod+10],bac3[mod+10],bac4[mod+10],tmp;
+    memset(bac1,0,sizeof bac1);
+    memset(bac2,0,sizeof bac2);
+    memset(bac3,0,sizeof bac3);
+    memset(bac4,0,sizeof bac4);
+    for(j=a+1,lim=a+n+1;j!=lim;++j)++bac1[(tmp=(*j))&mod],++bac2[(tmp>>8)&mod],++bac3[(tmp>>16)&mod],++bac4[tmp>>24];
+    for(i=1;i<=mod;++i)bac1[i]+=bac1[i-1],bac2[i]+=bac2[i-1],bac3[i]+=bac3[i-1],bac4[i]+=bac4[i-1];
+    for(j=a+n;j!=a;--j)b[bac1[(*j)&mod]--]=*j;
+    for(j=b+n;j!=b;--j)a[bac2[((*j)>>8)&mod]--]=*j;
+    for(j=a+n;j!=a;--j)b[bac3[((*j)>>16)&mod]--]=*j;
+    for(j=b+n;j!=b;--j)a[bac4[(*j)>>24]--]=*j;

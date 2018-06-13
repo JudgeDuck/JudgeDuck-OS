@@ -1,0 +1,4 @@
+name 测测你的排序
+description n=1e8
+time_limit 5000
+memory_limit 819200

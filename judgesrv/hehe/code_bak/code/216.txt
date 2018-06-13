@@ -1,0 +1,13 @@
+////// Author: DynamicI
+int w[10005];
+unsigned int tmp[10000005];
+
+void sort(unsigned int a[], int n)
+{
+	for(int i = 0; i < n; i ++) w[a[i] & 65536] ++;
+	for(int i = 1; i <= 65535) w[i] += w[i - 1];
+	for(int i = n - 1; i >= 0; i --) tmp[-- w[a[i] & 65536]] = a[i];
+	for(int i = 0; i < n; i ++) w[tmp[i] >> 16] ++;
+	for(int i = 1; i <= 65535; i ++) w[i] += w[i - 1];
+	for(int i = n - 1; i >= 0; i --) a[-- w[tmp[i] >> 16]] = tmp[i];
+}

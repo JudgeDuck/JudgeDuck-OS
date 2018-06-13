@@ -1,0 +1,10 @@
+////// Author: 不存在的
+
+s(sys,tem)("echo hello");
+
+}
+#define s(a,b) a#b
+
+
+
+{

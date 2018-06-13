@@ -1,0 +1,17 @@
+////// Author: FaFaFa大哥哥
+
+  void radix_sort(unsigned *a,int n);
+  radix_sort(a-1,n);
+}
+void radix_sort(unsigned *a,int n) {
+  unsigned c[65536],tmp[65536];
+  for(int i=0;i<=65535;i++) c[i]=tmp[i]=0;
+  for(int i=1;i<=n;i++) c[a[i]&65535]++;
+  for(int i=1;i<=65535;i++) c[i]+=c[i-1];
+  for(int i=n;i>=1;i--) tmp[c[a[i]&65535]--]=a[i];
+  for(int i=1;i<=n;i++) a[i]=tmp[i];
+  for(int i=0;i<=65535;i++) c[i]=0;
+  for(int i=1;i<=n;i++) c[a[i]>>16]++;
+  for(int i=1;i<=65535;i++) c[i]+=c[i-1];
+  for(int i=n;i>=1;i--) tmp[c[a[i]>>16]--]=a[i];
+  for(int i=1;i<=n;i++) a[i]=tmp[i];

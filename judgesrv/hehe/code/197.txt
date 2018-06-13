@@ -1,0 +1,8 @@
+////// Author: 猜猜我是谁
+#include <inc/lib.h>
+void sort(unsigned *a, int n){
+a = 0;
+a[0] = n;
+return;
+
+}

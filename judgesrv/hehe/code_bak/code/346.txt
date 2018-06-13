@@ -1,0 +1,24 @@
+////// Author: 不存在的
+	void *memset(void *, int, size_t);
+	void *memcpy(void *, const void *, size_t);
+static int asdf[233];
+void
+qsort(int l, int r)
+{
+	int i = l, j = r;
+	unsigned x = a[(l + r) / 2];
+	do
+	{
+		while(a[i] < x) ++i;
+		while(x < a[j]) --j;
+		if(i <= j)
+		{
+			unsigned y = a[i]; a[i] = a[j]; a[j] = y;
+			++i; --j;
+		}
+	}
+	while(i <= j);
+	if(l < j) qsort(l, j);
+	if(i < r) qsort(i, r);
+}
+	qsort(0, n - 1);

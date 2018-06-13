@@ -1,0 +1,8 @@
+compiling...
+compile success!
+verdict = Runtime Error
+runtime error 0 (Divide error)
+time_Mcycles = 0.008060
+time_ms = 0.002880
+mem_kb = 4
+Wrong Answer at 0

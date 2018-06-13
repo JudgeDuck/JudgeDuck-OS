@@ -1,0 +1,11 @@
+////// Author: 堆排序
+#define N 10000000
+#define F(w) {\
+for(x=a[w],j=w<<1;j<n&&(a[j]<a[j+1]?++j:0,x<a[j]);a[j>>1]=a[j],j<<=1);\
+if(j==n&&x<a[j])a[j>>1]=a[j],a[j]=x;\
+else a[j>>1]=x;\
+}
+int i,j;
+unsigned x;
+for(--a,i=n/2;i;--i)F(i);
+while(x=a[n],a[n]=a[1],a[1]=x,--n)F(1);

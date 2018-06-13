@@ -1,0 +1,4 @@
+name 测测你的二分查找
+description n=1e8
+time_limit 1
+memory_limit 32

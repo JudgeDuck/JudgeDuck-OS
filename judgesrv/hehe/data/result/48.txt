@@ -1,0 +1,8 @@
+compiling...
+compile success!
+verdict = Runtime Error
+runtime error 6 (Invalid Opcode)
+time_Mcycles = 0.007480
+time_ms = 0.001280
+mem_kb = 4
+Wrong Answer

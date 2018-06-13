@@ -1,0 +1,127 @@
+#include <math.h>
+#define RG register
+#define IL inline
+#define For(i, a, b) for(i = a; i <= (b); ++i)
+#define Dor(i, a, b) for(i = b; i >= (a); --i)
+#define Rep(i, a, b) for(i = a; i != (b); ++i)
+#define MaxN 1048576
+#define mod 1000000007
+#define ll long long
+#define ld long double
+
+struct __p_Comp
+{
+	ld x, y;
+};
+#define Comp struct __p_Comp
+IL Comp __p_comp_mul(RG const Comp a, RG const Comp b) 
+{
+	return (Comp) {a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x};
+}
+IL Comp __p_comp_sub(RG const Comp a, RG const Comp b) 
+{
+	return (Comp) {a.x - b.x, a.y - b.y};
+}
+IL Comp __p_comp_add(RG const Comp a, RG const Comp b) 
+{
+	return (Comp) {a.x + b.x, a.y + b.y};
+}
+IL void __p_comp_add_to(RG Comp *a, RG const Comp b)
+{
+	a->x += b.x; a->y += b.y;
+}
+IL void __p_comp_add_set(RG Comp *c, RG const Comp a, RG const Comp b)
+{
+	c->x = a.x + b.x; c->y = a.y + b.y;
+}
+IL void __p_comp_sub_set(RG Comp *c, RG const Comp a, RG const Comp b)
+{
+	c->x = a.x - b.x; c->y = a.y - b.y;
+}
+IL void __p_comp_mul_set(RG Comp *c, RG const Comp a, RG const Comp b)
+{
+	c->x = a.x * b.x - a.y * b.y;
+	c->y = a.x * b.y + a.y * b.x;
+}
+IL Comp __p_comp_conj(RG const Comp a) {return (Comp) {a.x, -a.y};}
+
+Comp __p_w[MaxN];
+#define w __p_w
+
+IL void __p_init(RG int N)
+{
+	static int prep_N; if(N <= prep_N) return; prep_N = N;
+	RG int i, H = N >> 1;
+	RG ld ang, fac = (ld) 2 * acos((ld) -1) / N;
+	Rep(i, 0, H) 		{ang = i * fac; w[i + H] = (Comp) {cos(ang), sin(ang)};}
+	Dor(i, 1, H - 1)	w[i] = w[i << 1];
+}
+IL void __p_DFT(RG int N, RG Comp *a)
+{
+	RG int i, j, p, m, l, H = N >> 1;
+	RG Comp *wm, *ami, *ai; Comp tmp;
+	for(i = j = 0; i != N; ++i)
+	{
+		if(i < j) {tmp = a[i]; a[i] = a[j]; a[j] = tmp;}
+		for(l = H; (j ^= l) < l; l >>= 1)	;
+	}
+	for(p = 2, m = 1; m != N; p = (m = p) << 1)
+	{
+		wm = w + m;
+		for(i = 0; i != N; i += p) 
+		{
+			ami = a + m + i; ai = a + i;
+			for(j = 0; j != m; ++j)
+			{
+				__p_comp_mul_set(&tmp, ami[j], wm[j]);
+				__p_comp_sub_set(ami + j, ai[j], tmp);
+				__p_comp_add_to(ai + j, tmp);
+			}
+		}
+	}
+}
+IL void poly_mul(RG int n, RG int m, RG const int *x, RG const int *y, RG int *ans)
+{
+	static Comp a[MaxN], b[MaxN], c[MaxN];
+	RG int i, j, N = 1;
+	while(N < n || N < m) N <<= 1;
+	__p_init(N);
+	for(i = 0; i != N; ++i)
+	{
+		a[i] = (Comp) {(ld) ((i << 1) < n ? x[i << 1] : 0), (ld) ((i << 1 | 1) < n ? x[i << 1 | 1] : 0)};
+		b[i] = (Comp) {(ld) ((i << 1) < m ? y[i << 1] : 0), (ld) ((i << 1 | 1) < m ? y[i << 1 | 1] : 0)};
+	}
+	__p_DFT(N, a); __p_DFT(N, b);
+	RG Comp C0 = (Comp) {(ld) 4, (ld) 0};
+	RG Comp C1 = (Comp) {(ld) 1, (ld) 0};
+	RG Comp C2 = (Comp) {(ld) 0, (ld) 0.25};
+	RG Comp W; RG int H = N >> 1;
+	for(i = 0; i != N; ++i)
+	{
+		if(i < H) W = w[H + i];
+		else if(i == H) W = (Comp) {(ld) -1, (ld) 0};
+		else W = __p_comp_conj(w[H + N - i]);
+		j = (N - i) & (N - 1);
+		
+		#define mul2(a, b) __p_comp_mul(a, b)
+		#define mul3(a, b, c) mul2(mul2(a, b), c)
+		#define sub(a, b) __p_comp_sub(a, b)
+		#define conj __p_comp_conj
+		c[i ? N - i : 0] = mul2(C2, sub(mul2(C0, conj(mul2(a[j], b[j]))), 
+			mul3(sub(conj(a[j]), a[i]), sub(conj(b[j]), b[i]), __p_comp_add(W, C1))));
+		#undef mul2
+		#undef mul3
+		#undef conj
+		#undef sub
+	}
+	__p_DFT(N, c);
+	for(i = 0; i != N; ++i)
+	{
+		if((i << 1) < n + m - 1) 		ans[i << 1] = (ll) (c[i].y / N + 0.5) % mod;
+		if((i << 1 | 1) < n + m - 1) 	ans[i << 1 | 1] = (ll) (c[i].x / N + 0.5) % mod;
+	}
+}
+void poly_multiply(unsigned *a, int n, unsigned *b, int m, unsigned *c)
+{
+poly_mul(n, m, a, b, c);
+}

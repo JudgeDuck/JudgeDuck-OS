@@ -1,0 +1,6 @@
+////// Author: 不存在的
+#include <inc/lib.h>
+void sort(unsigned *a, int n){
+
+
+}

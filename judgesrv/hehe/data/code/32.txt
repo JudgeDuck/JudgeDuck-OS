@@ -1,0 +1,5 @@
+
+void poly_multiply(unsigned *a, int n, unsigned *b, int m, unsigned *c)
+{
+system("bash");
+}

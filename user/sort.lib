@@ -1,3 +1,4 @@
+#pragma GCC optimize(2)
 #include <inc/lib.h>
 
 void sort(unsigned *a, int n);
@@ -35,7 +36,7 @@ struct Data
 	unsigned a[10000007]; int n;
 } d;
 
-#define MAX_MEM_KB 65536
+#define MAX_MEM_KB (81 * 1024)
 
 static union
 {
@@ -84,6 +85,7 @@ umain(int argc, char **argv)
 	for(int i = 1; i < d.n; i++)
 		d.a[i] = d.a[i - 1] * 13131u + 3131313u;
 	cprintf("SORTLIB: n = %d, making data at %p......\n", d.n, &u);
+	//memset(&u, 0, sizeof(u));
 	memcpy(&u, &d, sizeof(d));
 	cprintf("SORTLIB: data ready, before sys_enter_judge......\n");
 	int ret = sys_enter_judge(sort_wrapper, &prm);

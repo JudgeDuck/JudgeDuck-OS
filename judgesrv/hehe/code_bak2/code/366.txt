@@ -1,0 +1,43 @@
+////// Author: E.Space
+void ss(unsigned* a,int n);
+ss(a,n);
+}
+namespace sb1
+{
+	unsigned a[20000003],tmp[20000003];
+	int cnt[257],cnt2[257],cnt3[257],cnt4[257];
+}
+void ss(unsigned* a,int n)
+{
+		using namespace sb1;
+		for(register int i=1;i<=n;++i)++cnt[(a[i]&255)+1],++cnt2[(a[i]>>8&255)+1],++cnt3[(a[i]>>16&255)+1],++cnt4[(a[i]>>24&255)+1];
+		for(register int i=2;i<=255;++i)cnt[i]+=cnt[i-1],cnt2[i]+=cnt2[i-1],cnt3[i]+=cnt3[i-1],cnt4[i]+=cnt4[i-1];
+		register unsigned t;
+		for(register int i=1;i<=n;i+=4)
+		{
+			tmp[++cnt[a[i]&255]]=a[i];
+			tmp[++cnt[a[i+1]&255]]=a[i+1];
+			tmp[++cnt[a[i+2]&255]]=a[i+2];
+			tmp[++cnt[a[i+3]&255]]=a[i+3];
+		}
+		for(register int i=1;i<=n;i+=4)
+		{
+			a[++cnt2[tmp[i]>>8&255]]=tmp[i];
+			a[++cnt2[tmp[i+1]>>8&255]]=tmp[i+1];
+			a[++cnt2[tmp[i+2]>>8&255]]=tmp[i+2];
+			a[++cnt2[tmp[i+3]>>8&255]]=tmp[i+3];
+		}
+		for(register int i=1;i<=n;i+=4)
+		{
+			tmp[++cnt3[a[i]>>16&255]]=a[i];
+			tmp[++cnt3[a[i+1]>>16&255]]=a[i+1];
+			tmp[++cnt3[a[i+2]>>16&255]]=a[i+2];
+			tmp[++cnt3[a[i+3]>>16&255]]=a[i+3];
+		}
+		for(register int i=1;i<=n;i+=4)
+		{
+			a[++cnt4[tmp[i]>>24&255]]=tmp[i];
+			a[++cnt4[tmp[i+1]>>24&255]]=tmp[i+1];
+			a[++cnt4[tmp[i+2]>>24&255]]=tmp[i+2];
+			a[++cnt4[tmp[i+3]>>24&255]]=tmp[i+3];
+		}

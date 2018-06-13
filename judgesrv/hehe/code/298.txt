@@ -1,0 +1,24 @@
+////// Author: 不存在的
+#include <inc/lib.h>
+void sort(unsigned *a, int n){
+	void *memset(void *, int, size_t);
+	void *memcpy(void *, const void *, size_t);
+	void qsort(unsigned *, int, int);
+	qsort(a, n);
+}
+int ji[5]={0,8,16,24,32};
+int fen(int n,int wei){
+    return (n>>ji[wei])&(rdi-1);
+}
+void qsort(unsigned *a, int n)
+{
+    int rdi=256;
+    int b[10000009],c[rdi];
+    for(int i=0;i<=3;i++){
+	for(int j=0;j<rdi;j++)c[j]=0;
+	for(int j=0;j<n;j++)c[fen(a[j],i)]++;
+	for(int j=1;j<rdi;j++)c[j]+=c[j-1];
+	for(int j=n-1;j>=0;j--)b[--c[fen(a[j],i)]]=a[j];
+	for(int j=0;j<n;j++)a[j]=b[j];
+
+}

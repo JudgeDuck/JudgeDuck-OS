@@ -1,0 +1,5 @@
+#pragma GCC optimize "-Ofast"
+int plus(int a, int b)
+{
+return a+b;
+}

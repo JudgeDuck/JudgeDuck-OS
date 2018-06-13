@@ -1,0 +1,8 @@
+int binary_search(const unsigned *a, int n, unsigned x){
+ unsigned L=0,R=n,M;
+ while(L<R){
+  M=L+R>>1;
+  a[M]<x?(L=M+1):(R=M);
+ }
+ return L;
+}

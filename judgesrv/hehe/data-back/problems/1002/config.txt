@@ -1,0 +1,4 @@
+name 测测你的多项式乘法
+description n=1e7
+time_limit 5000
+memory_limit 262144

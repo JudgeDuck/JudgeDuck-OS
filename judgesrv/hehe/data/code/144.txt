@@ -1,0 +1,22 @@
+typedef unsigned u32;
+inline u32 mul_div(u32 a, u32 b, u32 c) {
+	u32 ret;
+	__asm__ __volatile__ (	"mul %0; div %1;"
+							: "=&d"(ret)
+							:"a"(a),"r"(b),"r"(c)
+							:"%edx" );
+	return ret;
+}
+
+int binary_search(const unsigned *a, int n, unsigned x)
+{
+	int l = 0, r = n - 1;
+	int mid;
+	#define A mid = l + mul_div(r - l - 1, x - a[l], a[r] - a[l] + 1); if (a[mid] < x) l = mid + 1; else r = mid;
+	A A
+	while (l + 5 < r) {
+		A
+	}
+	while (l < r && a[l] != x) ++l;
+	return l;
+}

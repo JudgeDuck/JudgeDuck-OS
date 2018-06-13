@@ -1,0 +1,112 @@
+////// Author: xumingkuan
+#define BLOCK 256
+#define BLOCK1 255
+int sum[BLOCK];
+for(int i = 0; i < BLOCK; i++)
+	sum[i] = 0;
+unsigned b[10000000];
+for(int i = 0; i < n; i += 8)
+{
+	sum[a[i] & BLOCK1]++;
+	sum[a[i + 1] & BLOCK1]++;
+	sum[a[i + 2] & BLOCK1]++;
+	sum[a[i + 3] & BLOCK1]++;
+	sum[a[i + 4] & BLOCK1]++;
+	sum[a[i + 5] & BLOCK1]++;
+	sum[a[i + 6] & BLOCK1]++;
+	sum[a[i + 7] & BLOCK1]++;
+}
+for(int i = 1; i < BLOCK; i++)
+	sum[i] += sum[i - 1];
+for(int i = n - 8; i >= 0; i -= 8)
+{
+	b[--sum[a[i + 7] & BLOCK1]] = a[i + 7];
+	b[--sum[a[i + 6] & BLOCK1]] = a[i + 6];
+	b[--sum[a[i + 5] & BLOCK1]] = a[i + 5];
+	b[--sum[a[i + 4] & BLOCK1]] = a[i + 4];
+	b[--sum[a[i + 3] & BLOCK1]] = a[i + 3];
+	b[--sum[a[i + 2] & BLOCK1]] = a[i + 2];
+	b[--sum[a[i + 1] & BLOCK1]] = a[i + 1];
+	b[--sum[a[i] & BLOCK1]] = a[i];
+}
+
+for(int i = 0; i < BLOCK; i++)
+	sum[i] = 0;
+for(int i = 0; i < n; i += 8)
+{
+	sum[(b[i] >> 8) & BLOCK1]++;
+	sum[(b[i + 1] >> 8) & BLOCK1]++;
+	sum[(b[i + 2] >> 8) & BLOCK1]++;
+	sum[(b[i + 3] >> 8) & BLOCK1]++;
+	sum[(b[i + 4] >> 8) & BLOCK1]++;
+	sum[(b[i + 5] >> 8) & BLOCK1]++;
+	sum[(b[i + 6] >> 8) & BLOCK1]++;
+	sum[(b[i + 7] >> 8) & BLOCK1]++;
+}
+for(int i = 1; i < BLOCK; i++)
+	sum[i] += sum[i - 1];
+for(int i = n - 8; i >= 0; i -= 8)
+{
+	a[--sum[(b[i + 7] >> 8) & BLOCK1]] = b[i + 7];
+	a[--sum[(b[i + 6] >> 8) & BLOCK1]] = b[i + 6];
+	a[--sum[(b[i + 5] >> 8) & BLOCK1]] = b[i + 5];
+	a[--sum[(b[i + 4] >> 8) & BLOCK1]] = b[i + 4];
+	a[--sum[(b[i + 3] >> 8) & BLOCK1]] = b[i + 3];
+	a[--sum[(b[i + 2] >> 8) & BLOCK1]] = b[i + 2];
+	a[--sum[(b[i + 1] >> 8) & BLOCK1]] = b[i + 1];
+	a[--sum[(b[i] >> 8) & BLOCK1]] = b[i];
+}
+
+for(int i = 0; i < BLOCK; i++)
+	sum[i] = 0;
+for(int i = 0; i < n; i += 8)
+{
+	sum[(a[i] >> 16) & BLOCK1]++;
+	sum[(a[i + 1] >> 16) & BLOCK1]++;
+	sum[(a[i + 2] >> 16) & BLOCK1]++;
+	sum[(a[i + 3] >> 16) & BLOCK1]++;
+	sum[(a[i + 4] >> 16) & BLOCK1]++;
+	sum[(a[i + 5] >> 16) & BLOCK1]++;
+	sum[(a[i + 6] >> 16) & BLOCK1]++;
+	sum[(a[i + 7] >> 16) & BLOCK1]++;
+}
+for(int i = 1; i < BLOCK; i++)
+	sum[i] += sum[i - 1];
+for(int i = n - 8; i >= 0; i -= 8)
+{
+	b[--sum[(a[i + 7] >> 16) & BLOCK1]] = a[i + 7];
+	b[--sum[(a[i + 6] >> 16) & BLOCK1]] = a[i + 6];
+	b[--sum[(a[i + 5] >> 16) & BLOCK1]] = a[i + 5];
+	b[--sum[(a[i + 4] >> 16) & BLOCK1]] = a[i + 4];
+	b[--sum[(a[i + 3] >> 16) & BLOCK1]] = a[i + 3];
+	b[--sum[(a[i + 2] >> 16) & BLOCK1]] = a[i + 2];
+	b[--sum[(a[i + 1] >> 16) & BLOCK1]] = a[i + 1];
+	b[--sum[(a[i] >> 16) & BLOCK1]] = a[i];
+}
+
+for(int i = 0; i < BLOCK; i++)
+	sum[i] = 0;
+for(int i = 0; i < n; i += 8)
+{
+	sum[b[i] >> 24]++;
+	sum[b[i + 1] >> 24]++;
+	sum[b[i + 2] >> 24]++;
+	sum[b[i + 3] >> 24]++;
+	sum[b[i + 4] >> 24]++;
+	sum[b[i + 5] >> 24]++;
+	sum[b[i + 6] >> 24]++;
+	sum[b[i + 7] >> 24]++;
+}
+for(int i = 1; i < BLOCK; i++)
+	sum[i] += sum[i - 1];
+for(int i = n - 8; i >= 0; i -= 8)
+{
+	a[--sum[b[i + 7] >> 24]] = b[i + 7];
+	a[--sum[b[i + 6] >> 24]] = b[i + 6];
+	a[--sum[b[i + 5] >> 24]] = b[i + 5];
+	a[--sum[b[i + 4] >> 24]] = b[i + 4];
+	a[--sum[b[i + 3] >> 24]] = b[i + 3];
+	a[--sum[b[i + 2] >> 24]] = b[i + 2];
+	a[--sum[b[i + 1] >> 24]] = b[i + 1];
+	a[--sum[b[i] >> 24]] = b[i];
+}

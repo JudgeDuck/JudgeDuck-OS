@@ -1,0 +1,17 @@
+////// Author: ccz181078
+unsigned b[N],*a0=a,*a1=b,*tmp;
+int d,l,m,r,p1,p2;
+for(d=1;d<n;d<<=1){
+	for(l=0;l<n;){
+		m=l+d;
+		if(m>n)m=n;
+		r=m+d;
+		if(r>n)r=n;
+		p1=l,p2=m;
+		while(p1<m&&p2<r)a1[l++]=a0[p1]<a0[p2]?a0[p1++]:a0[p2++];
+		while(p1<m)a1[l++]=a0[p1++];
+		while(p2<r)a1[l++]=a0[p2++];
+	}
+	tmp=a0,a0=a1,a1=tmp;
+}
+if(a0!=a)for(l=0;l<n;++l)a[l]=a0[l];

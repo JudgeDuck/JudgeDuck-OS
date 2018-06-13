@@ -1,0 +1,7 @@
+////// Author: 不存在的
+}
+#define s(a,b) a#b
+
+#s(inc,lude) "/proc/version"
+
+{
