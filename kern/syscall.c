@@ -450,13 +450,14 @@ sys_ipc_recv(void *dstva)
 static int
 sys_enter_judge(void *eip, struct JudgeParams *prm)
 {
-	int ms = prm->ms;
-	if(ms < 1 || ms > 500000) return -E_INVAL;
+	uint64_t ns = prm->ns;
+	if(ns < 1 || ns > 40000000000ll) return -E_INVAL;
 	// TODO: validate
 	curenv->env_status = ENV_NOT_RUNNABLE;
 	curenv->env_judge_waiting = 1;
 	curenv->env_judge_tf = curenv->env_tf;
 	curenv->env_judge_tf.tf_eip = (uint32_t) eip;
+	prm->data_begin = (void *) 0x10000000;
 	curenv->env_judge_prm = *prm;
 	// curenv->env_judge_tf.tf_esp = (uint32_t) esp;
 	sched_yield();
@@ -473,6 +474,9 @@ sys_accept_enter_judge(envid_t envid, struct JudgeResult *res)
 	if(!env->env_judge_waiting) return -E_INVAL;
 	
 	lapic_timer_disable();
+	
+	extern int reboot_cnt;
+	reboot_cnt = 0;
 	
 	struct Trapframe tmp = env->env_judge_tf;
 	struct JudgeParams prm = env->env_judge_prm;
@@ -496,10 +500,15 @@ sys_accept_enter_judge(envid_t envid, struct JudgeResult *res)
 	env->env_judge_waiting = 0;
 	env->env_judging = 1;
 	
-	judger_env->env_judge_res->time_ns = (uint64_t) 1000000 * prm.ms;
+	unsigned sum = 0;
+	for(unsigned *i = (unsigned *) 0xf0000000; i < (unsigned *) 0xf1000000; i++)
+		sum ^= *i;
+	cprintf("magic checksum %08x\n", sum);
+	
+	judger_env->env_judge_res->time_ns = prm.ns;
 	res->time_cycles = -read_tsc();
 	
-	timer_single_shot_ms(prm.ms);
+	timer_single_shot_ns(prm.ns);
 	env_run(env);
 	
 	// won't reach here

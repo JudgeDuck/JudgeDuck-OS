@@ -53,7 +53,7 @@ umain(int argc, char **argv)
 		cprintf("PARENT: before sys_accept_enter_judge......\n");
 		struct JudgeParams prm;
 		struct JudgeResult res;
-		prm.ms = 5000;
+		prm.ns = 5000000000ll;
 		int ret = sys_accept_enter_judge(env, &res);
 		cprintf("PARENT: sys_accept_enter_judge returned %d\n", ret);
 		if(!ret)

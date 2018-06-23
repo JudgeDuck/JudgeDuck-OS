@@ -1,4 +1,3 @@
-#pragma GCC optimize(2)
 #include <inc/lib.h>
 
 void sort(unsigned *a, int n);
@@ -9,6 +8,19 @@ atoi(const char *s)
 	int ans = 0;
 	while(*s) ans = ans * 10 + (*s++ - '0');
 	return ans;
+}
+
+static void *
+fake_malloc(size_t size)
+{
+	static void *malloc_end = (void *) 0xd0000000;
+	size = ROUNDUP(size, PGSIZE);
+	void *ret = malloc_end - size;
+	for(void *i = ret; i < malloc_end; i += PGSIZE)
+		if(sys_page_alloc(0, i, PTE_P | PTE_U | PTE_W) < 0)
+			panic("malloc failed %p\n", i);
+	malloc_end = ret;
+	return ret;
 }
 
 static void
@@ -33,10 +45,10 @@ GGGqsort(unsigned *a, int l, int r)
 
 struct Data
 {
-	unsigned a[10000007]; int n;
-} d;
+	unsigned a[100000007]; int n;
+};
 
-#define MAX_MEM_KB (81 * 1024)
+#define MAX_MEM_KB (800 * 1024)
 
 static union
 {
@@ -71,7 +83,7 @@ umain(int argc, char **argv)
 	}
 	
 	struct JudgeParams prm;
-	prm.ms = time_ms;
+	prm.ns = time_ms * 1000000ll;
 	prm.kb = mem_kb;
 	prm.defrag_mem = defrag_mem;
 	prm.data_begin = &u;
@@ -80,22 +92,31 @@ umain(int argc, char **argv)
 	prm.syscall_enabled[SYS_quit_judge] = 1;
 	prm.syscall_enabled[SYS_cputs] = 1;
 	
-	d.n = atoi(argv[4]);
-	d.a[0] = 998244353u;
-	for(int i = 1; i < d.n; i++)
-		d.a[i] = d.a[i - 1] * 13131u + 3131313u;
-	cprintf("SORTLIB: n = %d, making data at %p......\n", d.n, &u);
-	//memset(&u, 0, sizeof(u));
-	memcpy(&u, &d, sizeof(d));
+	struct Data *d = fake_malloc(sizeof(*d));
+	d->n = atoi(argv[4]);
+	d->a[0] = 998244353u;
+	for(int i = 1; i < d->n; i++)
+		d->a[i] = d->a[i - 1] * 13131u + 3131313u;
+	cprintf("SORTLIB: n = %d, making data at %p......\n", d->n, &u);
+	memcpy(&u, d, sizeof(*d));
 	cprintf("SORTLIB: data ready, before sys_enter_judge......\n");
 	int ret = sys_enter_judge(sort_wrapper, &prm);
 	cprintf("SORTLIB: sys_enter_judge returned %d\n", ret);
 	
-	GGGqsort(d.a, 0, d.n - 1);
-	
+	void *old_stack_ptr = 0;
+	void *new_stack_ptr = &u + 1;
+	asm volatile("xchg %%esp, %0\n\t"
+        : "=r"(old_stack_ptr) /* output */
+        : "0"(new_stack_ptr) /* input */
+    );
+	GGGqsort(d->a, 0, d->n - 1);
+	asm volatile("xchg %%esp, %0\n\t"
+        : "=r"(new_stack_ptr) /* output */
+        : "0"(old_stack_ptr) /* input */
+    );
 	int fd = open("arbiter.in", O_RDWR | O_CREAT | O_TRUNC);
-	for(int i = 0; i < d.n; i++)
-		if(u.d.a[i] != d.a[i])
+	for(int i = 0; i < d->n; i++)
+		if(u.d.a[i] != d->a[i])
 		{
 			cprintf("SORTLIB: Wrong Answer at %d\n", i);
 			fprintf(fd, "Wrong Answer at %d\n", i);

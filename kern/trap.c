@@ -249,6 +249,7 @@ print_regs(struct PushRegs *regs)
 	cprintf("  ecx  0x%08x\n", regs->reg_ecx);
 	cprintf("  eax  0x%08x\n", regs->reg_eax);
 }
+int reboot_cnt = 0;
 
 static void
 trap_dispatch(struct Trapframe *tf)
@@ -286,10 +287,12 @@ trap_dispatch(struct Trapframe *tf)
 	}
 	else if(tf->tf_trapno == IRQ_OFFSET + IRQ_TIMER)
 	{
+		// cprintf("timer interrupt\n");
 		lapic_eoi();
 		time_tick();
 		if(curenv && curenv->env_judging)
 			finish_judge(VERDICT_TLE);
+		if(++reboot_cnt >= 10000) outb(0x92, 0x3); // courtesy of Chris Frost
 		sched_yield();
 		return;
 	}

@@ -6,7 +6,8 @@
 
 struct JudgeParams
 {
-	int ms, kb;
+	uint64_t ns;
+	int kb;
 	int syscall_enabled[NSYSCALLS];
 	void *data_begin;
 	bool defrag_mem;
