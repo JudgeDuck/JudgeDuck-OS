@@ -24,6 +24,10 @@
 #include <inc/malloc.h>
 #include <inc/ns.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define USED(x)		(void)(x)
 
 // main user program
@@ -159,5 +163,9 @@ void	wait(envid_t env);
 #define	O_TRUNC		0x0200		/* truncate to zero length */
 #define	O_EXCL		0x0400		/* error if already exists */
 #define O_MKDIR		0x0800		/* create directory, not regular file */
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif	// !JOS_INC_LIB_H

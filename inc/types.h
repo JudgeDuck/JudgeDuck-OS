@@ -5,9 +5,11 @@
 #define NULL ((void*) 0)
 #endif
 
+#ifndef __cplusplus
 // Represents true-or-false values
 typedef _Bool bool;
 enum { false, true };
+#endif
 
 // Explicitly-sized versions of integer types
 typedef __signed char int8_t;

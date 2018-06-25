@@ -7,6 +7,10 @@
 #define NULL	((void *) 0)
 #endif /* !NULL */
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // lib/stdio.c
 void	cputchar(int c);
 int	getchar(void);
@@ -29,5 +33,9 @@ int	vfprintf(int fd, const char *fmt, va_list);
 
 // lib/readline.c
 char*	readline(const char *prompt);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* !JOS_INC_STDIO_H */
