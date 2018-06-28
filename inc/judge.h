@@ -10,6 +10,7 @@ struct JudgeParams
 	int kb;
 	int syscall_enabled[NSYSCALLS];
 	void *data_begin;
+	void *esp;
 	bool defrag_mem;
 };
 
@@ -20,6 +21,7 @@ enum JudgeVerdict
 	VERDICT_RE,  // Runtime Error
 	VERDICT_IS,  // Illegal Syscall
 	VERDICT_SE,  // System Error
+	VERDICT_MLE, // Memory Limit Exceeded
 };
 
 struct JudgeResult

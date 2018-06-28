@@ -70,7 +70,7 @@ umain(int argc, char **argv)
 		cprintf("ARBITER: sys_accept_enter_judge returned %d\n", ret);
 		if(!ret)
 		{
-			static const char *verdict_str[] = {"Run Finished", "Time Limit Exceeded", "Runtime Error", "Illegal Syscall", "System Error"};
+			static const char *verdict_str[] = {"Run Finished", "Time Limit Exceeded", "Runtime Error", "Illegal Syscall", "System Error", "Memory Limit Exceeded"};
 			cprintf("ARBITER: verdict = %s\n", verdict_str[(int) res.verdict]);
 			printf("verdict = %s\n", verdict_str[(int) res.verdict]);
 			if(res.verdict == VERDICT_IS)

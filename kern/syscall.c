@@ -483,7 +483,7 @@ sys_accept_enter_judge(envid_t envid, struct JudgeResult *res)
 	
 	if(prm.defrag_mem) pmem_defrag();
 	env->env_judge_tf = env->env_tf; env->env_tf = tmp;
-	env->env_tf.tf_esp = (unsigned) env->env_judge_prm.data_begin + prm.kb * 1024;
+	env->env_tf.tf_esp = (uintptr_t) prm.esp;
 	env->env_judge_tf.tf_regs.reg_eax = 0;
 	
 	pgdir_reperm(env->env_pgdir, PTE_D, 0, NULL, (void *) UTOP);
@@ -492,6 +492,7 @@ sys_accept_enter_judge(envid_t envid, struct JudgeResult *res)
 	
 	curenv->env_tf.tf_regs.reg_eax = 0; // return 0
 	curenv->env_judge_res = res;
+	curenv->env_judge_prm = env->env_judge_prm;  // Why I need this ???
 	res->verdict = VERDICT_SE;
 	judger_env = curenv;
 	
