@@ -193,6 +193,9 @@ qemu-nox-gdb: $(IMAGES) pre-qemu
 	@echo "***"
 	$(QEMU) -nographic $(QEMUOPTS) -S
 
+qemu-jd: $(IMAGES) pre-qemu
+	$(QEMU) -nographic -m 1000M -drive file=obj/kern/kernel.img,index=0,media=disk,format=raw -serial mon:stdio -gdb tcp::26000 -D qemu.log -smp 1 -drive file=obj/fs/fs.img,index=1,media=disk,format=raw
+
 print-qemu:
 	@echo $(QEMU)
 
