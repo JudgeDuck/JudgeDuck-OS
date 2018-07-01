@@ -11,6 +11,8 @@
 #define BUFFSIZE 512
 #define MAXPENDING 5	// Max connection requests
 
+struct MallocStatus ms;
+
 struct http_request {
 	int sock;
 	char *url;

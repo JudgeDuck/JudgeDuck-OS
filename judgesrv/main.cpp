@@ -4,6 +4,7 @@
 #include <QTextStream>
 #include <QDataStream>
 #include <QDebug>
+#include <QFile>
 #include <bits/stdc++.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -157,39 +158,80 @@ QString fileContent(string fn)
 	printf("fileContent ok:\n%s", ret.toStdString().c_str());
 	return ret;
 }
+QString localFileContent(QString fn)
+{
+	QFile file(fn);
+	file.open(QIODevice::ReadOnly);
+	QTextStream ts(&file);
+	return ts.readAll();
+}
 
 QTextStream qout(stdout);
 long long time_ns; int mem_kb;
 
 // fn = ***.c
-QString judgeFile()
+QString judgeFile(string language)
 {
-	size_t sz = fileSize("contestant.c");
-	if(sz <= 0) return "source too small";
-	if(sz >= 10000) return "source too large";
+	//size_t sz = fileSize("contestant.c");
+	//if(sz <= 0) return "source too small";
+	//if(sz >= 10000) return "source too large";
+	size_t sz = 0;
 	
-	qDebug() << sock.bind(8008);
-	sock.connectToHost("172.29.8.241", 8000);
-	qDebug() << sock.waitForConnected();
-	ts.setDevice(&sock);
-	ds.setDevice(&sock);
-	sendFile("input.txt", "input.txt");
+	string GCC = "ulimit -v 524288 && gcc -DJD_OLD_MEMORY_LIMIT -pipe  -O2  -MD -fno-omit-frame-pointer -static -Wall -Wno-format -Wno-unused -gstabs -m32 -fno-tree-ch -fno-stack-protector -gstabs -c -o ";
 	
-	string GCC = "ulimit -v 131072 && gcc -pipe -nostdinc -O2 -fno-builtin -MD -fno-omit-frame-pointer -std=gnu99 -static -Wall -Wno-format -Wno-unused -Werror -gstabs -m32 -fno-tree-ch -fno-stack-protector -Iinclude -I/home/yjp/OS2018spring-projects-g04/ -I/home/yjp/OS2018spring-projects-g04/net/lwip/include -I/home/yjp/OS2018spring-projects-g04/net/lwip/include/ipv4 -I/home/yjp/OS2018spring-projects-g04/net/lwip/jos -DJOS_USER -gstabs -c -o ";
+	string GXX = "ulimit -v 524288 && g++ -DJD_OLD_MEMORY_LIMIT -pipe  -O2  -MD -fno-omit-frame-pointer -static -Wall -Wno-format -Wno-unused -gstabs -m32 -fno-tree-ch -fno-stack-protector -fno-exceptions -fno-unwind-tables -fno-rtti -fno-threadsafe-statics -gstabs -c -o ";
+	
+	string GXX11 = "ulimit -v 524288 && g++ -DJD_OLD_MEMORY_LIMIT -pipe  -O2 -std=c++11 -MD -fno-omit-frame-pointer -static -Wall -Wno-format -Wno-unused -gstabs -m32 -fno-tree-ch -fno-stack-protector -fno-exceptions -fno-unwind-tables -fno-rtti -fno-threadsafe-statics -gstabs -c -o ";
+	
+	string GXX_TASKLIB = "ulimit -v 524288 && g++ -DJD_OLD_MEMORY_LIMIT -pipe  -O2  -MD -fno-omit-frame-pointer -static -Wall -Wno-format -Wno-unused -gstabs -m32 -fno-tree-ch -fno-stack-protector -fno-exceptions -fno-unwind-tables -fno-rtti -fno-threadsafe-statics  -I../libtaskduck_include -DJOS_USER -gstabs -c -o ";
+	
+	string G = GCC;
+	string contestant_filename = "contestant.c";
+	if (language == "C++") {
+		G = GXX;
+		contestant_filename = "contestant.cpp";
+	} else if (language == "C++11") {
+		G = GXX11;
+		contestant_filename = "contestant.cpp";
+	}
+	
+	string tasklib_option = "";
+	if (language == "C") {
+		tasklib_option = "-DTASKLIB_USE_C";
+	}
 	
 	qout << "compiling...\n";
 	qout.flush();
 	
-	if(system((GCC + "contestant.o contestant.c > gcc_contestant.log").c_str())) return "contestant compile error";
-	if(system((GCC + "tasklib.o tasklib.c > gcc_tasklib.log").c_str())) return "tasklib compile error";
-	if(system("ld -o judging -T /home/yjp/OS2018spring-projects-g04/user/user.ld -m elf_i386 -nostdlib /home/yjp/OS2018spring-projects-g04/obj/lib/entry.o contestant.o tasklib.o -L/home/yjp/OS2018spring-projects-g04/obj/lib -llwip -ljos /usr/lib/gcc/i686-linux-gnu/5/libgcc.a libopenlibm.a > ld.log")) return "link error";
+	if(system((G + "contestant.o " + contestant_filename + " > gcc_contestant.log 2>&1").c_str()))
+		return "contestant compile error\n" + localFileContent("gcc_contestant.log").left(40);
+	if(system((GXX_TASKLIB + "tasklib.o tasklib.cpp " + tasklib_option + " > gcc_tasklib.log 2>&1").c_str()))
+		return "tasklib compile error\n" + localFileContent("gcc_tasklib.log").left(40);
+	if(system("ld -o judging -T ../judgeduck.ld -m elf_i386 -nostdlib contestant.o libopenlibm.a tasklib.o ../libtaskduck/libtaskduck.a ../libjudgeduck/libjudgeduck.a ../libstdduck/libstdduck.a /usr/lib/gcc/i686-linux-gnu/5/libgcc.a > ld.log 2>&1"))
+		return "link error\n" + localFileContent("ld.log").left(1024);
+	system("size judging > size.out");
+	FILE *fin = fopen("size.out", "r");
+	unsigned data = 1 << 30, bss = 1 << 30;
+	fscanf(fin, "%*s%*s%*s%*s%*s%*s%*s%d%d", &data, &bss);
+	if(data + bss > (1280u << 20))
+		return "too large global variables";
+	fclose(fin);
 	
 	qout << "compile success!\n";
 	qout.flush();
 	
 	sz = fileSize("judging");
 	if(sz <= 0) return "binary too small";
-	if(sz >= 131072) return "binary too large";
+	if(sz >= 262144) return "binary too large";
+	
+	qDebug() << sock.bind(8008);
+	sock.connectToHost("172.29.8.241", 8000);
+	qDebug() << sock.waitForConnected();
+	ts.setDevice(&sock);
+	ds.setDevice(&sock);
+	
+	sendFile("input.txt", "input.txt");
+	sendFile("answer.txt", "answer.txt");
 	
 	sendFile("judging", "judging");
 	runCmd("arbiter judging " + to_string(time_ns) + " " + to_string(mem_kb) + " > arbiter.out");
@@ -207,16 +249,17 @@ int main(int argc, char **argv)
 {
 	QCoreApplication a(argc, argv);
 	
-	if(argc != 3)
+	if(argc != 1 + 3)
 	{
-		qout << "usage: judgesrv [time_ns] [mem_kb]";
+		qout << "usage: judgesrv [time_ns] [mem_kb] [lang]";
 		qout.flush();
 		return 1;
 	}
 	time_ns = atoll(argv[1]);
 	mem_kb = atoi(argv[2]);
+	string language = string(argv[3]);
 	
-	qout << judgeFile();
+	qout << judgeFile(language);
 	qout.flush();
 	
 	return 0;

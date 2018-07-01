@@ -78,65 +78,65 @@ ucore_ide_wait_ready(unsigned short iobase, bool check_error) {
 void
 ide_init(void) {
 	return;
-    static_assert((SECTSIZE % 4) == 0);
-    unsigned short ideno, iobase;
-    for (ideno = 0; ideno < MAX_IDE; ideno ++) {
-        /* assume that no device here */
-        ide_devices[ideno].valid = 0;
+    // static_assert((SECTSIZE % 4) == 0);
+    // unsigned short ideno, iobase;
+    // for (ideno = 0; ideno < MAX_IDE; ideno ++) {
+        // /* assume that no device here */
+        // ide_devices[ideno].valid = 0;
 
-        iobase = IO_BASE(ideno);
+        // iobase = IO_BASE(ideno);
 
-        /* wait device ready */
-        ucore_ide_wait_ready(iobase, 0);
+        // /* wait device ready */
+        // ucore_ide_wait_ready(iobase, 0);
 
-        /* step1: select drive */
-        outb(iobase + ISA_SDH, 0xE0 | ((ideno & 1) << 4));
-        ucore_ide_wait_ready(iobase, 0);
+        // /* step1: select drive */
+        // outb(iobase + ISA_SDH, 0xE0 | ((ideno & 1) << 4));
+        // ucore_ide_wait_ready(iobase, 0);
 
-        /* step2: send ATA identify command */
-        outb(iobase + ISA_COMMAND, IDE_CMD_IDENTIFY);
-        ucore_ide_wait_ready(iobase, 0);
+        // /* step2: send ATA identify command */
+        // outb(iobase + ISA_COMMAND, IDE_CMD_IDENTIFY);
+        // ucore_ide_wait_ready(iobase, 0);
 
-        /* step3: polling */
-        if (inb(iobase + ISA_STATUS) == 0 || ucore_ide_wait_ready(iobase, 1) != 0) {
-            continue ;
-        }
+        // /* step3: polling */
+        // if (inb(iobase + ISA_STATUS) == 0 || ucore_ide_wait_ready(iobase, 1) != 0) {
+            // continue ;
+        // }
 
-        /* device is ok */
-        ide_devices[ideno].valid = 1;
+        // /* device is ok */
+        // ide_devices[ideno].valid = 1;
 
-        /* read identification space of the device */
-        unsigned int buffer[128];
-        insl(iobase + ISA_DATA, buffer, sizeof(buffer) / sizeof(unsigned int));
+        // /* read identification space of the device */
+        // unsigned int buffer[128];
+        // insl(iobase + ISA_DATA, buffer, sizeof(buffer) / sizeof(unsigned int));
 
-        unsigned char *ident = (unsigned char *)buffer;
-        unsigned int sectors;
-        unsigned int cmdsets = *(unsigned int *)(ident + IDE_IDENT_CMDSETS);
-        /* device use 48-bits or 28-bits addressing */
-        if (cmdsets & (1 << 26)) {
-            sectors = *(unsigned int *)(ident + IDE_IDENT_MAX_LBA_EXT);
-        }
-        else {
-            sectors = *(unsigned int *)(ident + IDE_IDENT_MAX_LBA);
-        }
-        ide_devices[ideno].sets = cmdsets;
-        ide_devices[ideno].size = sectors;
+        // unsigned char *ident = (unsigned char *)buffer;
+        // unsigned int sectors;
+        // unsigned int cmdsets = *(unsigned int *)(ident + IDE_IDENT_CMDSETS);
+        // /* device use 48-bits or 28-bits addressing */
+        // if (cmdsets & (1 << 26)) {
+            // sectors = *(unsigned int *)(ident + IDE_IDENT_MAX_LBA_EXT);
+        // }
+        // else {
+            // sectors = *(unsigned int *)(ident + IDE_IDENT_MAX_LBA);
+        // }
+        // ide_devices[ideno].sets = cmdsets;
+        // ide_devices[ideno].size = sectors;
 
-        /* check if supports LBA */
-        assert((*(unsigned short *)(ident + IDE_IDENT_CAPABILITIES) & 0x200) != 0);
+        // /* check if supports LBA */
+        // assert((*(unsigned short *)(ident + IDE_IDENT_CAPABILITIES) & 0x200) != 0);
 
-        unsigned char *model = ide_devices[ideno].model, *data = ident + IDE_IDENT_MODEL;
-        unsigned int i, length = 40;
-        for (i = 0; i < length; i += 2) {
-            model[i] = data[i + 1], model[i + 1] = data[i];
-        }
-        do {
-            model[i] = '\0';
-        } while (i -- > 0 && model[i] == ' ');
+        // unsigned char *model = ide_devices[ideno].model, *data = ident + IDE_IDENT_MODEL;
+        // unsigned int i, length = 40;
+        // for (i = 0; i < length; i += 2) {
+            // model[i] = data[i + 1], model[i + 1] = data[i];
+        // }
+        // do {
+            // model[i] = '\0';
+        // } while (i -- > 0 && model[i] == ' ');
 
-        cprintf("ide %d: %10u(sectors), '%s'.\n", ideno, ide_devices[ideno].size, ide_devices[ideno].model);
-    }
-	cprintf("ide ok\n");
+        // cprintf("ide %d: %10u(sectors), '%s'.\n", ideno, ide_devices[ideno].size, ide_devices[ideno].model);
+    // }
+	// cprintf("ide ok\n");
 	// while(1);
 }
 
@@ -234,11 +234,15 @@ ide_set_disk(int d)
 }
 
 extern char _binary_obj_fs_fs_img_start[];
+extern char _binary_obj_fs_fs_img_size[];
 
 int
 ide_read(uint32_t secno, void *dst, size_t nsecs)
 {
-	memcpy(dst, _binary_obj_fs_fs_img_start + secno * SECTSIZE, nsecs * SECTSIZE);
+	// if((secno + nsecs) * SECTSIZE > (unsigned) _binary_obj_fs_fs_img_size)
+		// memset(dst, 0, nsecs * SECTSIZE);
+	// else
+		memcpy(dst, _binary_obj_fs_fs_img_start + secno * SECTSIZE, nsecs * SECTSIZE);
 	return 0;
 	// return ucore_ide_read_secs(ideno, secno, dst, nsecs);
 }
@@ -246,7 +250,9 @@ ide_read(uint32_t secno, void *dst, size_t nsecs)
 int
 ide_write(uint32_t secno, const void *src, size_t nsecs)
 {
-	memcpy(_binary_obj_fs_fs_img_start + secno * SECTSIZE, src, nsecs * SECTSIZE);
+	// if((secno + nsecs) * SECTSIZE > (unsigned) _binary_obj_fs_fs_img_size);
+	// else
+		memcpy(_binary_obj_fs_fs_img_start + secno * SECTSIZE, src, nsecs * SECTSIZE);
 	return 0;
 	// return ucore_ide_write_secs(ideno, secno, src, nsecs);
 }

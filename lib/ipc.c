@@ -65,7 +65,7 @@ ipc_send(envid_t to_env, uint32_t val, void *pg, int perm)
 		if(ret == 0)
 			return;
 		if(ret != -E_IPC_NOT_RECV)
-			panic("ipc send fail\n");
+			panic("ipc send fail %d\n", ret);
 	}
 }
 

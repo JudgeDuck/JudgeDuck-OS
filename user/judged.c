@@ -4,14 +4,14 @@
 #include <lwip/err.h>
 
 int errno;
-envid_t idle_env;
+// envid_t idle_env;
 
 static void
 handle_client(int sock)
 {
-	int r = sys_env_destroy(idle_env);
-	if(r)
-		cprintf("Fail to destroy idle\n");
+	// int r = sys_env_destroy(idle_env);
+	// if(r)
+		// cprintf("Fail to destroy idle\n");
 	cprintf("handle sock %d\n", sock);
 	char s[512];
 	int received = -1;
@@ -26,9 +26,9 @@ handle_client(int sock)
 	}
 	close(sock);
 	
-	idle_env = spawnl("idle", "idle", 0);
-	if(idle_env < 0)
-		cprintf("Failed to spawn idle\n");
+	// idle_env = spawnl("idle", "idle", 0);
+	// if(idle_env < 0)
+		// cprintf("Failed to spawn idle\n");
 	
 	// exit();
 }
@@ -55,7 +55,7 @@ umain(int argc, char **argv)
 	memset(&server, 0, sizeof(server));		// Clear struct
 	server.sin_family = AF_INET;			// Internet/IP
 	server.sin_addr.s_addr = htonl(INADDR_ANY);	// IP address
-	server.sin_port = htons(80);			// server port
+	server.sin_port = htons(8000);			// server port
 	
 	memset(&clientStatic, 0, sizeof(clientStatic));		// Clear struct
 	clientStatic.sin_family = AF_INET;			// Internet/IP
@@ -78,9 +78,9 @@ umain(int argc, char **argv)
 
 	cprintf("Waiting for connections...\n");
 	
-	idle_env = spawnl("idle", "idle", 0);
-	if(idle_env < 0)
-		cprintf("Failed to spawn idle\n");
+	// idle_env = spawnl("idle", "idle", 0);
+	// if(idle_env < 0)
+		// cprintf("Failed to spawn idle\n");
 
 	while(1)
 	{
@@ -99,18 +99,23 @@ umain(int argc, char **argv)
 		{
 			// write file
 			int fd = open(s + 1, O_RDWR | O_CREAT | O_TRUNC);
+			if(sendto(clientsock, "file", 4, 0, (struct sockaddr *) &clientStatic, clientlen) < 0)
+				cprintf("sendto error file\n");
 			for(;;)
 			{
-				for(int i = 0; i < 50; i++) sys_yield();
-				if(sendto(clientsock, "file", 4, 0, (struct sockaddr *) &clientStatic, clientlen) < 0)
-					cprintf("sendto error file\n");
 				if((received = recvfrom(serversock, s, sizeof(s) - 1, 0, (struct sockaddr *) &client, &clientlen)) < 0)
 				{
 					cprintf("failed to recvfrom\n");
 					break;
 				}
-				if(s[0] == 'e') break;
-				write(fd, s + 1, received - 1);
+				if(s[0] != 'g') break;
+				int off;
+				memcpy(&off, s + 4, 4);
+				seek(fd, off);
+				write(fd, s + 8, received - 8);
+				s[0] = 'a';
+				if(sendto(clientsock, s, 8, 0, (struct sockaddr *) &clientStatic, clientlen) < 0)
+					cprintf("sendto error file part\n");
 			}
 			close(fd);
 			sync();
@@ -141,7 +146,7 @@ umain(int argc, char **argv)
 			if((received = read(fd, s, sizeof(s) - 1)) < 0)
 			{
 				cprintf("failed to read local\n");
-				break;
+				// break;
 			}
 			close(fd);
 			sync();

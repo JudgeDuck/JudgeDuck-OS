@@ -5,6 +5,14 @@
 extern "C" {
 #endif
 
+#define MAX_MALLOC 32
+
+struct MallocStatus
+{
+	char buf[MAX_MALLOC][PGSIZE];
+	bool used[MAX_MALLOC];
+};
+
 void *malloc(size_t size);
 void free(void *addr);
 

@@ -58,8 +58,8 @@ umain(int argc, char **argv)
 	envid_t env = spawn(argv[1], (const char **) (argv + 1));
 	if(env < 0)
 	{
-		cprintf("ARBITER: Spawning failed...\n");
-		sys_env_destroy(0);
+		panic("ARBITER: Spawning failed...\n");
+		exit();
 	}
 
 	for(int i = 0; i < 5; i++)

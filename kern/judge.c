@@ -28,5 +28,7 @@ finish_judge(int verdict)
 	}
 	lcr3(PADDR(curenv->env_pgdir));
 	
+	lapic_timer_single_shot(DEFAULT_TIMER_INTERVAL);
+	
 	sched_yield(); // won't return
 }

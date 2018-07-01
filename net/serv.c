@@ -31,6 +31,8 @@ int errno;
 
 struct netif nif;
 
+struct MallocStatus ms;
+
 #define debug 0
 
 struct timer_thread {
@@ -60,7 +62,7 @@ get_buffer(void) {
 		if (!buse[i]) break;
 
 	if (i == QUEUE_SIZE) {
-		panic("NS: buffer overflow");
+		// panic("NS: buffer overflow");
 		return 0;
 	}
 
@@ -232,7 +234,7 @@ serve_thread(uint32_t a) {
 		r = lwip_recvfrom(req->recvfrom.req_s, req->recvfromRet.ret_buf,
 			      req->recvfrom.req_len, req->recvfrom.req_flags,
 				  &req->recvfromRet.ret_addr, &req->recvfromRet.ret_addrlen);
-		cprintf("addrlen = %d\n", req->recvfromRet.ret_addrlen);
+		// cprintf("addrlen = %d\n", req->recvfromRet.ret_addrlen);
 		break;
 	case NSREQ_SENDTO:
 		r = lwip_sendto(req->sendto.req_s, &req->sendto.req_buf,
@@ -269,6 +271,8 @@ serve_thread(uint32_t a) {
 
 void
 serve(void) {
+	int r = spawnl("judged", "judged", 0);
+	cprintf("serve: spawn returned %d\n", r);
 	int32_t reqno;
 	uint32_t whom;
 	int i, perm;
@@ -283,6 +287,7 @@ serve(void) {
 
 		perm = 0;
 		va = get_buffer();
+		if(!va) continue;
 		reqno = ipc_recv((int32_t *) &whom, (void *) va, &perm);
 		if (debug) {
 			cprintf("ns req %d from %08x\n", reqno, whom);

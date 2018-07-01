@@ -1,4 +1,11 @@
 #include "sort.lib"
+void sort(unsigned *a, int n)
+{
+	void *memset(void *, int, size_t);
+	void *memcpy(void *, const void *, size_t);
+	void qsort(unsigned *, int, int);
+	qsort(a, 0, n - 1);
+}
 
 void
 qsort(unsigned *a, int l, int r)
@@ -18,10 +25,4 @@ qsort(unsigned *a, int l, int r)
 	while(i <= j);
 	if(l < j) qsort(a, l, j);
 	if(i < r) qsort(a, i, r);
-}
-
-void
-sort(unsigned *a, int n)
-{
-	qsort(a, 0, n - 1);
 }

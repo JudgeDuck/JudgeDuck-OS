@@ -82,15 +82,27 @@
  *     there if desired.  JOS user programs map pages temporarily at UTEMP.
  */
 
+#ifdef __ASSEMBLER__
+#define	KERNBASE	0xF0000000
+#define IOPHYSMEM	0x0A0000
+#define EXTPHYSMEM	0x100000
+#define MPENTRY_PADDR	0x7000
+
+#else
 
 // All physical memory mapped at this address
-#define	KERNBASE	0xF0000000
+#define	KERNBASE	0xF0000000u
 
 // At IOPHYSMEM (640K) there is a 384K hole for I/O.  From the kernel,
 // IOPHYSMEM can be addressed at KERNBASE + IOPHYSMEM.  The hole ends
 // at physical address EXTPHYSMEM.
-#define IOPHYSMEM	0x0A0000
-#define EXTPHYSMEM	0x100000
+#define IOPHYSMEM	0x0A0000u
+#define EXTPHYSMEM	0x100000u
+
+// Physical address of startup code for non-boot CPUs (APs)
+#define MPENTRY_PADDR	0x7000u
+
+#endif // __ASSEMBLER__
 
 // Kernel stack.
 #define KSTACKTOP	KERNBASE
@@ -137,9 +149,6 @@
 #define PFTEMP		(UTEMP + PTSIZE - PGSIZE)
 // The location of the user-level STABS data structure
 #define USTABDATA	(PTSIZE / 2)
-
-// Physical address of startup code for non-boot CPUs (APs)
-#define MPENTRY_PADDR	0x7000
 
 #ifndef __ASSEMBLER__
 
@@ -190,10 +199,10 @@ struct PageInfo {
 	// to this page, for pages allocated using page_alloc.
 	// Pages allocated at boot time using pmap.c's
 	// boot_alloc do not have valid reference count fields.
-	struct PagePos pos;
+	/*struct PagePos pos;
 	
 	int target_pp;
-	int target_pp_inv;
+	int target_pp_inv;*/
 
 	uint16_t pp_ref;
 };

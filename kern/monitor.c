@@ -141,6 +141,9 @@ monitor(struct Trapframe *tf)
 	cprintf("end fault\n");*/
 
 	while (1) {
+		cprintf("GG, reboot\n");
+		for(int j = 0; j < 10; j++) for(unsigned i = 1; i; i++) asm volatile("");
+		outb(0x92, 0x3);
 		buf = readline("K> ");
 		if (buf != NULL)
 			if (runcmd(buf, tf) < 0)

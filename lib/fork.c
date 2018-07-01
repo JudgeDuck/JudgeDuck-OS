@@ -34,7 +34,7 @@ pgfault(struct UTrapframe *utf)
 	
 	if(!(uvpd[PDX(addr)] & PTE_P))
 	{
-		// cprintf("not present qwerqwerqwer %p %p %p %p | uvpd %p\n", addr, PDX(addr), uvpd + PDX(addr), uvpd[PDX(addr)], uvpd);
+		cprintf("not present qwerqwerqwer %p %p %p %p | uvpd %p\n", addr, PDX(addr), uvpd + PDX(addr), uvpd[PDX(addr)], uvpd);
 		panic("fork pgfault: not present dir");
 	}
 	if(!(uvpt[PGNUM(addr)] & PTE_P))

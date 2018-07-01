@@ -52,8 +52,9 @@ i386_detect_memory(void)
 	else
 		totalmem = basemem;
 	
-	if(totalmem > 524288)
-		totalmem = 524288;
+	int max = (2048 << 10);
+	if(totalmem > max)
+		totalmem = max;
 
 	npages = totalmem / (PGSIZE / 1024);
 	npages_basemem = basemem / (PGSIZE / 1024);
@@ -400,14 +401,16 @@ page_alloc(int alloc_flags)
 	ret->pp_link = NULL;
 	if(alloc_flags & ALLOC_ZERO)
 	{
-		if((ret - pages) * PGSIZE <= 0x10000000)
+		if((ret - pages) * PGSIZE < 0x10000000)
 			memset(page2kva(ret), 0, PGSIZE);
 		else
 		{
+			// cprintf("ret = %d | %p\n", ret - pages, (ret - pages) * PGSIZE);
+			boot_map_region(kern_pgdir, PGSIZE, PGSIZE, (ret - pages) * PGSIZE, PTE_W);
 			lcr3(PADDR(kern_pgdir));
-			boot_map_region(kern_pgdir, 0, PGSIZE, (ret - pages) * PGSIZE, PTE_W);
-			invlpg(0);
-			memset(0, 0, PGSIZE);
+			invlpg((void *) PGSIZE);
+			asm volatile("");
+			memset((void *) PGSIZE, 0, PGSIZE);
 		}
 	}
 	//cprintf("alloc %d\n", ret->pp_ref);
@@ -505,10 +508,12 @@ boot_map_region(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm
 	// Fill this function in
 	for(size_t offset = 0; offset != size; offset += PGSIZE)
 	{
-		pte_t *pte = pgdir_walk(pgdir, (const void *) (va + offset), 1);
+		// if(inited) cprintf("map va %p to pa %p\n", va, pa);
+		volatile pte_t *pte = pgdir_walk(pgdir, (const void *) (va + offset), 1);
 		if(!pte)
 			panic("map failed\n");
 		*pte = (pa + offset) | perm | PTE_P;
+		// if(inited) cprintf("*pte = %08x\n", *pte);
 	}
 }
 
@@ -718,7 +723,7 @@ rebuild_free_list()
 		}
 }
 
-static int
+/*static int
 rand()
 {
 	static unsigned a = 233u;
@@ -820,12 +825,13 @@ pages_apply_target()
 		if(ok) break;
 	}
 	rebuild_free_list();
-}
+}*/
 
 void
 pmem_defrag()
 {
-	lcr3(PADDR(kern_pgdir));
+	return;
+	/*lcr3(PADDR(kern_pgdir));
 	cprintf("DEFRAG:  begin\n");
 	for(size_t i = 0; i < npages; i++)
 	{
@@ -876,7 +882,7 @@ pmem_defrag()
 	cprintf("DEFRAG:  applying...\n");
 	pages_apply_target();
 	cprintf("DEFRAG:  OK!\n");
-	lcr3(PADDR(curenv->env_pgdir));
+	lcr3(PADDR(curenv->env_pgdir));*/
 }
 
 static uintptr_t user_mem_check_addr;
