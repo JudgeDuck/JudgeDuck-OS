@@ -91,7 +91,7 @@ umain(int argc, char **argv)
 			printf("mem_kb = %d\n", res.mem_kb);
 			break;
 		}
-		for(int i = 0; i < 50; i++) sys_yield();
+		for(int i = 0; i < 150; i++) sys_yield();
 	}
 	wait(env);
 	int fd = open("arbiter.in", O_RDWR);
