@@ -143,11 +143,22 @@ umain(int argc, char **argv)
 		{
 			// open file
 			int fd = open(s + 1, O_RDONLY);
-			if((received = read(fd, s, sizeof(s) - 1)) < 0)
-			{
-				cprintf("failed to read local\n");
-				// break;
+			if (fd < 0) {
+				cprintf("Can't open file [%s]\n", s + 1);
+			} else {
+				for (int i = 0; i < 64; i++) {
+					s[0] = 'f';
+					int r = read(fd, s + 1, 15);
+					if (r > 0) {
+						sendto(clientsock, s, r + 1, 0, (struct sockaddr *) &clientStatic, clientlen);
+					} else {
+						break;
+					}
+				}
+				s[0] = 'F';
+				sendto(clientsock, s, 1, 0, (struct sockaddr *) &clientStatic, clientlen);
 			}
+			received = 0;
 			close(fd);
 			sync();
 		}
@@ -155,6 +166,7 @@ umain(int argc, char **argv)
 		{
 			strcpy(s, "inv"); received = 3;
 		}
+		if (received)
 		if(sendto(clientsock, s, received, 0, (struct sockaddr *) &clientStatic, clientlen) < 0)
 			cprintf("sendto error\n");
 	}
