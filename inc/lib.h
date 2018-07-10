@@ -68,6 +68,7 @@ int	sys_ipc_recv(void *rcv_pg);
 int sys_enter_judge(void *eip, struct JudgeParams *prm);
 int sys_accept_enter_judge(envid_t envid, struct JudgeResult *res);
 int sys_quit_judge();
+int sys_map_judge_pages(void *dst, unsigned offset, unsigned len);  // returns: how many pages actually mapped
 unsigned int sys_time_msec(void);
 int	sys_net_try_transmit(const char *buf, int cnt);
 int	sys_net_try_receive(struct jif_pkt *jp);

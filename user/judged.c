@@ -85,6 +85,36 @@ umain(int argc, char **argv)
 	char *s = (char *) 0xc0000000;
 	const int BUFLEN = PGSIZE;
 	sys_page_alloc(0, s, PTE_P | PTE_U | PTE_W);
+	
+	static char judge_pages[JUDGE_PAGES_SIZE] __attribute__((aligned(PGSIZE)));
+	
+	int ret = sys_map_judge_pages(judge_pages, 0, JUDGE_PAGES_SIZE);
+	cprintf("sys_map_judge_pages returns %d, expected %d\n", ret, JUDGE_PAGES_COUNT);
+	memset(judge_pages, 0, sizeof(judge_pages));
+	unsigned *first_page = (unsigned *) judge_pages;
+	unsigned *second_page = first_page + PGSIZE / sizeof(unsigned);
+	unsigned *input_pos = first_page;
+	unsigned *input_len = first_page + 1;
+	unsigned *answer_pos = second_page;
+	unsigned *answer_len = second_page + 1;
+	//unsigned *taskliblog_pos = second_page + 2;
+	//unsigned *taskliblog_maxlen = second_page + 3;
+	//unsigned *taskliblog_len = second_page + 4;
+	
+	// Simple implementation of judge pages
+	// TODO: Support various size of files
+	int INPUT_START = 2 * PGSIZE;
+	int INPUT_SIZE = 50 * 1024 * 1024;
+	int ANSWER_START = INPUT_START + INPUT_SIZE;
+	int ANSWER_SIZE = INPUT_SIZE;
+	//int TASKLIBLOG_START = ANSWER_START + ANSWER_SIZE;
+	//int TASKLIBLOG_SIZE = 1 * 1024 * 1024;
+	
+	*input_pos = INPUT_START;
+	*answer_pos = ANSWER_START;
+	//*taskliblog_pos = TASKLIBLOG_START;
+	//*taskliblog_maxlen = TASKLIBLOG_SIZE;
+	
 	while(1)
 	{
 		unsigned int clientlen = sizeof(client);
@@ -102,30 +132,66 @@ umain(int argc, char **argv)
 		{
 			cprintf("[j][recv sendfile!!!]\n");
 			// write file
-			int fd = open(s + 1, O_RDWR | O_CREAT | O_TRUNC);
+			char *file_start = NULL;
+			unsigned file_maxsize = 0;
+			unsigned file_cursize = 0;
+			unsigned *file_len = NULL;
+			if (strcmp(s + 1, "input.txt") == 0) {
+				file_start = judge_pages + *input_pos;
+				file_maxsize = INPUT_SIZE;
+				file_len = input_len;
+			} else if (strcmp(s + 1, "answer.txt") == 0) {
+				file_start = judge_pages + *answer_pos;
+				file_maxsize = ANSWER_SIZE;
+				file_len = answer_len;
+			}
+			
+			int fd = -1;
+			if (!file_start) {
+				fd = open(s + 1, O_RDWR | O_CREAT | O_TRUNC);
+			}
+			
 			if(sendto(clientsock, "file", 4, 0, (struct sockaddr *) &clientStatic, clientlen) < 0)
 				cprintf("sendto error file\n");
-			cprintf("[j][sent 'file']\n");
-			for(;;)
-			{
-				if((received = recvfrom(serversock, s, BUFLEN - 1, 0, (struct sockaddr *) &client, &clientlen)) < 0)
-				{
+			
+			while (1) {
+				if ((received = recvfrom(serversock, s, BUFLEN - 1, 0, (struct sockaddr *) &client, &clientlen)) < 0) {
 					cprintf("failed to recvfrom\n");
 					break;
 				}
 				if(s[0] != 'g') break;
 				int off;
 				memcpy(&off, s + 4, 4);
-				seek(fd, off);
-				write(fd, s + 8, received - 8);
+				
+				if (file_start) {
+					if (off >= 0 && off <= file_maxsize && off + received - 8 <= file_maxsize) {
+						int tmp = off + received - 8;
+						if (tmp > file_cursize) {
+							file_cursize = tmp;
+						}
+						memcpy(file_start + off, s + 8, received - 8);
+					}
+				} else {
+					seek(fd, off);
+					write(fd, s + 8, received - 8);
+				}
+				
 				s[0] = 'a';
 				if(sendto(clientsock, s, 8, 0, (struct sockaddr *) &clientStatic, clientlen) < 0)
 					cprintf("sendto error file part\n");
 			}
-			close(fd);
-			sync();
+			
+			if (!file_start) {
+				close(fd);
+				sync();
+			} else {
+				*file_len = file_cursize;
+				if (file_cursize % PGSIZE != 0) {
+					memset(file_start + file_cursize, 0, PGSIZE - file_cursize % PGSIZE);
+				}
+			}
+			
 			strcpy(s, "ok"); received = 2;
-			cprintf("[j][sendfile done!!!]\n");
 		}
 		else if(s[0] == 'c')
 		{

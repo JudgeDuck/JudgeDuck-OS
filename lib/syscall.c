@@ -151,6 +151,12 @@ sys_quit_judge()
 	return syscall(SYS_quit_judge, 1, 0, 0, 0, 0, 0);
 }
 
+int
+sys_map_judge_pages(void *dst, unsigned offset, unsigned len)
+{
+	return syscall(SYS_map_judge_pages, 0, (uint32_t) dst, (uint32_t) offset, (uint32_t) len, 0, 0);
+}
+
 void
 sys_halt()
 {

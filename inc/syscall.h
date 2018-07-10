@@ -23,6 +23,7 @@ enum {
 	SYS_enter_judge,
 	SYS_accept_enter_judge,
 	SYS_quit_judge,
+	SYS_map_judge_pages,
 	SYS_halt,
 	NSYSCALLS
 };

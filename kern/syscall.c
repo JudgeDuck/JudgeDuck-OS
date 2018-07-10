@@ -526,6 +526,40 @@ sys_quit_judge()
 	// won't reach here
 	return 233;
 }
+
+static int
+sys_map_judge_pages(void *dst, unsigned offset, unsigned len)
+{
+	if (offset % PGSIZE != 0 || len % PGSIZE != 0) {
+		return -E_INVAL;
+	}
+	if (offset >= JUDGE_PAGES_SIZE || JUDGE_PAGES_SIZE - offset < len) {
+		return -E_INVAL;
+	}
+	if ((unsigned) dst % PGSIZE != 0) {
+		return -E_INVAL;
+	}
+	if (len == 0) {
+		return 0;
+	}
+	
+	struct Env *e;
+	int ret = envid2env(0, &e, 1);
+	if (ret < 0) {
+		return ret;
+	}
+	
+	struct PageInfo *pp = get_first_judge_page() + offset / PGSIZE;
+	int n = len / PGSIZE;
+	for (int i = 0; i < n; i++) {
+		ret = page_insert(e->env_pgdir, pp + i, dst + i * PGSIZE, PTE_P | PTE_U | PTE_W);
+		if (ret < 0) {
+			return -E_NO_MEM;
+		}
+	}
+	return n;
+}
+
 // Return the current time.
 static int
 sys_time_msec(void)
@@ -580,6 +614,8 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 		return sys_accept_enter_judge(a1, (void *) a2);
 	case SYS_quit_judge:
 		return sys_quit_judge();
+	case SYS_map_judge_pages:
+		return sys_map_judge_pages((void *) a1, a2, a3);
 	case SYS_env_set_trapframe:
 		return sys_env_set_trapframe(a1, (struct Trapframe *) a2);
 	case SYS_time_msec:

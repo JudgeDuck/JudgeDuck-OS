@@ -352,12 +352,22 @@ page_init(void)
 		{
 			pages[i].pp_ref = 233; // 233?
 		}
+		else if(npages - i <= JUDGE_PAGES_COUNT)
+		{
+			pages[i].pp_ref = 666;
+		}
 		else
 		{
 			pages[i].pp_ref = 0;
 			pages[i].pp_link = page_free_list;
 			page_free_list = &pages[i];
 		}
+}
+
+struct PageInfo *
+get_first_judge_page()
+{
+	return pages + npages - JUDGE_PAGES_COUNT;
 }
 
 //

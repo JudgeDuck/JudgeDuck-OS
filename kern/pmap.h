@@ -51,6 +51,9 @@ enum {
 	ALLOC_ZERO = 1<<0,
 };
 
+// For judge duck
+struct PageInfo * get_first_judge_page();
+
 void	mem_init(void);
 
 void	page_init(void);
