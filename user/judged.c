@@ -82,14 +82,17 @@ umain(int argc, char **argv)
 	// if(idle_env < 0)
 		// cprintf("Failed to spawn idle\n");
 
+	char *s = (char *) 0xc0000000;
+	const int BUFLEN = PGSIZE;
+	sys_page_alloc(0, s, PTE_P | PTE_U | PTE_W);
 	while(1)
 	{
 		unsigned int clientlen = sizeof(client);
-		char s[512];
+		
 		int received;
 		errno = 233;
 		clientlen = 233;
-		if((received = recvfrom(serversock, s, sizeof(s) - 1, 0, (struct sockaddr *) &client, &clientlen)) < 0)
+		if((received = recvfrom(serversock, s, BUFLEN - 1, 0, (struct sockaddr *) &client, &clientlen)) < 0)
 		{
 			cprintf("recvfrom failed %d\n", errno);
 			exit();
@@ -97,13 +100,15 @@ umain(int argc, char **argv)
 		s[received] = 0;
 		if(s[0] == 'f')
 		{
+			cprintf("[j][recv sendfile!!!]\n");
 			// write file
 			int fd = open(s + 1, O_RDWR | O_CREAT | O_TRUNC);
 			if(sendto(clientsock, "file", 4, 0, (struct sockaddr *) &clientStatic, clientlen) < 0)
 				cprintf("sendto error file\n");
+			cprintf("[j][sent 'file']\n");
 			for(;;)
 			{
-				if((received = recvfrom(serversock, s, sizeof(s) - 1, 0, (struct sockaddr *) &client, &clientlen)) < 0)
+				if((received = recvfrom(serversock, s, BUFLEN - 1, 0, (struct sockaddr *) &client, &clientlen)) < 0)
 				{
 					cprintf("failed to recvfrom\n");
 					break;
@@ -120,6 +125,7 @@ umain(int argc, char **argv)
 			close(fd);
 			sync();
 			strcpy(s, "ok"); received = 2;
+			cprintf("[j][sendfile done!!!]\n");
 		}
 		else if(s[0] == 'c')
 		{
