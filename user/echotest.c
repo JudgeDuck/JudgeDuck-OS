@@ -1,9 +1,10 @@
 #include <inc/lib.h>
 #include <lwip/sockets.h>
 #include <lwip/inet.h>
+#include <net/ns.h>
 
 #define BUFFSIZE 32
-#define IPADDR "10.0.2.15"
+#define IPADDR IP
 #define PORT 10000
 
 const char *msg = "Hello world!\n";

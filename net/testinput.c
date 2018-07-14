@@ -1,5 +1,6 @@
 #include "ns.h"
 #include <netif/etharp.h>
+#include <net/ns.h>
 
 static envid_t output_envid;
 static envid_t input_envid;
@@ -16,7 +17,7 @@ announce(void)
 	// listens for very specific ARP requests, such as requests
 	// for the gateway IP.
 
-	uint8_t mac[6] = {0x52, 0x54, 0x00, 0x12, 0x34, 0x56};
+	uint8_t mac[6] = DUCK_MAC;
 	uint32_t myip = inet_addr(IP);
 	uint32_t gwip = inet_addr(DEFAULT);
 	int r;

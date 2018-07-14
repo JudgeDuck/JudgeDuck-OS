@@ -7,7 +7,7 @@ NET_SRCFILES :=		net/timer.c \
 
 NET_OBJFILES := $(patsubst net/%.c, $(OBJDIR)/net/%.o, $(NET_SRCFILES))
 
-$(OBJDIR)/net/%.o: net/%.c net/ns.h $(OBJDIR)/.vars.USER_CFLAGS $(OBJDIR)/.vars.NET_CFLAGS
+$(OBJDIR)/net/%.o: net/%.c net/ns.h ip-config.h $(OBJDIR)/.vars.USER_CFLAGS $(OBJDIR)/.vars.NET_CFLAGS
 	@echo + cc[USER] $<
 	@mkdir -p $(@D)
 	$(V)$(CC) -nostdinc $(USER_CFLAGS) $(NET_CFLAGS) -c -o $@ $<

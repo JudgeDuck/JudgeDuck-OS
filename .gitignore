@@ -17,4 +17,9 @@
 /myapi.key
 /.suf
 judge-duck-service/
+/ip-config.h
+/dhcp-config.txt
+/ducks.txt
+/arp-bind.sh
+/ducks-config.txt
 

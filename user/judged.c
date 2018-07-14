@@ -2,6 +2,7 @@
 #include <lwip/sockets.h>
 #include <lwip/inet.h>
 #include <lwip/err.h>
+#include <net/ns.h>
 
 int errno;
 // envid_t idle_env;
@@ -59,8 +60,8 @@ umain(int argc, char **argv)
 	
 	memset(&clientStatic, 0, sizeof(clientStatic));		// Clear struct
 	clientStatic.sin_family = AF_INET;			// Internet/IP
-	clientStatic.sin_addr.s_addr = inet_addr("10.0.2.2");	// IP address
-	clientStatic.sin_port = htons(8008);			// server port
+	clientStatic.sin_addr.s_addr = inet_addr(DEFAULT);	// IP address
+	clientStatic.sin_port = htons(PIGEON_PORT);		// server port
 
 	// Bind the server socket
 	if(bind(serversock, (struct sockaddr *) &server, sizeof(server)) < 0)

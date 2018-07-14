@@ -61,6 +61,8 @@ JUDGEDUCKFILES := \
 			judge-duck-service/server/input.txt \
 			judge-duck-service/server/answer.txt \
 
+JUDGEDUCKFILES := 
+
 $(OBJDIR)/fs/%.o: fs/%.c fs/fs.h inc/lib.h $(OBJDIR)/.vars.USER_CFLAGS
 	@echo + cc[USER] $<
 	@mkdir -p $(@D)

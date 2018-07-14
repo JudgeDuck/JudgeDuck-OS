@@ -5,6 +5,8 @@
 #include <inc/string.h>
 #include <inc/x86.h>
 
+#include <ip-config.h>
+
 // LAB 6: Your driver code here
 
 volatile void *e1000 = NULL;
@@ -37,8 +39,13 @@ e1000_or_e1000e_attach(struct pci_func *pcif, unsigned maxMTA)
 	// *(volatile uint32_t *) (e1000 + 0x410) = 0x60500a;    // TIPG
 	*(volatile uint32_t *) (e1000 + 0x410) = 0xa | (0x8 << 10) | (0xc << 20);    // TIPG
 	
-	*(volatile uint32_t *) (e1000 + 0x5400) = 0x12005452; // RAL
-	uint32_t rah = 0x5634 | (1u << 31);
+	uint8_t mac[6] = DUCK_MAC;
+	uint32_t RAL = 0, RAH = 0;
+	for (int i = 0; i < 4; i++) RAL |= (uint32_t) mac[i] << (i * 8);
+	for (int i = 0; i < 2; i++) RAH |= (uint32_t) mac[i + 4] << (i * 8);
+	
+	*(volatile uint32_t *) (e1000 + 0x5400) = RAL; // RAL
+	uint32_t rah = RAH | (1u << 31);
 	*(volatile uint32_t *) (e1000 + 0x5404) = rah;        // RAH
 	for(volatile void *c = e1000 + 0x5200; c < e1000 + maxMTA; ++c)
 		*(volatile char *) c = 0;                         // MTA

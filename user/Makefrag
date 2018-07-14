@@ -4,7 +4,7 @@ USERLIBS += lwip
 
 USERLIBS += jos
 
-$(OBJDIR)/user/%.o: user/%.c $(OBJDIR)/.vars.USER_CFLAGS
+$(OBJDIR)/user/%.o: user/%.c ip-config.h $(OBJDIR)/.vars.USER_CFLAGS
 	@echo + cc[USER] $<
 	@mkdir -p $(@D)
 	$(V)$(CC) -nostdinc $(USER_CFLAGS) -c -o $@ $<
