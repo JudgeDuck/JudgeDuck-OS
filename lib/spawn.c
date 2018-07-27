@@ -16,8 +16,8 @@ static int copy_shared_pages(envid_t child);
 // argv: pointer to null-terminated array of pointers to strings,
 // 	 which will be passed to the child as its command-line arguments.
 // Returns child envid on success, < 0 on failure.
-int
-spawn(const char *prog, const char **argv)
+static int
+_spawn(const char *prog, const char **argv, int is_contestant)
 {
 	unsigned char elf_buf[512];
 	struct Trapframe child_tf;
@@ -99,7 +99,7 @@ spawn(const char *prog, const char **argv)
 	}
 
 	// Create new child environment
-	if ((r = sys_exofork()) < 0)
+	if ((r = sys_exofork1(is_contestant)) < 0)
 		return r;
 	child = r;
 
@@ -143,6 +143,14 @@ error:
 	sys_env_destroy(child);
 	close(fd);
 	return r;
+}
+
+int spawn(const char *prog, const char **argv) {
+	return _spawn(prog, argv, 0);
+}
+
+int spawn_contestant(const char *prog, const char **argv) {
+	return _spawn(prog, argv, 1);
 }
 
 // Spawn, taking command-line arguments array directly on the stack.

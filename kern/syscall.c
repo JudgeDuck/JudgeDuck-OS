@@ -84,7 +84,7 @@ sys_halt(void)
 //	-E_NO_FREE_ENV if no free environment is available.
 //	-E_NO_MEM on memory exhaustion.
 static envid_t
-sys_exofork(void)
+sys_exofork(int is_contestant)
 {
 	// Create the new environment with env_alloc(), from kern/env.c.
 	// It should be left as env_alloc created it, except that
@@ -97,6 +97,9 @@ sys_exofork(void)
 	int ret = env_alloc(&e, curenv->env_id);
 	if(ret < 0)
 		return ret;
+	if (is_contestant) {
+		contestant_env = e;
+	}
 	e->env_status = ENV_NOT_RUNNABLE;
 	e->env_tf = curenv->env_tf;
 	e->env_tf.tf_regs.reg_eax = 0;
@@ -509,6 +512,10 @@ sys_accept_enter_judge(envid_t envid, struct JudgeResult *res)
 	judger_env->env_judge_res->time_ns = prm.ns;
 	res->time_cycles = -read_tsc();
 	
+	asm volatile("wbinvd\n");
+	for (register int i = 0; i < 100000000; i++) asm volatile("");
+	asm volatile("invd\n");
+	
 	timer_single_shot_ns(prm.ns);
 	env_run(env);
 	
@@ -599,7 +606,7 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 	case SYS_page_unmap:
 		return sys_page_unmap(a1, (void *) a2);
 	case SYS_exofork:
-		return sys_exofork();
+		return sys_exofork((int) a1);
 	case SYS_env_set_status:
 		return sys_env_set_status(a1, a2);
 	case SYS_env_set_pgfault_upcall:

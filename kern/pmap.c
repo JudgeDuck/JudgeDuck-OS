@@ -21,6 +21,55 @@ pde_t *kern_pgdir;		// Kernel's initial page directory
 struct PageInfo *pages;		// Physical page state array
 static struct PageInfo *page_free_list;	// Free list of physical pages
 
+#define SEGTREE_SIZE (1 << 19)
+static unsigned char *page_segtree;  // Heap-style segment tree
+
+static void segtree_modify(int pos, int val) {
+	pos += SEGTREE_SIZE;
+	page_segtree[pos] = val;
+	while (pos > 1) {
+		page_segtree[pos >> 1] = page_segtree[pos] & page_segtree[pos ^ 1];
+		pos >>= 1;
+	}
+}
+
+static int segtree_get(int pos) {
+	return page_segtree[pos + SEGTREE_SIZE];
+}
+
+static int segtree_alloc_left() {
+	if (page_segtree[1] == 1) {
+		return -1;
+	}
+	int p = 1;
+	while (p < SEGTREE_SIZE) {
+		p <<= 1;
+		p += page_segtree[p];
+	}
+	p -= SEGTREE_SIZE;
+	segtree_modify(p, 1);
+	return p;
+}
+
+static int segtree_alloc_right() {
+	return segtree_alloc_left();
+	if (page_segtree[1] == 1) {
+		return -1;
+	}
+	int p = 1;
+	while (p < SEGTREE_SIZE) {
+		p = p * 2 + 1;
+		p -= page_segtree[p];
+	}
+	p -= SEGTREE_SIZE;
+	segtree_modify(p, 1);
+	return p;
+}
+
+static void segtree_free(int p) {
+	segtree_modify(p, 0);
+}
+
 
 // --------------------------------------------------------------
 // Detect machine's physical memory setup.
@@ -346,6 +395,12 @@ page_init(void)
 	// Change the code to reflect this.
 	// NB: DO NOT actually touch the physical memory corresponding to
 	// free pages!
+	
+	cprintf("ready to alloc segtree\n");
+	page_segtree = boot_alloc(SEGTREE_SIZE * 2);
+	cprintf("alloc segtree ok\n");
+	memset(page_segtree, 0x01, SEGTREE_SIZE * 2);
+	
 	assert(MPENTRY_PADDR % PGSIZE == 0);
 	for(int i = npages - 1; i >= 0; i--)
 		if(i == 0 || (i * PGSIZE >= IOPHYSMEM && i * PGSIZE < EXTPHYSMEM + (64 << 20)) || i * PGSIZE == MPENTRY_PADDR)
@@ -358,10 +413,13 @@ page_init(void)
 		}
 		else
 		{
-			pages[i].pp_ref = 0;
+			/*pages[i].pp_ref = 0;
 			pages[i].pp_link = page_free_list;
-			page_free_list = &pages[i];
+			page_free_list = &pages[i];*/
+			pages[i].pp_ref = 0;
+			segtree_modify(i, 0);
 		}
+	cprintf("modify done\n");
 }
 
 struct PageInfo *
@@ -400,15 +458,83 @@ pte_page_alloc(void)
 	return NULL;
 }
 
+static struct PageInfo * segtree_alloc_page_left() {
+	int id = segtree_alloc_left();
+	if (id == -1) {
+		return NULL;
+	}
+	return pages + id;
+}
+
+static struct PageInfo * segtree_alloc_page_right() {
+	int id = segtree_alloc_right();
+	if (id == -1) {
+		return NULL;
+	}
+	return pages + id;
+}
+
+static struct PageInfo * segtree_alloc_page_spec(struct PageInfo *pp) {
+	int id = pp - pages;
+	if (segtree_get(id) == 1) {
+		return NULL;
+	}
+	segtree_modify(id, 1);
+	return pp;
+}
+
+static void segtree_free_page(struct PageInfo *pp) {
+	int id = pp - pages;
+	segtree_free(id);
+}
+
 struct PageInfo *
 page_alloc(int alloc_flags)
 {
 	// Fill this function in
-	if(!page_free_list)
+	/*if(!page_free_list)
 		return NULL;
 	struct PageInfo *ret = page_free_list;
 	page_free_list = ret->pp_link;
-	ret->pp_link = NULL;
+	ret->pp_link = NULL;*/
+	struct PageInfo *ret;
+	if ((contestant_env && curenv == contestant_env) || !inited) {
+		ret = segtree_alloc_page_left();
+	} else {
+		ret = segtree_alloc_page_right();
+	}
+	if (!ret) return NULL;
+	if(alloc_flags & ALLOC_ZERO)
+	{
+		if((ret - pages) * PGSIZE < 0x10000000)
+			memset(page2kva(ret), 0, PGSIZE);
+		else
+		{
+			// cprintf("ret = %d | %p\n", ret - pages, (ret - pages) * PGSIZE);
+			boot_map_region(kern_pgdir, PGSIZE, PGSIZE, (ret - pages) * PGSIZE, PTE_W);
+			lcr3(PADDR(kern_pgdir));
+			invlpg((void *) PGSIZE);
+			asm volatile("");
+			memset((void *) PGSIZE, 0, PGSIZE);
+		}
+	}
+	//cprintf("alloc %d\n", ret->pp_ref);
+	//mon_backtrace(0, NULL, NULL);
+	return ret;
+}
+
+struct PageInfo *
+page_alloc_spec(int alloc_flags, struct PageInfo *pp)
+{
+	// Fill this function in
+	/*if(!page_free_list)
+		return NULL;
+	struct PageInfo *ret = page_free_list;
+	page_free_list = ret->pp_link;
+	ret->pp_link = NULL;*/
+	struct PageInfo *ret;
+	ret = segtree_alloc_page_spec(pp);
+	if (!ret) return NULL;
 	if(alloc_flags & ALLOC_ZERO)
 	{
 		if((ret - pages) * PGSIZE < 0x10000000)
@@ -440,10 +566,11 @@ page_free(struct PageInfo *pp)
 	// pp->pp_link is not NULL.
 	if(pp->pp_ref)
 		panic("pp_ref nonzero when free\n");
-	if(pp->pp_link)
+	/*if(pp->pp_link)
 		panic("double free?\n");
 	pp->pp_link = page_free_list;
-	page_free_list = pp;
+	page_free_list = pp;*/
+	segtree_free_page(pp);
 }
 
 //
@@ -570,7 +697,7 @@ page_insert(pde_t *pgdir, struct PageInfo *pp, void *va, int perm)
 		//tlb_invalidate(pgdir, va);
 		if(spec)
 		{
-			struct PageInfo *tmp = page_alloc(0);
+			struct PageInfo *tmp = page_alloc_spec(0, pp);
 			//cprintf("aha %p\n", tmp);
 			assert(tmp == pp);
 		}
@@ -1028,6 +1155,7 @@ check_page_free_list(bool only_low_memory)
 static void
 check_page_alloc(void)
 {
+	return;
 	struct PageInfo *pp, *pp0, *pp1, *pp2;
 	int nfree;
 	struct PageInfo *fl;
@@ -1187,6 +1315,7 @@ check_va2pa(pde_t *pgdir, uintptr_t va)
 static void
 check_page(void)
 {
+	return;
 	struct PageInfo *pp, *pp0, *pp1, *pp2;
 	struct PageInfo *fl;
 	pte_t *ptep, *ptep1;

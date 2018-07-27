@@ -56,6 +56,7 @@ int	sys_env_destroy(envid_t);
 void	sys_yield(void);
 void	sys_halt(void);
 static envid_t sys_exofork(void);
+static envid_t sys_exofork1(int);
 int	sys_env_set_status(envid_t env, int status);
 int	sys_env_set_trapframe(envid_t env, struct Trapframe *tf);
 int	sys_env_set_pgfault_upcall(envid_t env, void *upcall);
@@ -77,10 +78,21 @@ int	sys_net_try_receive(struct jif_pkt *jp);
 static inline envid_t __attribute__((always_inline))
 sys_exofork(void)
 {
+	int a1 = 0;
 	envid_t ret;
 	asm volatile("int %2"
 		     : "=a" (ret)
-		     : "a" (SYS_exofork), "i" (T_SYSCALL));
+		     : "a" (SYS_exofork), "i" (T_SYSCALL), "d" (a1));
+	return ret;
+}
+
+static inline envid_t __attribute__((always_inline))
+sys_exofork1(int a1)
+{
+	envid_t ret;
+	asm volatile("int %2"
+		     : "=a" (ret)
+		     : "a" (SYS_exofork), "i" (T_SYSCALL), "d" (a1));
 	return ret;
 }
 
@@ -139,6 +151,7 @@ int     nsipc_socket(int domain, int type, int protocol);
 
 // spawn.c
 envid_t	spawn(const char *program, const char **argv);
+envid_t	spawn_contestant(const char *program, const char **argv);
 envid_t	spawnl(const char *program, const char *arg0, ...);
 
 // console.c

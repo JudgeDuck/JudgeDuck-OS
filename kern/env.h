@@ -7,6 +7,7 @@
 #include <kern/cpu.h>
 
 extern struct Env *judger_env;
+extern struct Env *contestant_env;
 
 extern struct Env *envs;		// All environments
 #define curenv (thiscpu->cpu_env)		// Current environment

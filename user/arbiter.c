@@ -55,7 +55,7 @@ umain(int argc, char **argv)
 
 	cprintf("ARBITER: spawning %s...\n", argv[1]);
 	
-	envid_t env = spawn(argv[1], (const char **) (argv + 1));
+	envid_t env = spawn_contestant(argv[1], (const char **) (argv + 1));
 	if(env < 0)
 	{
 		panic("ARBITER: Spawning failed...\n");
