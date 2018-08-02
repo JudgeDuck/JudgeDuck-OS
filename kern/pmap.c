@@ -21,7 +21,7 @@ pde_t *kern_pgdir;		// Kernel's initial page directory
 struct PageInfo *pages;		// Physical page state array
 static struct PageInfo *page_free_list;	// Free list of physical pages
 
-#define SEGTREE_SIZE (1 << 19)
+#define SEGTREE_SIZE (1 << 20)
 static unsigned char *page_segtree;  // Heap-style segment tree
 
 static void segtree_modify(int pos, int val) {
@@ -101,7 +101,7 @@ i386_detect_memory(void)
 	else
 		totalmem = basemem;
 	
-	int max = (2048 << 10);
+	int max = (4096 << 10);
 	if(totalmem > max)
 		totalmem = max;
 
@@ -506,7 +506,7 @@ page_alloc(int alloc_flags)
 	if (!ret) return NULL;
 	if(alloc_flags & ALLOC_ZERO)
 	{
-		if((ret - pages) * PGSIZE < 0x10000000)
+		if((ret - pages) * PGSIZE < 0x10000000u)
 			memset(page2kva(ret), 0, PGSIZE);
 		else
 		{
@@ -537,7 +537,7 @@ page_alloc_spec(int alloc_flags, struct PageInfo *pp)
 	if (!ret) return NULL;
 	if(alloc_flags & ALLOC_ZERO)
 	{
-		if((ret - pages) * PGSIZE < 0x10000000)
+		if((ret - pages) * PGSIZE < 0x10000000u)
 			memset(page2kva(ret), 0, PGSIZE);
 		else
 		{
@@ -846,7 +846,7 @@ pgdir_reperm(pde_t *pgdir, int old_perm, int new_perm, void *begin, void *end)
 	return ret;
 }
 
-static void
+/*static void
 rebuild_free_list()
 {
 	page_free_list = NULL;
@@ -858,7 +858,7 @@ rebuild_free_list()
 			pages[i].pp_link = page_free_list;
 			page_free_list = &pages[i];
 		}
-}
+}*/
 
 /*static int
 rand()
@@ -1091,7 +1091,7 @@ static void
 check_page_free_list(bool only_low_memory)
 {
 	return;
-	struct PageInfo *pp;
+	/*struct PageInfo *pp;
 	unsigned pdx_limit = only_low_memory ? 1 : NPDENTRIES;
 	int nfree_basemem = 0, nfree_extmem = 0;
 	char *first_free_page;
@@ -1145,7 +1145,7 @@ check_page_free_list(bool only_low_memory)
 	assert(nfree_basemem > 0);
 	assert(nfree_extmem > 0);
 
-	cprintf("check_page_free_list() succeeded!\n");
+	cprintf("check_page_free_list() succeeded!\n");*/
 }
 
 //
@@ -1156,7 +1156,7 @@ static void
 check_page_alloc(void)
 {
 	return;
-	struct PageInfo *pp, *pp0, *pp1, *pp2;
+	/*struct PageInfo *pp, *pp0, *pp1, *pp2;
 	int nfree;
 	struct PageInfo *fl;
 	char *c;
@@ -1224,7 +1224,7 @@ check_page_alloc(void)
 		--nfree;
 	assert(nfree == 0);
 
-	cprintf("check_page_alloc() succeeded!\n");
+	cprintf("check_page_alloc() succeeded!\n");*/
 }
 
 //
@@ -1239,7 +1239,7 @@ static void
 check_kern_pgdir(void)
 {
 	return;
-	uint32_t i, n;
+	/*uint32_t i, n;
 	pde_t *pgdir;
 
 	pgdir = kern_pgdir;
@@ -1288,7 +1288,7 @@ check_kern_pgdir(void)
 			break;
 		}
 	}
-	cprintf("check_kern_pgdir() succeeded!\n");
+	cprintf("check_kern_pgdir() succeeded!\n");*/
 }
 
 // This function returns the physical address of the page containing 'va',
@@ -1316,7 +1316,7 @@ static void
 check_page(void)
 {
 	return;
-	struct PageInfo *pp, *pp0, *pp1, *pp2;
+	/*struct PageInfo *pp, *pp0, *pp1, *pp2;
 	struct PageInfo *fl;
 	pte_t *ptep, *ptep1;
 	void *va;
@@ -1486,7 +1486,7 @@ check_page(void)
 	*pgdir_walk(kern_pgdir, (void*) mm1 + PGSIZE, 0) = 0;
 	*pgdir_walk(kern_pgdir, (void*) mm2, 0) = 0;
 
-	cprintf("check_page() succeeded!\n");
+	cprintf("check_page() succeeded!\n");*/
 }
 
 // check page_insert, page_remove, &c, with an installed kern_pgdir

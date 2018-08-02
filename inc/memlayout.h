@@ -199,7 +199,7 @@ struct PagePos
 
 struct PageInfo {
 	// Next page on the free list.
-	struct PageInfo *pp_link;
+	// struct PageInfo *pp_link;
 
 	// pp_ref is the count of pointers (usually in page table entries)
 	// to this page, for pages allocated using page_alloc.

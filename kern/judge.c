@@ -22,7 +22,7 @@ finish_judge(int verdict)
 	judger_env->env_judge_res->time_ns -= lapic_tccr_when_trap_begin;
 	judger_env->env_judge_res->verdict = verdict;
 	judger_env->env_judge_res->tf = tf;
-	judger_env->env_judge_res->mem_kb = pgs * PGSIZE / 1024;
+	judger_env->env_judge_res->mem_kb = pgs * (PGSIZE / 1024);
 	if (verdict == VERDICT_OK && judger_env->env_judge_res->mem_kb > judger_env->env_judge_prm.kb) {
 		judger_env->env_judge_res->verdict = VERDICT_MLE;
 	}
