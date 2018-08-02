@@ -39,6 +39,8 @@ typedef struct {
 	int n_pages;
 	int start;
 	char md5[50];
+	int lru_tag;
+	bool to_remove;
 } FileData;
 
 void
@@ -222,9 +224,51 @@ umain(int argc, char **argv)
 			} else {
 				strcpy(s, "sendobj begin");
 				sendto(clientsock, s, strlen(s), 0, (struct sockaddr *) &clientStatic, clientlen);
-				// TODO
 				
 				int last_pos = file_start - (void *) judge_pages;
+				if (n_files > 0) {
+					last_pos = filedata[n_files - 1].start + filedata[n_files - 1].n_pages * PGSIZE;
+				}
+				if (last_pos + size > JUDGE_PAGES_SIZE) {
+					// It's full
+					int to_remove_size = last_pos + size - JUDGE_PAGES_SIZE;
+					while (to_remove_size > 0) {
+						int max_tag = 30;
+						int max_tag_id = -1;
+						int max_size = -1;
+						int max_size_id = -1;
+						for (int i = 0; i < n_files; i++) {
+							FileData *fdata = filedata + i;
+							if (fdata->to_remove) continue;
+							if (fdata->lru_tag > max_tag) {
+								max_tag = fdata->lru_tag;
+								max_tag_id = i;
+							}
+							if (fdata->n_pages > max_size) {
+								max_size = fdata->n_pages;
+								max_size_id = i;
+							}
+						}
+						int id = max_tag_id != -1 ? max_tag_id : max_size_id;
+						filedata[id].to_remove = true;
+						to_remove_size -= filedata[id].n_pages * PGSIZE;
+					}
+					// Defrag
+					int j = 0;
+					int pos = file_start - (void *) judge_pages;
+					for (int i = 0; i < n_files; i++) {
+						if (filedata[i].to_remove) continue;
+						if (j < i) {
+							filedata[j] = filedata[i];
+							memmove(judge_pages + pos, judge_pages + filedata[j].start, filedata[j].n_pages * PGSIZE);
+						}
+						filedata[j].start = pos;
+						pos += filedata[j].n_pages * PGSIZE;
+						j++;
+					}
+					n_files = j;
+				}
+				last_pos = file_start - (void *) judge_pages;
 				if (n_files > 0) {
 					last_pos = filedata[n_files - 1].start + filedata[n_files - 1].n_pages * PGSIZE;
 				}
@@ -233,6 +277,8 @@ umain(int argc, char **argv)
 				strcpy(fdata->md5, md5);
 				fdata->n_pages = ROUNDUP(fdata->size, PGSIZE) / PGSIZE;
 				fdata->start = last_pos;
+				fdata->lru_tag = 0;
+				fdata->to_remove = false;
 				
 				memset(judge_pages + fdata->start, 0, fdata->n_pages * PGSIZE);
 				
@@ -258,6 +304,9 @@ umain(int argc, char **argv)
 				}
 				
 				// Write Ahead Logging !!!
+				for (int i = 0; i < n_files; i++) {
+					filedata[i].lru_tag++;
+				}
 				++n_files;
 				strcpy(s, "sendobj ok");
 				sendto(clientsock, s, strlen(s), 0, (struct sockaddr *) &clientStatic, clientlen);

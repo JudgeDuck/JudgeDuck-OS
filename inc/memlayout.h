@@ -14,7 +14,7 @@
 // For judged and tasklib
 // These pages are located at the end of physical memory,
 // and can be mapped to arbitary area in virtual memory
-#define JUDGE_PAGES_SIZE (128 * 1024 * 1024)
+#define JUDGE_PAGES_SIZE (512 * 1024 * 1024)
 #define JUDGE_PAGES_COUNT (JUDGE_PAGES_SIZE / PGSIZE)
 
 // Global descriptor numbers
