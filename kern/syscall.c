@@ -528,6 +528,7 @@ sys_quit_judge()
 {
 	// cprintf("quit judge!\n");
 	if(!curenv->env_judging) return -E_INVAL;
+	contestant_env = NULL;
 	
 	finish_judge(VERDICT_OK);
 	// won't reach here
