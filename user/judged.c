@@ -4,6 +4,8 @@
 #include <lwip/err.h>
 #include <net/ns.h>
 
+#define MAX_ELF_SIZE (20 * 1024 * 1024)
+
 int errno;
 // envid_t idle_env;
 
@@ -33,6 +35,129 @@ handle_client(int sock)
 	
 	// exit();
 }
+
+static const char *trapname(int trapno) {
+	static const char * const excnames[] = {
+		"Divide error",
+		"Debug",
+		"Non-Maskable Interrupt",
+		"Breakpoint",
+		"Overflow",
+		"BOUND Range Exceeded",
+		"Invalid Opcode",
+		"Device Not Available",
+		"Double Fault",
+		"Coprocessor Segment Overrun",
+		"Invalid TSS",
+		"Segment Not Present",
+		"Stack Fault",
+		"General Protection",
+		"Page Fault",
+		"(unknown trap)",
+		"x87 FPU Floating-Point Error",
+		"Alignment Check",
+		"Machine-Check",
+		"SIMD Floating-Point Exception"
+	};
+
+	if (trapno < ARRAY_SIZE(excnames))
+		return excnames[trapno];
+	if (trapno == T_SYSCALL)
+		return "System call";
+	if (trapno >= IRQ_OFFSET && trapno < IRQ_OFFSET + 16)
+		return "Hardware Interrupt";
+	return "(unknown trap)";
+}
+
+#define MAXARGS 16
+
+static void run_arbiter(const char *judging_elf, const char *args) {
+	static char argbuf[PGSIZE];
+	strncpy(argbuf, args, PGSIZE - 1);
+	argbuf[PGSIZE - 1] = 0;
+	
+	char *argv[MAXARGS + 1];
+	int argc = 1;
+	argv[0] = "judging";
+	
+	char *s = argbuf;
+	while (1) {
+		while (*s == ' ') ++s;
+		char c = *s;
+		if (c == 0) break;
+		if (c == '>') break;
+		argv[argc++] = s;
+		while (*s != ' ' && *s != 0) ++s;
+		*s = 0;
+		++s;
+		if (argc >= MAXARGS) break;
+	}
+	
+	int fd = open("arbiter.out", O_RDWR | O_CREAT | O_TRUNC);
+	if (fd < 0) {
+		panic("arbiter(): open arbiter.out failed\n");
+		exit();
+	}
+	
+	envid_t env = spawn_contestant_from_memory(judging_elf, (const char **) argv);
+	if (env < 0) {
+		panic("arbiter(): spawn contestant failed\n");
+		exit();
+	}
+	
+	sys_yield();
+	
+	struct JudgeResult res;
+	int ok = 0;
+	
+	for (int id = 0; id < 5; id++) {
+		int ret = sys_accept_enter_judge(env, &res);
+		if (ret == 0) {
+			ok = 1;
+			break;
+		}
+		for (int i = 0; i < 150 * 10; i++) sys_yield();
+	}
+	
+	wait(env);
+	// Bug: What if the program fall into an infinity loop ...
+	
+	if (!ok) {
+		cprintf("arbiter(): failed since enter_judge() seems not called\n");
+		fprintf(fd, "Judge Failed: enter_judge() seems not called\n");
+	} else {
+		static const char *verdict_str[] = {
+			"Run Finished", "Time Limit Exceeded", "Runtime Error", "Illegal Syscall", "System Error", "Memory Limit Exceeded"
+		};
+		cprintf("ARBITER: verdict = %s\n", verdict_str[(int) res.verdict]);
+		fprintf(fd, "verdict = %s\n", verdict_str[(int) res.verdict]);
+		if (res.verdict == VERDICT_IS) {
+			cprintf("ARBITER: syscall_id = %d\n", res.tf.tf_regs.reg_eax);
+			fprintf(fd, "syscall_id = %d\n", res.tf.tf_regs.reg_eax);
+		}
+		if (res.verdict == VERDICT_RE) {
+			cprintf("ARBITER: runtime error %d (%s)\n", res.tf.tf_trapno, trapname(res.tf.tf_trapno));
+			fprintf(fd, "runtime error %d (%s)\n", res.tf.tf_trapno, trapname(res.tf.tf_trapno));
+		}
+		cprintf("ARBITER: time_Mcycles = %d.%06d\n", (int) (res.time_cycles / 1000000), (int) (res.time_cycles % 1000000));
+		cprintf("ARBITER: time_ms = %d.%06d\n", (int) (res.time_ns / 1000000), (int) (res.time_ns % 1000000));
+		cprintf("ARBITER: mem_kb = %d\n", res.mem_kb);
+		fprintf(fd, "time_Mcycles = %d.%06d\n", (int) (res.time_cycles / 1000000), (int) (res.time_cycles % 1000000));
+		fprintf(fd, "time_ms = %d.%06d\n", (int) (res.time_ns / 1000000), (int) (res.time_ns % 1000000));
+		fprintf(fd, "mem_kb = %d\n", res.mem_kb);
+		
+		int fd_in = open("arbiter.in", O_RDWR);
+		static char buf[256];
+		int r = read(fd_in, buf, sizeof(buf));
+		if (r > 0) write(fd, buf, r);
+		close(fd_in);
+	}
+	
+	close(fd);
+	
+	cprintf("arbiter(): done\n");
+}
+
 
 typedef struct {
 	int size;
@@ -109,7 +234,9 @@ umain(int argc, char **argv)
 	unsigned *answer_pos = second_page;
 	unsigned *answer_len = second_page + 1;
 	
-	void *meta_start = judge_pages + PGSIZE * 2;
+	char *judging_elf = judge_pages + PGSIZE * 2;
+	
+	void *meta_start = judging_elf + MAX_ELF_SIZE;
 	FileData *filedata = (FileData *) meta_start;
 	void *file_start = meta_start + ROUNDUP(JUDGE_PAGES_COUNT * sizeof(FileData), PGSIZE);
 	int n_files = 0;
@@ -138,18 +265,33 @@ umain(int argc, char **argv)
 			// Pass
 		} else if (s[0] == 'c') {
 			cprintf("command:%s:\n", s + 1);
-			int fd = open("tmp", O_RDWR | O_CREAT | O_TRUNC);
-			write(fd, s + 1, received - 1);
-			write(fd, "\n", 1);
-			close(fd);
-			sync();
-			int r = spawnl("sh", "sh", "-w", "tmp", 0);
-			if(r < 0) {
-				cprintf("failed to spawn %e\n", r);
+			
+			// arbiter judging ......
+			const char *tmp = "arbiter judging ";
+			int tmp_len = strlen(tmp);
+			char tmp_back = s[1 + tmp_len];
+			s[1 + tmp_len] = 0;
+			int res = strcmp(s + 1, tmp);
+			s[1 + tmp_len] = tmp_back;
+			
+			if (res == 0) {
+				run_arbiter(judging_elf, s + 1 + tmp_len);
+				cprintf("run arbiter ok\n");
+				strcpy(s, "run arbiter ok");
+			} else {
+				int fd = open("tmp", O_RDWR | O_CREAT | O_TRUNC);
+				write(fd, s + 1, received - 1);
+				write(fd, "\n", 1);
+				close(fd);
+				sync();
+				int r = spawnl("sh", "sh", "-w", "tmp", 0);
+				if(r < 0) {
+					cprintf("failed to spawn %e\n", r);
+				}
+				wait(r);
+				cprintf("wait ok\n");
+				strcpy(s, "runCmd ok");
 			}
-			wait(r);
-			cprintf("wait ok\n");
-			strcpy(s, "runCmd ok");
 			to_send = strlen(s);
 		} else if (s[0] == 'o') {
 			// open file
@@ -171,6 +313,40 @@ umain(int argc, char **argv)
 			}
 			close(fd);
 			sync();
+		} else if (s[0] == 'f' && strcmp(s + 1, "judging") == 0) {
+			cprintf("[j][recv judging elf!!!]\n");
+			
+			// Clear elf header
+			memset(judging_elf, 0, 512);
+			
+			if (sendto(clientsock, "file", 4, 0, (struct sockaddr *) &clientStatic, clientlen) < 0) {
+				cprintf("sendto error file\n");
+			}
+			
+			while (1) {
+				if ((received = recvfrom(serversock, s, BUFLEN - 1, 0, (struct sockaddr *) &client, &clientlen)) < 0) {
+					cprintf("failed to recvfrom\n");
+					break;
+				}
+				s[received] = 0;
+				if (s[0] != 'g') break;
+				if (strcmp(s, "clear") == 0) {
+					break;
+				}
+				
+				int off;
+				memcpy(&off, s + 4, 4);
+				
+				memcpy(judging_elf + off, s + 8, received - 8);
+				
+				s[0] = 'a';
+				if (sendto(clientsock, s, 8, 0, (struct sockaddr *) &clientStatic, clientlen) < 0) {
+					cprintf("sendto error file part\n");
+				}
+			}
+			
+			strcpy(s, "sendFile elf ok");
+			to_send = strlen(s);
 		} else if (s[0] == 'f') {
 			cprintf("[j][recv sendfile!!!]\n");
 			// write file

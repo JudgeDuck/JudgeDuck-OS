@@ -9,6 +9,8 @@
 static int init_stack(envid_t child, const char **argv, uintptr_t *init_esp);
 static int map_segment(envid_t child, uintptr_t va, size_t memsz,
 		       int fd, size_t filesz, off_t fileoffset, int perm);
+static int map_segment_from_memory(envid_t child, uintptr_t va, size_t memsz,
+		       const char *prog, size_t filesz, off_t fileoffset, int perm);
 static int copy_shared_pages(envid_t child);
 
 // Spawn a child process from a program image loaded from the file system.
@@ -145,12 +147,86 @@ error:
 	return r;
 }
 
+static int
+_spawn_from_memory(const char *prog, const char **argv, int is_contestant)
+{
+	unsigned char elf_buf[512];
+	struct Trapframe child_tf;
+	envid_t child;
+
+	int i, r;
+	struct Elf *elf;
+	struct Proghdr *ph;
+	int perm;
+
+	// Assume prog is valid
+
+	// Read elf header
+	elf = (struct Elf*) elf_buf;
+	memcpy(elf_buf, prog, sizeof(elf_buf));
+	if (elf->e_magic != ELF_MAGIC) {
+		cprintf("elf magic %08x want %08x\n", elf->e_magic, ELF_MAGIC);
+		return -E_NOT_EXEC;
+	}
+
+	// Create new child environment
+	if ((r = sys_exofork1(is_contestant)) < 0)
+		return r;
+	child = r;
+
+	// Set up trap frame, including initial stack.
+	child_tf = envs[ENVX(child)].env_tf;
+	child_tf.tf_eip = elf->e_entry;
+
+	if ((r = init_stack(child, argv, &child_tf.tf_esp)) < 0)
+		return r;
+
+	// Set up program segments as defined in ELF header.
+	ph = (struct Proghdr*) (elf_buf + elf->e_phoff);
+	cprintf("ph = %p + %p = %p\n", elf_buf, elf->e_phoff, ph);
+	for (i = 0; i < elf->e_phnum; i++, ph++) {
+		if (ph->p_type != ELF_PROG_LOAD)
+			continue;
+		perm = PTE_P | PTE_U;
+		if (ph->p_flags & ELF_PROG_FLAG_WRITE)
+			perm |= PTE_W;
+		if ((r = map_segment_from_memory(child, ph->p_va, ph->p_memsz,
+				     prog, ph->p_filesz, ph->p_offset, perm)) < 0)
+			goto error;
+	}
+
+	// Copy shared library state.
+	if ((r = copy_shared_pages(child)) < 0)
+		panic("copy_shared_pages: %e", r);
+
+	//child_tf.tf_eflags |= FL_IOPL_3;   // devious: see user/faultio.c
+	if ((r = sys_env_set_trapframe(child, &child_tf)) < 0)
+		panic("sys_env_set_trapframe: %e", r);
+
+	if ((r = sys_env_set_status(child, ENV_RUNNABLE)) < 0)
+		panic("sys_env_set_status: %e", r);
+
+	return child;
+
+error:
+	sys_env_destroy(child);
+	return r;
+}
+
 int spawn(const char *prog, const char **argv) {
 	return _spawn(prog, argv, 0);
 }
 
 int spawn_contestant(const char *prog, const char **argv) {
 	return _spawn(prog, argv, 1);
+}
+
+int spawn_from_memory(const char *prog, const char **argv) {
+	return _spawn_from_memory(prog, argv, 0);
+}
+
+int spawn_contestant_from_memory(const char *prog, const char **argv) {
+	return _spawn_from_memory(prog, argv, 1);
 }
 
 // Spawn, taking command-line arguments array directly on the stack.
@@ -182,6 +258,34 @@ spawnl(const char *prog, const char *arg0, ...)
 		argv[i+1] = va_arg(vl, const char *);
 	va_end(vl);
 	return spawn(prog, argv);
+}
+
+int
+spawnl_from_memory(const char *prog, const char *arg0, ...)
+{
+	// We calculate argc by advancing the args until we hit NULL.
+	// The contract of the function guarantees that the last
+	// argument will always be NULL, and that none of the other
+	// arguments will be NULL.
+	int argc=0;
+	va_list vl;
+	va_start(vl, arg0);
+	while(va_arg(vl, void *) != NULL)
+		argc++;
+	va_end(vl);
+
+	// Now that we have the size of the args, do a second pass
+	// and store the values in a VLA, which has the format of argv
+	const char *argv[argc+2];
+	argv[0] = arg0;
+	argv[argc+1] = NULL;
+
+	va_start(vl, arg0);
+	unsigned i;
+	for(i=0;i<argc;i++)
+		argv[i+1] = va_arg(vl, const char *);
+	va_end(vl);
+	return spawn_from_memory(prog, argv);
 }
 
 
@@ -298,6 +402,40 @@ map_segment(envid_t child, uintptr_t va, size_t memsz,
 				return r;
 			if ((r = readn(fd, UTEMP, MIN(PGSIZE, filesz-i))) < 0)
 				return r;
+			if ((r = sys_page_map(0, UTEMP, child, (void*) (va + i), perm)) < 0)
+				panic("spawn: sys_page_map data: %e", r);
+			sys_page_unmap(0, UTEMP);
+		}
+	}
+	return 0;
+}
+
+static int
+map_segment_from_memory(envid_t child, uintptr_t va, size_t memsz,
+	const char *prog, size_t filesz, off_t fileoffset, int perm)
+{
+	int i, r;
+	void *blk;
+
+	//cprintf("map_segment %x+%x\n", va, memsz);
+
+	if ((i = PGOFF(va))) {
+		va -= i;
+		memsz += i;
+		filesz += i;
+		fileoffset -= i;
+	}
+
+	for (i = 0; i < memsz; i += PGSIZE) {
+		if (i >= filesz) {
+			// allocate a blank page
+			if ((r = sys_page_alloc(child, (void*) (va + i), perm)) < 0)
+				return r;
+		} else {
+			// from file
+			if ((r = sys_page_alloc(0, UTEMP, PTE_P|PTE_U|PTE_W)) < 0)
+				return r;
+			memcpy(UTEMP, prog + fileoffset + i, MIN(PGSIZE, filesz - i));
 			if ((r = sys_page_map(0, UTEMP, child, (void*) (va + i), perm)) < 0)
 				panic("spawn: sys_page_map data: %e", r);
 			sys_page_unmap(0, UTEMP);

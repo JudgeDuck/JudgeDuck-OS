@@ -153,6 +153,10 @@ int     nsipc_socket(int domain, int type, int protocol);
 envid_t	spawn(const char *program, const char **argv);
 envid_t	spawn_contestant(const char *program, const char **argv);
 envid_t	spawnl(const char *program, const char *arg0, ...);
+envid_t	spawn_from_memory(const char *program, const char **argv);
+envid_t	spawn_contestant_from_memory(const char *program, const char **argv);
+envid_t	spawnl_from_memory(const char *program, const char *arg0, ...);
+
 
 // console.c
 void	cputchar(int c);
