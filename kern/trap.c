@@ -262,7 +262,7 @@ trap_dispatch(struct Trapframe *tf)
 	{
 		if(curenv && curenv->env_judging)
 		{
-			// print_trapframe(tf);
+			print_trapframe(tf);
 			finish_judge(VERDICT_RE);
 		}
 		page_fault_handler(tf);
