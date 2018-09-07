@@ -59,19 +59,11 @@ mb.entry:
 	
 	movb $0x41, 0xb8000
 	movb $0x7, 0xb8001
-	movl $1000000000, %ebx
-sleepA:
-	decl %ebx
-	jz sleepA
 	
 	lgdt RELOC(gdtdesc)
 	
 	movb $0x42, 0xb8000
 	movb $0x7, 0xb8001
-	movl $1000000000, %ebx
-sleepB:
-	decl %ebx
-	jz sleepB
 
 	ljmp    $PROT_MODE_CSEG, $RELOC(protcseg)
 
@@ -79,10 +71,6 @@ protcseg:
 	
 	movb $0x43, 0xb8000
 	movb $0x7, 0xb8001
-	movl $1000000000, %ebx
-sleepC:
-	decl %ebx
-	jz sleepC
 	
 	# Set up the protected-mode data segment registers
 	movw    $PROT_MODE_DSEG, %ax    # Our data segment selector
@@ -94,10 +82,6 @@ sleepC:
 	
 	movb $0x44, 0xb8000
 	movb $0x7, 0xb8001
-	movl $1000000000, %ebx
-sleepD:
-	decl %ebx
-	jz sleepD
 	
 	movw	$0x1234,0x472			# warm boot
 
