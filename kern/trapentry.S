@@ -91,6 +91,7 @@
 /*
  * Lab 3: Your code here for _alltraps
  */
+# TODO: save %fs, %gs into trapframe
 _alltraps:
 	pushl %es
 	pushl %ds

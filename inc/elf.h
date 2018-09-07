@@ -47,6 +47,7 @@ struct Secthdr {
 
 // Values for Proghdr::p_type
 #define ELF_PROG_LOAD		1
+#define ELF_PROG_TLS        7  // thread local storage
 
 // Flag bits for Proghdr::p_flags
 #define ELF_PROG_FLAG_EXEC	1

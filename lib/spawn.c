@@ -182,14 +182,80 @@ _spawn_from_memory(const char *prog, const char **argv, int is_contestant)
 		return r;
 
 	// Set up program segments as defined in ELF header.
+	
+	uint32_t data_start = 0x10000000;
+	uint32_t data_end = data_start;
+	
 	ph = (struct Proghdr*) (elf_buf + elf->e_phoff);
 	cprintf("ph = %p + %p = %p\n", elf_buf, elf->e_phoff, ph);
 	for (i = 0; i < elf->e_phnum; i++, ph++) {
+		if (ph->p_type != ELF_PROG_TLS && ph->p_type != ELF_PROG_LOAD) {
+			continue;
+		}
+		uint32_t start = (uint32_t) ph->p_va;
+		uint32_t end = start + (uint32_t) ph->p_memsz;
+		if (start < data_start) continue;
+		if (end > data_end) {
+			data_end = end;
+		}
+	}
+	data_end = ROUNDUP(data_end, PGSIZE);
+	for (uint32_t va = data_start; va < data_end; va += PGSIZE) {
+		ph = (struct Proghdr*) (elf_buf + elf->e_phoff);
+		int found = 0;
+		uint32_t ph_offset;
+		uint32_t ph_va;
+		uint32_t ph_filesz;
+		for (i = 0; i < elf->e_phnum; i++, ph++) {
+			if (ph->p_type != ELF_PROG_TLS && ph->p_type != ELF_PROG_LOAD) {
+				continue;
+			}
+			uint32_t start = (uint32_t) ph->p_va;
+			uint32_t end = start + (uint32_t) ph->p_filesz;
+			start = ROUNDDOWN(start, PGSIZE);
+			if (va >= start && va < end) {
+				found = 1;
+				ph_offset = (uint32_t) ph->p_offset;
+				ph_va = (uint32_t) ph->p_va;
+				ph_filesz = (uint32_t) ph->p_filesz;
+				break;
+			}
+		}
+		if (found) {
+			int r;
+			if ((r = sys_page_alloc(0, UTEMP, PTE_P | PTE_U | PTE_W)) < 0)
+				return r;
+			if (va < ph_va) {
+				memcpy(UTEMP + ph_va - va, prog + ph_offset, PGSIZE - (ph_va - va));
+			} else {
+				memcpy(UTEMP, prog + ph_offset + va - ph_va, MIN(PGSIZE, ph_filesz - (va - ph_va)));
+			}
+			if ((r = sys_page_map(0, UTEMP, child, (void*) va, PTE_P | PTE_U | PTE_W)) < 0)
+				panic("spawn: sys_page_map data: %e", r);
+			sys_page_unmap(0, UTEMP);
+		} else {
+			sys_page_alloc(child, (void *) va, PTE_P | PTE_U | PTE_W);
+		}
+	}
+	
+	ph = (struct Proghdr*) (elf_buf + elf->e_phoff);
+	for (i = 0; i < elf->e_phnum; i++, ph++) {
+		if (ph->p_type == ELF_PROG_TLS) {
+			sys_set_tls_base((void *) ph->p_va + ph->p_memsz);
+			continue;
+		}
 		if (ph->p_type != ELF_PROG_LOAD)
 			continue;
 		perm = PTE_P | PTE_U;
 		if (ph->p_flags & ELF_PROG_FLAG_WRITE)
 			perm |= PTE_W;
+		
+		uint32_t start = (uint32_t) ph->p_va;
+		
+		if (start >= data_start) {
+			continue;
+		}
+		
 		if ((r = map_segment_from_memory(child, ph->p_va, ph->p_memsz,
 				     prog, ph->p_filesz, ph->p_offset, perm)) < 0)
 			goto error;

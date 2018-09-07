@@ -12,6 +12,7 @@ extern struct Env *contestant_env;
 extern struct Env *envs;		// All environments
 #define curenv (thiscpu->cpu_env)		// Current environment
 extern struct Segdesc gdt[];
+extern struct Pseudodesc gdt_pd;
 
 void	env_init(void);
 void	env_init_percpu(void);

@@ -73,6 +73,7 @@ int sys_map_judge_pages(void *dst, unsigned offset, unsigned len);  // returns: 
 unsigned int sys_time_msec(void);
 int	sys_net_try_transmit(const char *buf, int cnt);
 int	sys_net_try_receive(struct jif_pkt *jp);
+int sys_set_tls_base(void *base);
 
 // This must be inlined.  Exercise for reader: why?
 static inline envid_t __attribute__((always_inline))

@@ -504,6 +504,10 @@ sys_accept_enter_judge(envid_t envid, struct JudgeResult *res)
 	env->env_judge_waiting = 0;
 	env->env_judging = 1;
 	
+	// Set up %gs for TLS
+	// TODO: Do this in env_tf when trapframe supports %gs
+	asm volatile("movw %%ax, %%gs" : : "a" (GD_TLS | 3));
+	
 	unsigned sum = 0;
 	for(unsigned *i = (unsigned *) 0xf0000000; i < (unsigned *) 0xf1000000; i++)
 		sum ^= *i;
@@ -577,6 +581,15 @@ sys_time_msec(void)
 	return time_msec();
 }
 
+static int
+sys_set_tls_base(void *base)
+{
+	struct Segdesc tmp[1] = {SEG(STA_W, ((uint32_t) base), 0xffffffff, 3)};
+	gdt[GD_TLS >> 3] = tmp[0];
+	lgdt(&gdt_pd);
+	return 0;
+}
+
 // Dispatches to the correct kernel function, passing the arguments.
 int32_t
 syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5)
@@ -635,6 +648,8 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 	case SYS_halt:
 		sys_halt();
 		return 0;
+	case SYS_set_tls_base:
+		return sys_set_tls_base((void *) a1);
 	default:
 		return -E_INVAL;
 	}

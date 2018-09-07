@@ -25,6 +25,7 @@ enum {
 	SYS_quit_judge,
 	SYS_map_judge_pages,
 	SYS_halt,
+	SYS_set_tls_base,
 	NSYSCALLS
 };
 

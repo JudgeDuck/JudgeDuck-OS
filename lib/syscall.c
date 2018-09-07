@@ -163,3 +163,9 @@ sys_halt()
 	syscall(SYS_halt, 0, 0, 0, 0, 0, 0);
 }
 
+int
+sys_set_tls_base(void *base)
+{
+	return syscall(SYS_set_tls_base, 0, (uint32_t) base, 0, 0, 0, 0);
+}
+
