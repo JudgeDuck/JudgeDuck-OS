@@ -188,9 +188,14 @@ _spawn_from_memory(const char *prog, const char **argv, int is_contestant)
 	
 	ph = (struct Proghdr*) (elf_buf + elf->e_phoff);
 	cprintf("ph = %p + %p = %p\n", elf_buf, elf->e_phoff, ph);
+	void *tls_base = NULL;
 	for (i = 0; i < elf->e_phnum; i++, ph++) {
 		if (ph->p_type != ELF_PROG_TLS && ph->p_type != ELF_PROG_LOAD) {
 			continue;
+		}
+		if (ph->p_type == ELF_PROG_TLS) {
+			tls_base = (void *) (ph->p_va + ph->p_memsz);
+			sys_set_tls_base(tls_base);
 		}
 		uint32_t start = (uint32_t) ph->p_va;
 		uint32_t end = start + (uint32_t) ph->p_memsz;
@@ -221,14 +226,20 @@ _spawn_from_memory(const char *prog, const char **argv, int is_contestant)
 				break;
 			}
 		}
-		if (found) {
+		int has_tls_base = va <= (uint32_t) tls_base && (uint32_t) tls_base - va < PGSIZE;
+		if (found || has_tls_base) {
 			int r;
 			if ((r = sys_page_alloc(0, UTEMP, PTE_P | PTE_U | PTE_W)) < 0)
 				return r;
-			if (va < ph_va) {
-				memcpy(UTEMP + ph_va - va, prog + ph_offset, PGSIZE - (ph_va - va));
-			} else {
-				memcpy(UTEMP, prog + ph_offset + va - ph_va, MIN(PGSIZE, ph_filesz - (va - ph_va)));
+			if (found) {
+				if (va < ph_va) {
+					memcpy(UTEMP + ph_va - va, prog + ph_offset, PGSIZE - (ph_va - va));
+				} else {
+					memcpy(UTEMP, prog + ph_offset + va - ph_va, MIN(PGSIZE, ph_filesz - (va - ph_va)));
+				}
+			}
+			if (has_tls_base) {
+				*(void **) (UTEMP + (uint32_t) tls_base - va) = tls_base;
 			}
 			if ((r = sys_page_map(0, UTEMP, child, (void*) va, PTE_P | PTE_U | PTE_W)) < 0)
 				panic("spawn: sys_page_map data: %e", r);
@@ -240,10 +251,6 @@ _spawn_from_memory(const char *prog, const char **argv, int is_contestant)
 	
 	ph = (struct Proghdr*) (elf_buf + elf->e_phoff);
 	for (i = 0; i < elf->e_phnum; i++, ph++) {
-		if (ph->p_type == ELF_PROG_TLS) {
-			sys_set_tls_base((void *) ph->p_va + ph->p_memsz);
-			continue;
-		}
 		if (ph->p_type != ELF_PROG_LOAD)
 			continue;
 		perm = PTE_P | PTE_U;
