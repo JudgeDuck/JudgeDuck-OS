@@ -85,6 +85,7 @@ e1000e_attach(struct pci_func *pcif)
 	return e1000_or_e1000e_attach(pcif, 0x5280);
 }
 
+/*
 int
 try_transmit(physaddr_t pa, int cnt)
 {
@@ -124,4 +125,4 @@ try_receive(struct jif_pkt *jp)
 	*(volatile uint32_t *) (e1000 + 0x2818) = rdt;
 	return 0;
 }
-
+*/

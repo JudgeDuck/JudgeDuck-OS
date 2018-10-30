@@ -39,14 +39,9 @@ USERAPPS :=		$(USERAPPS) \
 			$(OBJDIR)/user/bubble_dirty \
 			$(OBJDIR)/user/quick \
 			$(OBJDIR)/user/select \
-			$(OBJDIR)/user/httpd \
-			$(OBJDIR)/net/testinput \
-			$(OBJDIR)/net/testoutput \
 			$(OBJDIR)/user/tf \
-			$(OBJDIR)/user/judged \
 			$(OBJDIR)/user/bh \
 			$(OBJDIR)/user/idle \
-			$(OBJDIR)/net/ns \
 
 FSIMGTXTFILES :=	$(FSIMGTXTFILES) \
 			fs/lorem \

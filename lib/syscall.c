@@ -123,16 +123,6 @@ sys_time_msec(void)
 	return (unsigned int) syscall(SYS_time_msec, 0, 0, 0, 0, 0, 0);
 }
 
-int	sys_net_try_transmit(const char *buf, int cnt)
-{
-	return (int) syscall(SYS_net_try_transmit, 0, (uint32_t) buf, cnt, 0, 0, 0);
-}
-
-int	sys_net_try_receive(struct jif_pkt *jp)
-{
-	return (int) syscall(SYS_net_try_receive, 0, (uint32_t) jp, 0, 0, 0, 0);
-}
-
 int
 sys_enter_judge(void *eip, struct JudgeParams *prm)
 {

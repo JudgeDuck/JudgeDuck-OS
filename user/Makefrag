@@ -1,7 +1,5 @@
 OBJDIRS += user
 
-USERLIBS += lwip
-
 USERLIBS += jos
 
 $(OBJDIR)/user/%.o: user/%.c ip-config.h $(OBJDIR)/.vars.USER_CFLAGS

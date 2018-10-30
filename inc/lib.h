@@ -22,7 +22,6 @@
 #include <inc/fd.h>
 #include <inc/args.h>
 #include <inc/malloc.h>
-#include <inc/ns.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -71,8 +70,6 @@ int sys_accept_enter_judge(envid_t envid, struct JudgeResult *res);
 int sys_quit_judge();
 int sys_map_judge_pages(void *dst, unsigned offset, unsigned len);  // returns: how many pages actually mapped
 unsigned int sys_time_msec(void);
-int	sys_net_try_transmit(const char *buf, int cnt);
-int	sys_net_try_receive(struct jif_pkt *jp);
 int sys_set_tls_base(void *base);
 
 // This must be inlined.  Exercise for reader: why?
@@ -126,29 +123,6 @@ int	sync(void);
 
 // pageref.c
 int	pageref(void *addr);
-
-// sockets.c
-int     accept(int s, struct sockaddr *addr, socklen_t *addrlen);
-int     bind(int s, struct sockaddr *name, socklen_t namelen);
-int     shutdown(int s, int how);
-int     connect(int s, const struct sockaddr *name, socklen_t namelen);
-int     listen(int s, int backlog);
-int     recvfrom(int s, void *mem, int len, unsigned int flags, struct sockaddr *addr, socklen_t *addrlen);
-int     sendto(int s, const void *buf, int size, unsigned int flags, struct sockaddr *addr, socklen_t addrlen);
-int     socket(int domain, int type, int protocol);
-
-// nsipc.c
-int     nsipc_accept(int s, struct sockaddr *addr, socklen_t *addrlen);
-int     nsipc_bind(int s, struct sockaddr *name, socklen_t namelen);
-int     nsipc_shutdown(int s, int how);
-int     nsipc_close(int s);
-int     nsipc_connect(int s, const struct sockaddr *name, socklen_t namelen);
-int     nsipc_listen(int s, int backlog);
-int     nsipc_recv(int s, void *mem, int len, unsigned int flags);
-int     nsipc_send(int s, const void *buf, int size, unsigned int flags);
-int     nsipc_recvfrom(int s, void *mem, int len, unsigned int flags, struct sockaddr *addr, socklen_t *addrlen);
-int     nsipc_sendto(int s, const void *buf, int size, unsigned int flags, struct sockaddr *addr, socklen_t addrlen);
-int     nsipc_socket(int domain, int type, int protocol);
 
 // spawn.c
 envid_t	spawn(const char *program, const char **argv);

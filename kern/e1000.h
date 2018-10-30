@@ -2,12 +2,9 @@
 #define JOS_KERN_E1000_H
 
 #include <kern/pci.h>
-#include <inc/ns.h>
 
 int e1000_attach(struct pci_func *pcif);
 int e1000e_attach(struct pci_func *pcif);
-int try_transmit(physaddr_t pa, int cnt);
-int try_receive(struct jif_pkt *jp);
 
 struct TransDesc
 {

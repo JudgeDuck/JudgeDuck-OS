@@ -97,12 +97,6 @@ KERN_BINFILES +=	user/faultio\
 
 # Binary files for LAB6
 KERN_BINFILES +=	user/testtime \
-			user/httpd \
-			user/echosrv \
-			user/echotest \
-			net/testoutput \
-			net/testinput \
-			net/ns
 
 # Binary files for LAB5
 KERN_BINFILES +=	user/testpteshare \

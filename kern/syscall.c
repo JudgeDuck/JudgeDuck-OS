@@ -5,7 +5,6 @@
 #include <inc/string.h>
 #include <inc/assert.h>
 #include <inc/judge.h>
-#include <inc/ns.h>
 
 #include <kern/env.h>
 #include <kern/pmap.h>
@@ -161,24 +160,6 @@ sys_env_set_trapframe(envid_t envid, struct Trapframe *tf)
 	e->env_tf.tf_cs = GD_UT | 3;
 	e->env_tf.tf_eflags |= FL_IF;
 	return 0;
-}
-
-static int sys_net_try_transmit(void *buf, int size)
-{
-	if(size > PGSIZE)
-		return -E_INVAL;
-	user_mem_assert(curenv, buf, size, PTE_U);
-	pte_t *pte;
-	struct PageInfo *pp = page_lookup(curenv->env_pgdir, buf, &pte);
-	if(!pp)
-		return -E_INVAL;
-	return try_transmit(page2pa(pp) + ((uint32_t) buf & 0xfff), size);
-}
-
-static int sys_net_try_receive(struct jif_pkt *jp)
-{
-	user_mem_assert(curenv, jp, PGSIZE, PTE_U | PTE_W);
-	return try_receive(jp);
 }
 
 // Set the page fault upcall for 'envid' by modifying the corresponding struct
@@ -641,10 +622,6 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 		return sys_env_set_trapframe(a1, (struct Trapframe *) a2);
 	case SYS_time_msec:
 		return sys_time_msec();
-	case SYS_net_try_transmit:
-		return sys_net_try_transmit((void *) a1, a2);
-	case SYS_net_try_receive:
-		return sys_net_try_receive((struct jif_pkt *) a1);
 	case SYS_halt:
 		sys_halt();
 		return 0;
