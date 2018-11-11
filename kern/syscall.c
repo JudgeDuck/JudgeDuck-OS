@@ -571,6 +571,50 @@ sys_set_tls_base(void *base)
 	return 0;
 }
 
+// TODO: lspci
+static int
+sys_map_pci_device(uint32_t key1, uint32_t key2, void *base, int maxlen)
+{
+	return map_pci_device(key1, key2, base, maxlen);
+}
+
+static int
+sys_page_alloc_with_pa(envid_t envid, void *va, int perm, uint32_t *pa_store)
+{
+	struct Env *e;
+	int ret = envid2env(envid, &e, 1);
+	if (ret < 0) {
+		return ret;
+	}
+	
+	if (user_mem_check(curenv, (void *) pa_store, 4, PTE_W | PTE_U) < 0) {
+		return -E_INVAL;
+	}
+
+	if (va >= (void *) UTOP || (size_t) va % PGSIZE != 0) {
+		return -E_INVAL;
+	}
+
+	if (!(perm & PTE_U) || !(perm & PTE_P) || (perm & ~PTE_SYSCALL)) {
+		return -E_INVAL;
+	}
+
+	struct PageInfo *pp = page_alloc(ALLOC_ZERO);
+	if (!pp) {
+		return -E_NO_MEM;
+	}
+
+	ret = page_insert(e->env_pgdir, pp, va, perm);
+	if (ret < 0) {
+		page_free(pp);
+		return -E_NO_MEM;
+	}
+	
+	*pa_store = (uint32_t) page2pa(pp);
+
+	return 0;
+}
+
 // Dispatches to the correct kernel function, passing the arguments.
 int32_t
 syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5)
@@ -627,6 +671,10 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 		return 0;
 	case SYS_set_tls_base:
 		return sys_set_tls_base((void *) a1);
+	case SYS_map_pci_device:
+		return sys_map_pci_device(a1, a2, (void *) a3, (int) a4);
+	case SYS_page_alloc_with_pa:
+		return sys_page_alloc_with_pa(a1, (void *) a2, a3, (uint32_t *) a4);
 	default:
 		return -E_INVAL;
 	}

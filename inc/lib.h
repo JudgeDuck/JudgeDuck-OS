@@ -72,6 +72,11 @@ int sys_map_judge_pages(void *dst, unsigned offset, unsigned len);  // returns: 
 unsigned int sys_time_msec(void);
 int sys_set_tls_base(void *base);
 
+// PCI
+// TODO: lspci
+int sys_map_pci_device(uint32_t key1, uint32_t key2, void *base, int maxlen);  // returns: how many bytes actually mapped
+int sys_page_alloc_with_pa(envid_t env, void *pg, int perm, uint32_t *pa_store);
+
 // This must be inlined.  Exercise for reader: why?
 static inline envid_t __attribute__((always_inline))
 sys_exofork(void)

@@ -159,3 +159,15 @@ sys_set_tls_base(void *base)
 	return syscall(SYS_set_tls_base, 0, (uint32_t) base, 0, 0, 0, 0);
 }
 
+int
+sys_map_pci_device(uint32_t key1, uint32_t key2, void *base, int maxlen)
+{
+	return syscall(SYS_map_pci_device, 0, key1, key2, (uint32_t) base, (uint32_t) maxlen, 0);
+}
+
+int
+sys_page_alloc_with_pa(envid_t envid, void *va, int perm, uint32_t *pa_store)
+{
+	return syscall(SYS_page_alloc_with_pa, 1, envid, (uint32_t) va, perm, (uint32_t) pa_store, 0);
+}
+

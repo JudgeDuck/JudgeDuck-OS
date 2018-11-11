@@ -48,7 +48,8 @@ sched_yield(void)
 		}
 		if(ne->env_status == ENV_RUNNABLE)
 		{
-			timer_single_shot_ns(DEFAULT_TIMER_INTERVAL);
+			//timer_single_shot_ns(DEFAULT_TIMER_INTERVAL);
+			// ???
 			env_run(ne);
 		}
 	}

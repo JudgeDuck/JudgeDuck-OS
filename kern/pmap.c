@@ -730,7 +730,11 @@ page_lookup(pde_t *pgdir, void *va, pte_t **pte_store)
 		*pte_store = pte;
 	if(!pte || !(*pte & PTE_P))
 		return NULL;
-	return pa2page(PTE_ADDR(*pte));
+	if (PGNUM(PTE_ADDR(*pte)) < npages) {  // ONLY return valid pages, while others are not ref-counted
+		return pa2page(PTE_ADDR(*pte));
+	} else {
+		return NULL;
+	}
 }
 
 //

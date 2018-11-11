@@ -24,6 +24,8 @@ enum {
 	SYS_map_judge_pages,
 	SYS_halt,
 	SYS_set_tls_base,
+	SYS_map_pci_device,
+	SYS_page_alloc_with_pa,
 	NSYSCALLS
 };
 

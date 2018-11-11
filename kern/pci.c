@@ -4,6 +4,29 @@
 #include <kern/pci.h>
 #include <kern/pcireg.h>
 #include <kern/e1000.h>
+#include <kern/pmap.h>
+#include <kern/env.h>
+
+// ==== PCI device config storage ====
+
+#define MAX_N_PCI_DEVICES 128
+
+static struct pci_func enabled_pci_devices[MAX_N_PCI_DEVICES];
+static int n_enabled_pci_devices;
+
+static int pci_store(struct pci_func *pcif) {
+	if (n_enabled_pci_devices < MAX_N_PCI_DEVICES) {
+		pci_func_enable(pcif);
+		memcpy(&enabled_pci_devices[n_enabled_pci_devices++], pcif, sizeof(struct pci_func));
+		cprintf("[DEBUG][PCI] enabled: %04x.%04x\n", PCI_VENDOR(pcif->dev_id), PCI_PRODUCT(pcif->dev_id));
+		//for (int i = 1; i; i++) __asm__ volatile("");
+		return 0;
+	} else {
+		return -1;
+	}
+}
+
+// ========
 
 // Flag to do "lspci" at bootup
 static int pci_show_devs = 1;
@@ -31,9 +54,9 @@ struct pci_driver pci_attach_class[] = {
 // pci_attach_vendor matches the vendor ID and device ID of a PCI device. key1
 // and key2 should be the vendor ID and device ID respectively
 struct pci_driver pci_attach_vendor[] = {
-	{0x8086, 0x15a3, &e1000e_attach},
-	{0x8086, 0x10d3, &e1000e_attach},
-	{0x8086, 0x100e, &e1000_attach},
+	{0x8086, 0x15a3, &pci_store},  // e1000e
+	{0x8086, 0x10d3, &pci_store},  // e1000e
+	{0x8086, 0x100e, &pci_store},  // e1000
 	// {0x10ec, 0x8168, &e1000_attach},
 	{ 0, 0, 0 },
 };
@@ -259,7 +282,52 @@ pci_init(void)
 	static struct pci_bus root_bus;
 	memset(&root_bus, 0, sizeof(root_bus));
 
+	n_enabled_pci_devices = 0;
+
 	int ret = pci_scan_bus(&root_bus);
 	// while(1);
 	return ret;
+}
+
+// ==== For user mode PCI drivers ====
+
+
+
+int map_pci_device(uint32_t key1, uint32_t key2, void *base, int maxlen) {
+	if (((uint32_t) base & 0xfff)) {
+		return -1;
+	}
+	if (maxlen < 0) {
+		return -1;
+	}
+	
+	struct Env *e;
+	int ret = envid2env(0, &e, 1);
+	if (ret < 0) {
+		return ret;
+	}
+	
+	int found = 0;
+	uint32_t reg_base, reg_size;
+	for (int i = 0; i < n_enabled_pci_devices; i++) {
+		uint32_t dev_id = enabled_pci_devices[i].dev_id;
+		if (PCI_VENDOR(dev_id) == key1 && PCI_PRODUCT(dev_id) == key2) {
+			reg_base = enabled_pci_devices[i].reg_base[0];
+			reg_size = enabled_pci_devices[i].reg_size[0];
+			found = 1;
+			break;
+		}
+	}
+	
+	if (found) {
+		if ((int) reg_size >= 0 && (int) reg_size < maxlen) {
+			maxlen = (int) reg_size;
+			maxlen += -maxlen & (PGSIZE - 1);
+		}
+		boot_map_region(e->env_pgdir, (uintptr_t) base, (size_t) maxlen, (physaddr_t) reg_base,
+			PTE_PCD | PTE_PWT | PTE_W | PTE_P | PTE_U);
+		return maxlen;
+	} else {
+		return -1;
+	}
 }

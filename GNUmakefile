@@ -83,14 +83,20 @@ PERL	:= perl
 # Compiler flags
 # -fno-builtin is required to avoid refs to undefined functions in the kernel.
 # Only optimize to -O1 to discourage inlining, which complicates backtraces.
-CFLAGS := $(CFLAGS) $(DEFS) $(LABDEFS) -O1 -fno-builtin -I$(TOP) -MD
-CFLAGS += -fno-omit-frame-pointer
+#CFLAGS := $(CFLAGS) $(DEFS) $(LABDEFS) -O1 -fno-builtin -I$(TOP) -MD
+CFLAGS := $(CFLAGS) $(DEFS) $(LABDEFS) -O2 -fno-builtin -I$(TOP) -MD
+#CFLAGS += -fno-omit-frame-pointer
 CFLAGS += -std=gnu99
 CFLAGS += -static
-CFLAGS += -Wall -Wno-format -Wno-unused -Werror -gstabs -m32
+#CFLAGS += -Wall -Wno-format -Wno-unused -Werror -gstabs -m32
+CFLAGS += -Wall -Wno-format -Wno-unused -Werror -m32
+#CFLAGS += -Wno-aggressive-loop-optimizations
+CFLAGS += -Wno-array-bounds
+CFLAGS += -Wno-strict-aliasing
 # -fno-tree-ch prevented gcc from sometimes reordering read_ebp() before
 # mon_backtrace()'s function prologue on gcc version: (Debian 4.7.2-5) 4.7.2
-CFLAGS += -fno-tree-ch
+#CFLAGS += -fno-tree-ch
+# No more backtrace ???
 
 CFLAGS += -I$(TOP)/net/lwip/include \
 	  -I$(TOP)/net/lwip/include/ipv4 \

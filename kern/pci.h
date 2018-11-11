@@ -30,4 +30,6 @@ struct pci_bus {
 int  pci_init(void);
 void pci_func_enable(struct pci_func *f);
 
+int map_pci_device(uint32_t key1, uint32_t key2, void *base, int maxlen);
+
 #endif
