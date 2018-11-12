@@ -32,10 +32,10 @@ void *tq_addrs[TQSIZE];
 
 volatile char e1000[0x10000] __attribute__((aligned(PGSIZE)));
 
-bool firstTrans;
-
 uint32_t e1000_rdt, e1000_rdh;
 uint32_t e1000_rdt_real;
+uint32_t e1000_tdt, e1000_tdh;
+uint32_t e1000_tdt_real;
 
 int e1000_init() {
 	cprintf("e1000 status = %x\n", *(volatile uint32_t *) (e1000 + 0x8));
@@ -69,12 +69,19 @@ int e1000_init() {
 		rq[i].addr = pa;
 	}
 	
+	// CTRL: force 1Gbps duplex
+	*(volatile uint32_t *) (e1000 + 0x0) = (1u << 0) | (0u << 5) | (1u << 6) | (2u << 8) | (1u << 11) | (1u << 12);
+	
 	uint32_t tdbal = tq_pa;
 	*(volatile uint32_t *) (e1000 + 0x3800) = tdbal;      // TDBAL
 	*(volatile uint32_t *) (e1000 + 0x3804) = 0;          // TDBAH
 	*(volatile uint32_t *) (e1000 + 0x3808) = sizeof(tq); // TDLEN
 	*(volatile uint32_t *) (e1000 + 0x3810) = 0;          // TDH
 	*(volatile uint32_t *) (e1000 + 0x3818) = 0;          // TDT
+	e1000_tdt = 0;
+	e1000_tdt_real = 0;
+	e1000_tdh = 0;
+	
 	uint32_t tctl = (1 << 1) | (1 << 3) | (0x10 << 4) | (0x40 << 12);
 	*(volatile uint32_t *) (e1000 + 0x400) = tctl;        // TCTL
 	// ??? *(volatile uint32_t *) (e1000 + 0x410) = 0xa | (0x8 << 10) | (0xc << 20);    // TIPG
@@ -108,8 +115,6 @@ int e1000_init() {
 	uint32_t rctl = (1 << 1) | (1 << 15) | (3 << 16) | (1 << 25) | (1 << 26);
 	*(volatile uint32_t *) (e1000 + 0x100) = rctl;        // RCTL
 	
-	firstTrans = true;
-	
 	cprintf("e1000 status = %x\n", *(volatile uint32_t *) (e1000 + 0x8));
 	
 	return 0;
@@ -126,23 +131,42 @@ int network_init() {
 }
 
 int network_try_transmit(void *buf, int cnt) {
-	uint32_t tdt = *(volatile uint32_t *) (e1000 + 0x3818);
-	if (tdt + 1 == TQSIZE) {
-		firstTrans = false;
-	}
-	if (!firstTrans && !(tq[(tdt + 1) % TQSIZE].status & 1)) {
+	if (cnt < 0 || cnt > 1500) {
 		return -1;
 	}
-	memcpy(tq_pages[tdt], buf, cnt);
+	
+	if ((e1000_tdt + 1) % TQSIZE == e1000_tdh) {
+		e1000_tdh = *(volatile uint32_t *) (e1000 + 0x3810);
+	}
+	if ((e1000_tdt + 1) % TQSIZE == e1000_tdh) {
+		return -1;
+	}
+	
+	memcpy(tq_pages[e1000_tdt], buf, cnt);
 	struct TransDesc td;
 	memset(&td, 0, sizeof(td));
-	td.addr = (uint32_t) tq_addrs[tdt];
+	td.addr = (uint32_t) tq_addrs[e1000_tdt];
 	td.length = cnt;
 	td.cmd &= ~(1 << 5);
 	td.cmd |= (1 << 3) | (1 << 0);
-	tq[tdt] = td;
-	tdt = (tdt + 1) % TQSIZE;
-	*(volatile uint32_t *) (e1000 + 0x3818) = tdt;
+	td.cmd |= (1 << 1);
+	tq[e1000_tdt] = td;
+	e1000_tdt = (e1000_tdt + 1) % TQSIZE;
+	
+	if ((e1000_tdt - e1000_tdt_real + TQSIZE) % TQSIZE == TQSIZE / 2) {
+		*(volatile uint32_t *) (e1000 + 0x3818) = e1000_tdt;
+		e1000_tdt_real = e1000_tdt;
+	}
+	
+	return 0;
+}
+
+int network_flush() {
+	if (e1000_tdt != e1000_tdt_real) {
+		*(volatile uint32_t *) (e1000 + 0x3818) = e1000_tdt;
+		e1000_tdt_real = e1000_tdt;
+	}
+	
 	return 0;
 }
 
@@ -183,6 +207,8 @@ uint64_t read_tsc() {
 	return (((uint64_t) hi) << 32) | lo;
 }
 
+void testpkt();
+
 void ducksrv_mainloop() {
 	uint64_t transfer = 0;
 	uint64_t last_tsc = read_tsc();
@@ -194,6 +220,7 @@ void ducksrv_mainloop() {
 		if (++pollcnt % 128 == 0) {
 			uint64_t now_tsc = read_tsc();
 			if (now_tsc - last_tsc >= 3400000000ull) {
+				testpkt();
 				cprintf("transfer %d KB, %d pkts, %d polls, %d sends\n", (int) (transfer >> 10), cntpkt, (int) pollcnt, (int) cntsend);
 				transfer = 0;
 				cntpkt = 0;
@@ -212,6 +239,66 @@ void ducksrv_mainloop() {
 
 // ========
 
+inline uint16_t htons(uint16_t x) {
+	return ((x & 0xff) << 8) | (x >> 8);
+}
+
+inline uint32_t htonl(uint32_t x) {
+	return ((x & 0xff) << 24) | (((x >> 8) & 0xff) << 16) | (((x >> 16) & 0xff) << 8) | (x >> 24);
+}
+
+void testpkt() {
+	char pkt[512];
+	int len = 0;
+	int ret;
+	
+	uint8_t mac[6] = DUCK_MAC;
+	
+	for (int i = 0; i < 6; i++) pkt[i] = 255u;  // dst
+	for (int i = 0; i < 6; i++) pkt[i + 6] = mac[i];  // src
+	*(uint16_t *) (pkt + 12) = htons(0x86dd);  // ipv6
+	
+	for (int i = 0; i < 95; i++) pkt[i + 14] = ' ' + i;
+	
+	for (len = 14; len <= 14 + 95; len++) {
+		ret = network_try_transmit(pkt, len);
+		if (ret != 0) cprintf("len = %d, ret = %d\n", ret);
+	}
+	//cprintf("all sent\n");
+}
+
+void sendpkt_loop() {
+	static char pkt[PGSIZE];
+	int len = 0;
+	int ret;
+	
+	uint8_t mac[6] = DUCK_MAC;
+	uint8_t mac_dst[6] = {0x52, 0x54, 0x10, 0x12, 0x34, 0x56};
+	
+	for (int i = 0; i < 6; i++) pkt[i] = mac_dst[i];  // dst
+	for (int i = 0; i < 6; i++) pkt[i + 6] = mac[i];  // src
+	*(uint16_t *) (pkt + 12) = htons(0x86dd);  // ipv6
+	
+	len = 14;
+	
+	uint64_t last_tsc = read_tsc();
+	int cnt = 0;
+	int tries = 0, pkts = 0;
+	while (1) {
+		tries++;
+		pkts += network_try_transmit(pkt, len) >= 0;
+		if (++cnt % 128 == 0) {
+			uint64_t now_tsc = read_tsc();
+			if (now_tsc - last_tsc >= 3400000000ull) {
+				last_tsc = now_tsc;
+				cprintf("%d pkts, %d tries\n", pkts, tries);
+				pkts = 0;
+				tries = 0;
+			}
+		}
+	}
+}
+
 void umain(int argc, char **argv) {
 	binaryname = "ducksrv";
 	
@@ -222,6 +309,13 @@ void umain(int argc, char **argv) {
 		return;
 	}
 	cprintf("duck network seems ok\n");
+	
+	uint8_t mac[6] = DUCK_MAC;
+	if (mac[0] == 0x52) {
+		ducksrv_mainloop();  // receiver
+	} else {
+		sendpkt_loop();  // sender
+	}
 	
 	ducksrv_mainloop();
 }
