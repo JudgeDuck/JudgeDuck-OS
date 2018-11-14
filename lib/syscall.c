@@ -171,3 +171,9 @@ sys_page_alloc_with_pa(envid_t envid, void *va, int perm, uint32_t *pa_store)
 	return syscall(SYS_page_alloc_with_pa, 1, envid, (uint32_t) va, perm, (uint32_t) pa_store, 0);
 }
 
+int
+sys_get_tsc_frequency(uint64_t *freq_store)
+{
+	return syscall(SYS_get_tsc_frequency, 0, (uint32_t) freq_store, 0, 0, 0, 0);
+}
+

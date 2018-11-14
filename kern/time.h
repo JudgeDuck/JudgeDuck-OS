@@ -4,8 +4,16 @@
 # error "This is a JOS kernel header; user programs should not #include it"
 #endif
 
+#include <inc/types.h>
+
 void time_init(void);
 void time_tick(void);
 unsigned int time_msec(void);
+
+uint64_t get_tsc_frequency();
+
+extern volatile int tsc_measurement_running;
+void tsc_measurement_start();
+void tsc_measurement_end();
 
 #endif /* JOS_KERN_TIME_H */

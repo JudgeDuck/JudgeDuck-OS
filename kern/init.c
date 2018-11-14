@@ -91,8 +91,11 @@ i386_init(void)
 	td.length = 8;
 	cprintf("transmit %d\n", try_transmit(&td));*/
 
+	tsc_measurement_start();
+	// Will not return after trap !!
+
 	// Schedule and run the first user environment!
-	sched_yield();
+	//sched_yield();
 }
 
 // While boot_aps is booting a given CPU, it communicates the per-core

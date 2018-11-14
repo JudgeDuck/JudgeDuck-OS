@@ -16,6 +16,7 @@
 #include <kern/judge.h>
 #include <kern/time.h>
 #include <kern/e1000.h>
+#include <kern/timer.h>
 
 // Print a string to the system console.
 // The string is exactly 'len' characters long.
@@ -615,6 +616,15 @@ sys_page_alloc_with_pa(envid_t envid, void *va, int perm, uint32_t *pa_store)
 	return 0;
 }
 
+static int
+sys_get_tsc_frequency(uint64_t *freq_store) {
+	if (user_mem_check(curenv, (void *) freq_store, 8, PTE_W | PTE_U) < 0) {
+		return -E_INVAL;
+	}
+	*freq_store = get_tsc_frequency();
+	return 0;
+}
+
 // Dispatches to the correct kernel function, passing the arguments.
 int32_t
 syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5)
@@ -675,6 +685,8 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 		return sys_map_pci_device(a1, a2, (void *) a3, (int) a4);
 	case SYS_page_alloc_with_pa:
 		return sys_page_alloc_with_pa(a1, (void *) a2, a3, (uint32_t *) a4);
+	case SYS_get_tsc_frequency:
+		return sys_get_tsc_frequency((uint64_t *) a1);
 	default:
 		return -E_INVAL;
 	}

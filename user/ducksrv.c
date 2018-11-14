@@ -202,10 +202,12 @@ int network_try_receive(void *bufpage) {
 char recvbuf[PGSIZE] __attribute__((aligned(PGSIZE)));
 
 uint64_t read_tsc() {
-	uint32_t hi, lo;
-	__asm__ volatile ("rdtsc" : "=a"(lo), "=d"(hi));
-	return (((uint64_t) hi) << 32) | lo;
+	uint64_t ret;
+	__asm__ volatile ("rdtsc" : "=A"(ret));
+	return ret;
 }
+
+uint64_t tsc_freq;
 
 void testpkt();
 
@@ -219,14 +221,14 @@ void ducksrv_mainloop() {
 		int len = network_try_receive(recvbuf);
 		if (++pollcnt % 128 == 0) {
 			uint64_t now_tsc = read_tsc();
-			if (now_tsc - last_tsc >= 3400000000ull) {
+			if (now_tsc - last_tsc >= tsc_freq) {
 				testpkt();
 				cprintf("transfer %d KB, %d pkts, %d polls, %d sends\n", (int) (transfer >> 10), cntpkt, (int) pollcnt, (int) cntsend);
 				transfer = 0;
 				cntpkt = 0;
 				pollcnt = 0;
 				cntsend = 0;
-				last_tsc = now_tsc;
+				last_tsc += tsc_freq;
 			}
 		}
 		if (len < 0) {
@@ -289,8 +291,8 @@ void sendpkt_loop() {
 		pkts += network_try_transmit(pkt, len) >= 0;
 		if (++cnt % 128 == 0) {
 			uint64_t now_tsc = read_tsc();
-			if (now_tsc - last_tsc >= 3400000000ull) {
-				last_tsc = now_tsc;
+			if (now_tsc - last_tsc >= tsc_freq) {
+				last_tsc += tsc_freq;
 				cprintf("%d pkts, %d tries\n", pkts, tries);
 				pkts = 0;
 				tries = 0;
@@ -303,6 +305,12 @@ void umain(int argc, char **argv) {
 	binaryname = "ducksrv";
 	
 	cprintf("ducksrv starting ...\n");
+	
+	if (sys_get_tsc_frequency(&tsc_freq) < 0) {
+		cprintf("GG, get tsc freq failed\n");
+		return;
+	}
+	cprintf("tsc freq = %llu\n", tsc_freq);
 	
 	if (network_init() < 0) {
 		cprintf("GG, network init failed\n");

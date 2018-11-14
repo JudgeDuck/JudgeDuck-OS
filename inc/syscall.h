@@ -26,6 +26,7 @@ enum {
 	SYS_set_tls_base,
 	SYS_map_pci_device,
 	SYS_page_alloc_with_pa,
+	SYS_get_tsc_frequency,
 	NSYSCALLS
 };
 

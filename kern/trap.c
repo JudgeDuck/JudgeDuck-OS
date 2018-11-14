@@ -288,6 +288,10 @@ trap_dispatch(struct Trapframe *tf)
 	else if(tf->tf_trapno == IRQ_OFFSET + IRQ_TIMER)
 	{
 		// cprintf("timer interrupt\n");
+		if (tsc_measurement_running) {
+			tsc_measurement_end();
+			cprintf("%llu\n", get_tsc_frequency());
+		}
 		lapic_eoi();
 		time_tick();
 		if(curenv && curenv->env_judging)
