@@ -7,9 +7,11 @@ $(OBJDIR)/user/%.o: user/%.c ip-config.h $(OBJDIR)/.vars.USER_CFLAGS
 	@mkdir -p $(@D)
 	$(V)$(CC) -nostdinc $(USER_CFLAGS) -c -o $@ $<
 
-$(OBJDIR)/user/%: $(OBJDIR)/user/%.o $(OBJDIR)/lib/entry.o $(USERLIBS:%=$(OBJDIR)/lib/lib%.a) user/user.ld
+DUCKLIBS := ../judge-duck-libs/libducknet/libducknet.a
+
+$(OBJDIR)/user/%: $(OBJDIR)/user/%.o $(OBJDIR)/lib/entry.o $(USERLIBS:%=$(OBJDIR)/lib/lib%.a) $(DUCKLIBS) user/user.ld
 	@echo + ld $@
-	$(V)$(LD) -o $@.debug $(ULDFLAGS) $(LDFLAGS) -nostdlib $(OBJDIR)/lib/entry.o $@.o -L$(OBJDIR)/lib $(USERLIBS:%=-l%) $(GCC_LIB)
+	$(V)$(LD) -o $@.debug $(ULDFLAGS) $(LDFLAGS) -nostdlib $(OBJDIR)/lib/entry.o $@.o -L$(OBJDIR)/lib $(DUCKLIBS) $(USERLIBS:%=-l%) $(GCC_LIB)
 	$(V)$(OBJDUMP) -S $@.debug > $@.asm
 	$(V)$(NM) -n $@.debug > $@.sym
 	$(V)$(OBJCOPY) -R .stab -R .stabstr --add-gnu-debuglink=$(basename $@.debug) $@.debug $@

@@ -1,5 +1,6 @@
 #include <inc/lib.h>
 #include <ip-config.h>
+#include <ducknet.h>
 
 // ==== duck e1000 driver ====
 
@@ -137,7 +138,7 @@ int network_init() {
 	return r;
 }
 
-int network_try_transmit(void *buf, int cnt) {
+int network_try_transmit(const void *buf, int cnt) {
 	if (cnt < 0 || cnt > 1500) {
 		return -1;
 	}
@@ -206,106 +207,35 @@ int network_try_receive(void *bufpage) {
 
 // ========
 
-char recvbuf[PGSIZE] __attribute__((aligned(PGSIZE)));
-
-uint64_t read_tsc() {
-	uint64_t ret;
-	__asm__ volatile ("rdtsc" : "=A"(ret));
-	return ret;
-}
-
 uint64_t tsc_freq;
 
-void testpkt();
-
-void ducksrv_mainloop() {
-	uint64_t transfer = 0;
-	uint64_t last_tsc = read_tsc();
-	uint32_t cntpkt = 0;
-	uint32_t pollcnt = 0;
-	uint32_t cntsend = 0;
-	while (1) {
-		int len = network_try_receive(recvbuf);
-		if (++pollcnt % 128 == 0) {
-			uint64_t now_tsc = read_tsc();
-			if (now_tsc - last_tsc >= tsc_freq) {
-				testpkt();
-				cprintf("transfer %d KB, %d pkts, %d polls, %d sends\n", (int) (transfer >> 10), cntpkt, (int) pollcnt, (int) cntsend);
-				transfer = 0;
-				cntpkt = 0;
-				pollcnt = 0;
-				cntsend = 0;
-				last_tsc += tsc_freq;
-			}
-		}
-		if (len < 0) {
-			continue;
-		}
-		transfer += len;
-		++cntpkt;
-	}
+int my_idle() {
+	return 0;
 }
 
-// ========
-
-inline uint16_t htons(uint16_t x) {
-	return ((x & 0xff) << 8) | (x >> 8);
+int my_packet_handle(void *pkt, int len) {
+	return 0;
 }
 
-inline uint32_t htonl(uint32_t x) {
-	return ((x & 0xff) << 24) | (((x >> 8) & 0xff) << 16) | (((x >> 16) & 0xff) << 8) | (x >> 24);
+int my_ether_packet_handle(DucknetEtherHeader *hdr, int content_len) {
+	return 0;
 }
 
-void testpkt() {
-	char pkt[512];
-	int len = 0;
-	int ret;
-	
-	uint8_t mac[6] = DUCK_MAC;
-	
-	for (int i = 0; i < 6; i++) pkt[i] = 255u;  // dst
-	for (int i = 0; i < 6; i++) pkt[i + 6] = mac[i];  // src
-	*(uint16_t *) (pkt + 12) = htons(0x86dd);  // ipv6
-	
-	for (int i = 0; i < 95; i++) pkt[i + 14] = ' ' + i;
-	
-	for (len = 14; len <= 14 + 95; len++) {
-		ret = network_try_transmit(pkt, len);
-		if (ret != 0) cprintf("len = %d, ret = %d\n", ret);
-	}
-	//cprintf("all sent\n");
+int my_arp_packet_handle(DucknetARPHeader *hdr, int len) {
+	return 0;
 }
 
-void sendpkt_loop() {
-	static char pkt[PGSIZE];
-	int len = 0;
-	int ret;
-	
-	uint8_t mac[6] = DUCK_MAC;
-	uint8_t mac_dst[6] = {0x52, 0x54, 0x10, 0x12, 0x34, 0x56};
-	
-	for (int i = 0; i < 6; i++) pkt[i] = mac_dst[i];  // dst
-	for (int i = 0; i < 6; i++) pkt[i + 6] = mac[i];  // src
-	*(uint16_t *) (pkt + 12) = htons(0x86dd);  // ipv6
-	
-	len = 14;
-	
-	uint64_t last_tsc = read_tsc();
-	int cnt = 0;
-	int tries = 0, pkts = 0;
-	while (1) {
-		tries++;
-		pkts += network_try_transmit(pkt, len) >= 0;
-		if (++cnt % 128 == 0) {
-			uint64_t now_tsc = read_tsc();
-			if (now_tsc - last_tsc >= tsc_freq) {
-				last_tsc += tsc_freq;
-				cprintf("%d pkts, %d tries\n", pkts, tries);
-				pkts = 0;
-				tries = 0;
-			}
-		}
-	}
+int my_ipv4_packet_handle(DucknetIPv4Header *hdr, int content_len) {
+	return 0;
+}
+
+int my_icmp_packet_handle(DucknetIPv4Address src, DucknetIPv4Address dst, DucknetICMPHeader *hdr, int len) {
+	return 0;
+}
+
+int my_udp_packet_handle(DucknetIPv4Address src, DucknetIPv4Address dst, DucknetUDPHeader *hdr, int len) {
+	ducknet_udp_send(src, hdr->sport, hdr->dport, hdr + 1, len);
+	return -1;
 }
 
 void umain(int argc, char **argv) {
@@ -325,12 +255,48 @@ void umain(int argc, char **argv) {
 	}
 	cprintf("duck network seems ok\n");
 	
-	uint8_t mac[6] = DUCK_MAC;
-	if (mac[0] == 0x52) {
-		ducksrv_mainloop();  // receiver
-	} else {
-		sendpkt_loop();  // sender
+	DucknetMACAddress my_mac = (DucknetMACAddress) {.a = DUCK_MAC};
+	DucknetIPv4Address my_ip;
+	if (ducknet_parse_ipv4(IP, &my_ip) < 0) {
+		cprintf("GG, invalid IP address\n");
+		return;
 	}
+	cprintf("IP = %s\n", IP);
 	
-	ducksrv_mainloop();
+	DucknetConfig conf = {
+		.utils = {
+			.tsc_freq = tsc_freq
+		},
+		.phy = {
+			.send = network_try_transmit,
+			.recv = network_try_receive,
+			.flush = network_flush,
+			.packet_handle = my_packet_handle
+		},
+		.ether = {
+			.mac = my_mac,
+			.packet_handle = my_ether_packet_handle
+		},
+		.arp = {
+			.packet_handle = my_arp_packet_handle
+		},
+		.ipv4 = {
+			.ip = my_ip,
+			.packet_handle = my_ipv4_packet_handle
+		},
+		.icmp = {
+			.packet_handle = my_icmp_packet_handle
+		},
+		.udp = {
+			.packet_handle = my_udp_packet_handle
+		},
+		.idle = my_idle
+	};
+	
+	if (ducknet_init(&conf) < 0) {
+		cprintf("GG, libducknet init failed\n");
+		return;
+	}
+	cprintf("libducknet seems ok\n");
+	ducknet_mainloop();
 }

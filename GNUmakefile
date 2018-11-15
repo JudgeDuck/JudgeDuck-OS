@@ -132,6 +132,7 @@ all:
 
 KERN_CFLAGS := $(CFLAGS) -DJOS_KERNEL -gstabs
 USER_CFLAGS := $(CFLAGS) -DJOS_USER -gstabs
+USER_CFLAGS += -I../judge-duck-libs/libducknet_include
 
 # Update .vars.X if variable X has changed since the last make run.
 #
@@ -199,7 +200,7 @@ qemu-nox-gdb: $(IMAGES) pre-qemu
 	$(QEMU) -nographic $(QEMUOPTS) -S
 
 qemu-jd: $(IMAGES) pre-qemu
-	$(QEMU) -nographic -m 2000M -drive file=obj/kern/kernel.img,index=0,media=disk,format=raw -serial mon:stdio -gdb tcp::26000 -D qemu.log -smp 1 -drive file=obj/fs/fs.img,index=1,media=disk,format=raw
+	$(QEMU) -netdev tap,id=mynet0 -device e1000,netdev=mynet0 -redir udp:23333::23333 -nographic -m 2000M -drive file=obj/kern/kernel.img,index=0,media=disk,format=raw -serial mon:stdio -gdb tcp::26000 -D qemu.log -smp 1 -drive file=obj/fs/fs.img,index=1,media=disk,format=raw
 
 print-qemu:
 	@echo $(QEMU)
