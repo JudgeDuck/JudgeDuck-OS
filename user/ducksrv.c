@@ -37,7 +37,7 @@ uint32_t e1000_rdt_real;
 uint32_t e1000_tdt, e1000_tdh;
 uint32_t e1000_tdt_real;
 
-int e1000_init() {
+int e1000_init(unsigned maxMTA) {
 	cprintf("e1000 status = %x\n", *(volatile uint32_t *) (e1000 + 0x8));
 	
 	uint32_t tq_pa, rq_pa;
@@ -96,7 +96,6 @@ int e1000_init() {
 	uint32_t rah = RAH | (1u << 31);
 	*(volatile uint32_t *) (e1000 + 0x5404) = rah;        // RAH
 	
-	unsigned maxMTA = 0x5280;
 	for (unsigned i = 0x5200; i < maxMTA; i++) {
 		e1000[i] = 0;                         // MTA
 	}
@@ -121,13 +120,21 @@ int e1000_init() {
 }
 
 int network_init() {
-	int r;
-	r = sys_map_pci_device(0x8086, 0x10d3, (void *) e1000, sizeof(e1000));
-	if (r < 0) {
-		return r;
-	}
+	const uint32_t args[][3] = {
+		{0x8086, 0x15a3, 0x5280},  // e1000e
+		{0x8086, 0x10d3, 0x5280},  // e1000e
+		{0x8086, 0x100e, 0x5400},  // e1000
+		{0, 0, 0}
+	};
 	
-	return e1000_init();
+	int r = -1;
+	for (int i = 0; args[i][0]; i++) {
+		r = sys_map_pci_device(args[i][0], args[i][1], (void *) e1000, sizeof(e1000));
+		if (r >= 0) {
+			return e1000_init(args[i][2]);
+		}
+	}
+	return r;
 }
 
 int network_try_transmit(void *buf, int cnt) {
