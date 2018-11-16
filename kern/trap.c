@@ -296,7 +296,7 @@ trap_dispatch(struct Trapframe *tf)
 		time_tick();
 		if(curenv && curenv->env_judging)
 			finish_judge(VERDICT_TLE);
-		if(++reboot_cnt >= 10000) outb(0x92, 0x3); // courtesy of Chris Frost
+		//if(++reboot_cnt >= 10000) outb(0x92, 0x3); // courtesy of Chris Frost
 		sched_yield();
 		return;
 	}

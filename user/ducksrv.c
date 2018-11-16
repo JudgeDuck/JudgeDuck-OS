@@ -205,6 +205,456 @@ int network_try_receive(void *bufpage) {
 	return len;
 }
 
+// ==== ducksrv ====
+
+#define MAX_ELF_SIZE (20 * 1024 * 1024)
+
+static const char *trapname(int trapno) {
+	static const char * const excnames[] = {
+		"Divide error",
+		"Debug",
+		"Non-Maskable Interrupt",
+		"Breakpoint",
+		"Overflow",
+		"BOUND Range Exceeded",
+		"Invalid Opcode",
+		"Device Not Available",
+		"Double Fault",
+		"Coprocessor Segment Overrun",
+		"Invalid TSS",
+		"Segment Not Present",
+		"Stack Fault",
+		"General Protection",
+		"Page Fault",
+		"(unknown trap)",
+		"x87 FPU Floating-Point Error",
+		"Alignment Check",
+		"Machine-Check",
+		"SIMD Floating-Point Exception"
+	};
+
+	if (trapno < ARRAY_SIZE(excnames))
+		return excnames[trapno];
+	if (trapno == T_SYSCALL)
+		return "System call";
+	if (trapno >= IRQ_OFFSET && trapno < IRQ_OFFSET + 16)
+		return "Hardware Interrupt";
+	return "(unknown trap)";
+}
+
+#define MAXARGS 16
+
+static void run_arbiter(const char *judging_elf, const char *args) {
+	static char argbuf[PGSIZE];
+	strncpy(argbuf, args, PGSIZE - 1);
+	argbuf[PGSIZE - 1] = 0;
+	
+	char *argv[MAXARGS + 1];
+	int argc = 1;
+	argv[0] = "judging";
+	
+	char *s = argbuf;
+	while (1) {
+		while (*s == ' ') ++s;
+		char c = *s;
+		if (c == 0) break;
+		if (c == '>') break;
+		argv[argc++] = s;
+		while (*s != ' ' && *s != 0) ++s;
+		*s = 0;
+		++s;
+		if (argc >= MAXARGS) break;
+	}
+	argv[argc] = 0;
+	
+	int fd = open("arbiter.out", O_RDWR | O_CREAT | O_TRUNC);
+	if (fd < 0) {
+		panic("arbiter(): open arbiter.out failed\n");
+		exit();
+	}
+	
+	envid_t env = spawn_contestant_from_memory(judging_elf, (const char **) argv);
+	if (env < 0) {
+		panic("arbiter(): spawn contestant failed\n");
+		exit();
+	}
+	
+	sys_yield();
+	
+	static struct JudgeResult res;
+	int ok = 0;
+	
+	for (int id = 0; id < 5; id++) {
+		int ret = sys_accept_enter_judge(env, &res);
+		if (ret == 0) {
+			ok = 1;
+			break;
+		}
+		for (int i = 0; i < 150 * 10; i++) sys_yield();
+	}
+	
+	wait(env);
+	// Bug: What if the program fall into an infinity loop ...
+	
+	if (!ok) {
+		cprintf("arbiter(): failed since enter_judge() seems not called\n");
+		fprintf(fd, "Judge Failed: enter_judge() seems not called\n");
+	} else {
+		static const char *verdict_str[] = {
+			"Run Finished", "Time Limit Exceeded", "Runtime Error", "Illegal Syscall", "System Error", "Memory Limit Exceeded"
+		};
+		cprintf("ARBITER: verdict = %s\n", verdict_str[(int) res.verdict]);
+		fprintf(fd, "verdict = %s\n", verdict_str[(int) res.verdict]);
+		if (res.verdict == VERDICT_IS) {
+			cprintf("ARBITER: syscall_id = %d\n", res.tf.tf_regs.reg_eax);
+			fprintf(fd, "syscall_id = %d\n", res.tf.tf_regs.reg_eax);
+		}
+		if (res.verdict == VERDICT_RE) {
+			cprintf("ARBITER: runtime error %d (%s)\n", res.tf.tf_trapno, trapname(res.tf.tf_trapno));
+			fprintf(fd, "runtime error %d (%s)\n", res.tf.tf_trapno, trapname(res.tf.tf_trapno));
+		}
+		cprintf("ARBITER: time_Mcycles = %d.%06d\n", (int) (res.time_cycles / 1000000), (int) (res.time_cycles % 1000000));
+		cprintf("ARBITER: time_ms = %d.%06d\n", (int) (res.time_ns / 1000000), (int) (res.time_ns % 1000000));
+		cprintf("ARBITER: mem_kb = %d\n", res.mem_kb);
+		fprintf(fd, "time_Mcycles = %d.%06d\n", (int) (res.time_cycles / 1000000), (int) (res.time_cycles % 1000000));
+		fprintf(fd, "time_ms = %d.%06d\n", (int) (res.time_ns / 1000000), (int) (res.time_ns % 1000000));
+		fprintf(fd, "mem_kb = %d\n", res.mem_kb);
+		
+		int fd_in = open("arbiter.in", O_RDWR);
+		static char buf[256];
+		int r = read(fd_in, buf, sizeof(buf));
+		if (r > 0) write(fd, buf, r);
+		close(fd_in);
+	}
+	
+	close(fd);
+	
+	cprintf("arbiter(): done\n");
+}
+
+typedef struct {
+	int size;
+	int n_pages;
+	int start;
+	char md5[50];
+	int lru_tag;
+	bool to_remove;
+} FileData;
+
+DucknetIPv4Address pigeon_ip;
+ducknet_u16 pigeon_port;
+ducknet_u16 duck_port;
+
+int ducksrv_state;
+
+#define STATE_IDLE 0
+#define STATE_RECV_ELF 1
+#define STATE_RECV_FILE 2
+#define STATE_RECV_OBJECT 3
+
+char *judge_pages;
+unsigned *first_page;
+unsigned *second_page;
+unsigned *input_pos;
+unsigned *input_len;
+unsigned *answer_pos;
+unsigned *answer_len;
+char *judging_elf;
+void *meta_start;
+FileData *filedata;
+void *file_start;
+int n_files;
+
+void ducksrv_init() {
+	ducknet_parse_ipv4(DEFAULT, &pigeon_ip);
+	pigeon_port = PIGEON_PORT;
+	duck_port = 8000;
+	
+	judge_pages = (char *) 0xc0000000 - JUDGE_PAGES_SIZE;
+	
+	int ret = sys_map_judge_pages(judge_pages, 0, JUDGE_PAGES_SIZE);
+	cprintf("sys_map_judge_pages returns %d, expected %d\n", ret, JUDGE_PAGES_COUNT);
+	memset(judge_pages, 0, sizeof(judge_pages));
+	
+	first_page = (unsigned *) judge_pages;
+	second_page = first_page + PGSIZE / sizeof(unsigned);
+	input_pos = first_page;
+	input_len = first_page + 1;
+	answer_pos = second_page;
+	answer_len = second_page + 1;
+	
+	judging_elf = judge_pages + PGSIZE * 2;
+	
+	meta_start = judging_elf + MAX_ELF_SIZE;
+	filedata = (FileData *) meta_start;
+	file_start = meta_start + ROUNDUP(JUDGE_PAGES_COUNT * sizeof(FileData), PGSIZE);
+	n_files = 0;
+	
+	ducksrv_state = STATE_IDLE;
+}
+
+void ducksrv_send(const char *s, int len) {
+	ducknet_udp_send(pigeon_ip, pigeon_port, duck_port, s, len);
+}
+
+int recv_file_fd;
+FileData *recv_fdata;
+
+void ducksrv_udp_packet_handle(char *s, int len) {
+	s[len] = 0;
+	if (strcmp(s, "clear") == 0) {
+		// TODO clear ?
+		if (ducksrv_state == STATE_RECV_FILE) {
+			close(recv_file_fd);
+			sync();
+		}
+		ducksrv_state = STATE_IDLE;
+	} else if (ducksrv_state == STATE_RECV_ELF) {
+		s[len] = 0;
+		if (s[0] == 'g') {
+			int off;
+			memcpy(&off, s + 4, 4);
+			
+			memcpy(judging_elf + off, s + 8, len - 8);
+			
+			s[0] = 'a';
+			ducksrv_send(s, 8);
+		} else {
+			strcpy(s, "sendFile elf ok");
+			ducksrv_send(s, strlen(s));
+			ducknet_flush();
+			ducksrv_state = STATE_IDLE;
+		}
+	} else if (ducksrv_state == STATE_RECV_FILE) {
+		s[len] = 0;
+		if (s[0] == 'g') {
+			int off;
+			memcpy(&off, s + 4, 4);
+			
+			seek(recv_file_fd, off);
+			write(recv_file_fd, s + 8, len - 8);
+			
+			s[0] = 'a';
+			ducksrv_send(s, 8);
+		} else {
+			close(recv_file_fd);
+			sync();
+			strcpy(s, "sendFile ok");
+			ducksrv_send(s, strlen(s));
+			ducknet_flush();
+			ducksrv_state = STATE_IDLE;
+		}
+	} else if (ducksrv_state == STATE_RECV_OBJECT) {
+		s[len] = 0;
+		if (s[0] == 'g') {
+			int off;
+			memcpy(&off, s + 4, 4);
+			
+			int size = recv_fdata->size;
+			if (off >= 0 && off <= size && off + len - 8 <= size) {
+				memcpy(judge_pages + recv_fdata->start + off, s + 8, len - 8);
+			}
+			
+			s[0] = 'a';
+			ducksrv_send(s, 8);
+		} else {
+			// Write Ahead Logging !!!
+			for (int i = 0; i < n_files; i++) {
+				filedata[i].lru_tag++;
+			}
+			++n_files;
+			strcpy(s, "sendobj ok");
+			ducksrv_send(s, strlen(s));
+			ducknet_flush();
+			ducksrv_state = STATE_IDLE;
+		}
+	} else if (s[0] == 'c') {
+		cprintf("command:%s:\n", s + 1);
+		s[len] = 0;
+		
+		// arbiter judging ......
+		const char *tmp = "arbiter judging ";
+		int tmp_len = strlen(tmp);
+		char tmp_back = s[1 + tmp_len];
+		s[1 + tmp_len] = 0;
+		int res = strcmp(s + 1, tmp);
+		s[1 + tmp_len] = tmp_back;
+		
+		if (res == 0) {
+			run_arbiter(judging_elf, s + 1 + tmp_len);
+			cprintf("run arbiter ok\n");
+			strcpy(s, "run arbiter ok");
+		} else {
+			int fd = open("tmp", O_RDWR | O_CREAT | O_TRUNC);
+			write(fd, s + 1, len - 1);
+			write(fd, "\n", 1);
+			close(fd);
+			sync();
+			int r = spawnl("sh", "sh", "-w", "tmp", 0);
+			if(r < 0) {
+				cprintf("failed to spawn %e\n", r);
+			}
+			wait(r);
+			cprintf("wait ok\n");
+			strcpy(s, "runCmd ok");
+		}
+		ducksrv_send(s, strlen(s));
+		ducknet_flush();
+	} else if (s[0] == 'o') {
+		// open file
+		int fd = open(s + 1, O_RDONLY);
+		if (fd < 0) {
+			cprintf("Can't open file [%s]\n", s + 1);
+			s[0] = 'F';
+			ducksrv_send(s, 1);
+		} else {
+			for (int i = 0; i < 64; i++) {
+				s[0] = 'f';
+				int r = read(fd, s + 1, 15);
+				if (r > 0) {
+					ducksrv_send(s, r + 1);
+				} else {
+					break;
+				}
+			}
+			s[0] = 'F';
+			ducksrv_send(s, 1);
+		}
+		close(fd);
+		sync();
+		ducknet_flush();
+	} else if (strncmp(s, "setobj_I", 8) == 0) {
+		static char md5[50];
+		strncpy(md5, s + 8, 49);
+		
+		for (int i = 0; i < n_files; i++) {
+			if (strcmp(filedata[i].md5, md5) == 0) {
+				*input_pos = filedata[i].start;
+				*input_len = filedata[i].size;
+				break;
+			}
+		}
+		
+		strcpy(s, "setobj_I ok");
+		ducksrv_send(s, strlen(s));
+		ducknet_flush();
+	} else if (strncmp(s, "setobj_A", 8) == 0) {
+		static char md5[50];
+		strncpy(md5, s + 8, 49);
+		
+		for (int i = 0; i < n_files; i++) {
+			if (strcmp(filedata[i].md5, md5) == 0) {
+				*answer_pos = filedata[i].start;
+				*answer_len = filedata[i].size;
+				break;
+			}
+		}
+		
+		strcpy(s, "setobj_A ok");
+		ducksrv_send(s, strlen(s));
+		ducknet_flush();
+	} else if (s[0] == 'f' && strcmp(s + 1, "judging") == 0) {
+		cprintf("[j][recv judging elf!!!]\n");
+		
+		// Clear elf header
+		memset(judging_elf, 0, 512);
+		
+		ducksrv_send("file", 4);
+		ducknet_flush();
+		
+		ducksrv_state = STATE_RECV_ELF;
+	} else if (s[0] == 'f') {
+		cprintf("[j][recv sendfile!!!]\n");
+		// write file
+		
+		recv_file_fd = open(s + 1, O_RDWR | O_CREAT | O_TRUNC);
+		
+		ducksrv_send("file", 4);
+		ducknet_flush();
+		
+		ducksrv_state = STATE_RECV_FILE;
+	} else if (strncmp(s, "sendobj ", 8) == 0) {
+		int size = *(int *) (s + 8);
+		char md5[50];
+		strncpy(md5, s + 12, 49);
+		int ok = 0;
+		for (int i = 0; i < n_files; i++) {
+			if (strcmp(filedata[i].md5, md5) == 0) {
+				ok = 1;
+				break;
+			}
+		}
+		if (ok) {
+			strcpy(s, "gg sendobj");
+			ducksrv_send(s, strlen(s));
+			ducknet_flush();
+		} else {
+			strcpy(s, "sendobj begin");
+			ducksrv_send(s, strlen(s));
+			ducknet_flush();
+			
+			int last_pos = file_start - (void *) judge_pages;
+			if (n_files > 0) {
+				last_pos = filedata[n_files - 1].start + filedata[n_files - 1].n_pages * PGSIZE;
+			}
+			if (last_pos + size > JUDGE_PAGES_SIZE) {
+				// It's full
+				int to_remove_size = last_pos + size - JUDGE_PAGES_SIZE;
+				while (to_remove_size > 0) {
+					int max_tag = 30;
+					int max_tag_id = -1;
+					int max_size = -1;
+					int max_size_id = -1;
+					for (int i = 0; i < n_files; i++) {
+						FileData *fdata = filedata + i;
+						if (fdata->to_remove) continue;
+						if (fdata->lru_tag > max_tag) {
+							max_tag = fdata->lru_tag;
+							max_tag_id = i;
+						}
+						if (fdata->n_pages > max_size) {
+							max_size = fdata->n_pages;
+							max_size_id = i;
+						}
+					}
+					int id = max_tag_id != -1 ? max_tag_id : max_size_id;
+					filedata[id].to_remove = true;
+					to_remove_size -= filedata[id].n_pages * PGSIZE;
+				}
+				// Defrag
+				int j = 0;
+				int pos = file_start - (void *) judge_pages;
+				for (int i = 0; i < n_files; i++) {
+					if (filedata[i].to_remove) continue;
+					if (j < i) {
+						filedata[j] = filedata[i];
+						memmove(judge_pages + pos, judge_pages + filedata[j].start, filedata[j].n_pages * PGSIZE);
+					}
+					filedata[j].start = pos;
+					pos += filedata[j].n_pages * PGSIZE;
+					j++;
+				}
+				n_files = j;
+			}
+			last_pos = file_start - (void *) judge_pages;
+			if (n_files > 0) {
+				last_pos = filedata[n_files - 1].start + filedata[n_files - 1].n_pages * PGSIZE;
+			}
+			recv_fdata = filedata + n_files;
+			recv_fdata->size = size;
+			strcpy(recv_fdata->md5, md5);
+			recv_fdata->n_pages = ROUNDUP(recv_fdata->size, PGSIZE) / PGSIZE;
+			recv_fdata->start = last_pos;
+			recv_fdata->lru_tag = 0;
+			recv_fdata->to_remove = false;
+			
+			memset(judge_pages + recv_fdata->start, 0, recv_fdata->n_pages * PGSIZE);
+			
+			ducksrv_state = STATE_RECV_OBJECT;
+		}
+	}
+}
+
 // ========
 
 uint64_t tsc_freq;
@@ -234,8 +684,11 @@ int my_icmp_packet_handle(DucknetIPv4Address src, DucknetIPv4Address dst, Duckne
 }
 
 int my_udp_packet_handle(DucknetIPv4Address src, DucknetIPv4Address dst, DucknetUDPHeader *hdr, int len) {
-	ducknet_udp_send(src, hdr->sport, hdr->dport, hdr + 1, len);
-	return -1;
+	if (src.addr == pigeon_ip.addr && hdr->dport == duck_port) {
+		ducksrv_udp_packet_handle((char *) (hdr + 1), len);
+		return -1;
+	}
+	return 0;
 }
 
 void umain(int argc, char **argv) {
@@ -298,5 +751,6 @@ void umain(int argc, char **argv) {
 		return;
 	}
 	cprintf("libducknet seems ok\n");
+	ducksrv_init();
 	ducknet_mainloop();
 }

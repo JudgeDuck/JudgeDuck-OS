@@ -61,6 +61,7 @@ ipc_send(envid_t to_env, uint32_t val, void *pg, int perm)
 		srcva = (void *) 0xffffffff;
 	for(;;)
 	{
+		sys_yield();
 		int ret = sys_ipc_try_send(to_env, val, srcva, perm);
 		if(ret == 0)
 			return;

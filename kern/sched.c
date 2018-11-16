@@ -48,7 +48,7 @@ sched_yield(void)
 		}
 		if(ne->env_status == ENV_RUNNABLE)
 		{
-			//timer_single_shot_ns(DEFAULT_TIMER_INTERVAL);
+			timer_single_shot_ns(DEFAULT_TIMER_INTERVAL);
 			// ???
 			env_run(ne);
 		}
@@ -58,6 +58,8 @@ sched_yield(void)
 		timer_single_shot_ns(DEFAULT_TIMER_INTERVAL);
 		env_run(curenv);
 	}*/
+	// What if there's no halt ???
+	env_run(curenv);
 
 	// sched_halt never returns
 	sched_halt();

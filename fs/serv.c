@@ -323,6 +323,7 @@ serve(void)
 	void *pg;
 
 	while (1) {
+		sys_yield();
 		perm = 0;
 		req = ipc_recv((int32_t *) &whom, fsreq, &perm);
 		if (debug)

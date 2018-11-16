@@ -21,7 +21,7 @@ static int copy_shared_pages(envid_t child);
 static int
 _spawn(const char *prog, const char **argv, int is_contestant)
 {
-	unsigned char elf_buf[512];
+	static unsigned char elf_buf[512];
 	struct Trapframe child_tf;
 	envid_t child;
 
@@ -150,7 +150,7 @@ error:
 static int
 _spawn_from_memory(const char *prog, const char **argv, int is_contestant)
 {
-	unsigned char elf_buf[512];
+	static unsigned char elf_buf[512];
 	struct Trapframe child_tf;
 	envid_t child;
 
@@ -438,6 +438,13 @@ init_stack(envid_t child, const char **argv, uintptr_t *init_esp)
 		goto error;
 	if ((r = sys_page_unmap(0, UTEMP)) < 0)
 		goto error;
+	
+	// More stack pages ...
+	for (int i = 2; i < 10; i++) {
+		if ((r = sys_page_alloc(child, (void *) (USTACKTOP - PGSIZE * i), PTE_P | PTE_U | PTE_W)) < 0) {
+			goto error;
+		}
+	}
 
 	return 0;
 
