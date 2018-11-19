@@ -8,9 +8,9 @@ static unsigned int ticks;
 
 volatile int tsc_measurement_running;
 
-static uint64_t tsc_start;
-static uint64_t tsc_end;
-static uint64_t tsc_freq;
+static volatile uint64_t tsc_start;
+static volatile uint64_t tsc_end;
+static volatile uint64_t tsc_freq = 0;
 
 static inline uint64_t read_tsc() {
 	uint64_t ret;
@@ -20,21 +20,24 @@ static inline uint64_t read_tsc() {
 
 void tsc_measurement_start() {
 	cprintf("Detecting tsc freq ... ");
-	tsc_start = read_tsc();
 	lapic_timer_single_shot(1000000000);
+	tsc_start = read_tsc();
 	tsc_measurement_running = 1;
 	__asm__ volatile("sti");
-	while (1);
+	while (1) tsc_end = read_tsc();
 }
 
 void tsc_measurement_end() {
-	tsc_end = read_tsc();
 	tsc_freq = tsc_end - tsc_start;
 	tsc_measurement_running = 0;
 }
 
 uint64_t get_tsc_frequency() {
 	return tsc_freq;
+}
+
+void set_tsc_frequency(uint64_t f) {
+	tsc_freq = f;
 }
 
 void

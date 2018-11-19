@@ -1,6 +1,7 @@
 #include <kern/cpu.h>
 #include <inc/stdio.h>
 #include <inc/assert.h>
+#include <kern/time.h>
 
 typedef unsigned char uchar;
 typedef unsigned short ushort;
@@ -89,8 +90,15 @@ sm_init()
 			cur_head = (struct SMBIOSHeader *) ((void *) cur_head + sm_table_len(cur_head));
 			continue;
 		}
+		unsigned short max_speed = *(unsigned short *) ((void *) cur_head + 0x14);
+		unsigned short cur_speed = *(unsigned short *) ((void *) cur_head + 0x16);
+		cprintf("max speed = %u\n", max_speed);
+		cprintf("cur speed = %u\n", cur_speed);
 		external_clock_frequency = *(unsigned short *) ((void *) cur_head + 0x12);
 		cprintf("detected ext clock freq = %d MHz\n", external_clock_frequency);
+		if (cur_speed != 0) {
+			set_tsc_frequency(cur_speed * 1000000ull);
+		}
 		if(external_clock_frequency == 0) break;
 		// for(int i = 0; i < 2000000000; i++) asm volatile("");
 		return;

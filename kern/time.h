@@ -11,6 +11,7 @@ void time_tick(void);
 unsigned int time_msec(void);
 
 uint64_t get_tsc_frequency();
+void set_tsc_frequency(uint64_t freq);
 
 extern volatile int tsc_measurement_running;
 void tsc_measurement_start();

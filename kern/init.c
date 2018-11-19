@@ -91,6 +91,7 @@ i386_init(void)
 	td.length = 8;
 	cprintf("transmit %d\n", try_transmit(&td));*/
 
+	if (get_tsc_frequency()) sched_yield();
 	tsc_measurement_start();
 	// Will not return after trap !!
 
