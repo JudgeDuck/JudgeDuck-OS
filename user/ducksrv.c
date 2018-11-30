@@ -778,7 +778,7 @@ void test_send() {
 	int pkt_len = 64;
 	DucknetMACAddress my_mac = (DucknetMACAddress) {.a = DUCK_MAC};
 	DucknetEtherHeader *hdr = (DucknetEtherHeader *) buf;
-	hdr->dst = (DucknetMACAddress) {.a = DUCK57_MAC};
+	hdr->dst = (DucknetMACAddress) {.a = DUCK16_MAC};
 	hdr->src = my_mac;
 	
 	while (1) {
@@ -790,7 +790,7 @@ void test_send() {
 			n_bw = 0;
 			tsc_next += tsc_freq;
 			
-			if (tick % 5 == 0) {
+			if (0 && tick % 5 == 0) {
 				if (pkt_len == 1504) pkt_len = 0;
 				pkt_len += 64;
 				if (pkt_len > 1504) pkt_len = 1504;
