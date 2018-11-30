@@ -1,4 +1,5 @@
 #include <inc/lib.h>
+#include <inc/x86.h>
 #include <ip-config.h>
 #include <ducknet.h>
 
@@ -691,6 +692,99 @@ int my_udp_packet_handle(DucknetIPv4Address src, DucknetIPv4Address dst, Ducknet
 	return 0;
 }
 
+static char buf[PGSIZE] __attribute__((aligned(PGSIZE)));
+
+void test_recv() {
+	uint64_t tsc_next = read_tsc() + tsc_freq;
+	int n_pkts = 0;
+	uint32_t n_transfer = 0;
+	int cnt = 0;
+	int tick = 0;
+	int maxsize = 0;
+	int minsize = 2333;
+	
+	while (1) {
+		if (++cnt % 128 == 0 && read_tsc() >= tsc_next) {
+			++tick;
+			if (maxsize == 0) minsize = 0;
+			cprintf("T=%d, pktsize=[%d,%d], #pkts:%d, trans:%u\n", tick, minsize, maxsize, n_pkts, n_transfer);
+			n_pkts = 0;
+			n_transfer = 0;
+			tsc_next += tsc_freq;
+			maxsize = 0;
+			minsize = 2333;
+			
+			// To help the switch ???
+			ducknet_ether_send(ducknet_ether_broadcast_addr(), 0x0, "", 0);
+			ducknet_flush();
+		}
+		
+		int ret = network_try_receive(buf);
+		if (ret > 0) {
+			++n_pkts;
+			ret += 4;
+			n_transfer += ret;  // len(FCS) = 4 
+			if (ret < minsize) minsize = ret;
+			if (ret > maxsize) maxsize = ret;
+		}
+	}
+}
+
+#define DUCK57_MAC {0x00, 0x1b, 0x21, 0xc9, 0x1f, 0x0b}
+#define DUCK16_MAC {0x52, 0x54, 0x10, 0x12, 0x34, 0x56}
+
+void test_send() {
+	uint64_t tsc_next = read_tsc() + tsc_freq;
+	int n_pkts = 0;
+	uint32_t n_transfer = 0;
+	uint32_t n_bw = 0;
+	int cnt = 0;
+	int tick = 0;
+	int pkt_len = 64;
+	DucknetMACAddress my_mac = (DucknetMACAddress) {.a = DUCK_MAC};
+	DucknetEtherHeader *hdr = (DucknetEtherHeader *) buf;
+	hdr->dst = (DucknetMACAddress) {.a = DUCK57_MAC};
+	hdr->src = my_mac;
+	
+	while (1) {
+		if (++cnt % 128 == 0 && read_tsc() >= tsc_next) {
+			++tick;
+			cprintf("T=%d, pktlen:%d, #pkts:%d, trans:%u, bw:%u\n", tick, pkt_len, n_pkts, n_transfer, n_bw * 8);
+			n_pkts = 0;
+			n_transfer = 0;
+			n_bw = 0;
+			tsc_next += tsc_freq;
+			
+			if (tick % 5 == 0) {
+				if (pkt_len == 1504) pkt_len = 0;
+				pkt_len += 64;
+				if (pkt_len > 1504) pkt_len = 1504;
+			}
+		}
+		
+		int ret = network_try_transmit(buf, pkt_len - 4);
+		if (ret >= 0) {
+			++n_pkts;
+			n_transfer += pkt_len;
+			n_bw += pkt_len + 20;
+		}
+	}
+}
+
+void test_main() {
+	if (IP[strlen(IP) - 1] == '6') {  // .16
+		test_recv();
+	} else {
+		while (1) {
+			int ret = network_try_receive(buf);
+			if (ret == 233) {
+				break;
+			}
+		}
+		test_send();
+	}
+}
+
 void umain(int argc, char **argv) {
 	binaryname = "ducksrv";
 	
@@ -752,5 +846,9 @@ void umain(int argc, char **argv) {
 	}
 	cprintf("libducknet seems ok\n");
 	ducksrv_init();
+	
+	test_main();
+	
+	
 	ducknet_mainloop();
 }
