@@ -610,7 +610,8 @@ sys_page_alloc_with_pa(envid_t envid, void *va, int perm, uint32_t *pa_store)
 		page_free(pp);
 		return -E_NO_MEM;
 	}
-	
+
+	lcr3(PADDR(e->env_pgdir));
 	*pa_store = (uint32_t) page2pa(pp);
 
 	return 0;
