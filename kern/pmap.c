@@ -52,7 +52,6 @@ static int segtree_alloc_left() {
 }
 
 static int segtree_alloc_right() {
-	return segtree_alloc_left();
 	if (page_segtree[1] == 1) {
 		return -1;
 	}

@@ -25,14 +25,18 @@ struct RecvDesc {
 } __attribute__((packed));
 
 #define TQ_FLUSH_COUNT 32
+#define RQ_FLUSH_COUNT 128
+
+#define RQ_DESC_PAGE_COUNT 10
 
 #define TQSIZE ((PGSIZE) / sizeof(struct TransDesc))
-#define RQSIZE ((PGSIZE) / sizeof(struct RecvDesc))
+#define RQSIZE ((PGSIZE * RQ_DESC_PAGE_COUNT) / sizeof(struct RecvDesc))
 volatile struct TransDesc tq[TQSIZE] __attribute__((aligned(PGSIZE)));
 volatile struct RecvDesc rq[RQSIZE] __attribute__((aligned(PGSIZE)));
 char tq_pages[TQSIZE][PGSIZE] __attribute__((aligned(PGSIZE)));
 char rq_pages[RQSIZE][PGSIZE] __attribute__((aligned(PGSIZE)));
 void *tq_addrs[TQSIZE];
+void *rq_vaddrs[RQSIZE];
 int last_tq_page_id;
 int last_tq_page_offset;
 
@@ -70,9 +74,26 @@ int e1000_init(unsigned maxMTA) {
 	if (r < 0) {
 		return r;
 	}
-	r = sys_page_alloc_with_pa(0, (void *) rq, PTE_U | PTE_P | PTE_W, &rq_pa);
-	if (r < 0) {
-		return r;
+	
+	char *trash_ptr = (char *) 0xe0000000;
+	// TODO: No hacking with operating system
+	while (1) {
+		int fail = 0;
+		uint32_t last_pa = 0;
+		for (int i = RQ_DESC_PAGE_COUNT - 1; i >= 0; i--) {
+			r = sys_page_alloc_with_pa(0, (char *) rq + PGSIZE * i, PTE_U | PTE_P | PTE_W, &rq_pa);
+			if (r < 0) {
+				return r;
+			}
+			sys_page_map(0, (char *) rq + PGSIZE * i, 0, trash_ptr, PTE_U | PTE_P);
+			trash_ptr += PGSIZE;
+			if (last_pa != 0 && last_pa - rq_pa != PGSIZE) {
+				fail = 1;
+				break;
+			}
+			last_pa = rq_pa;
+		}
+		if (!fail) break;
 	}
 	
 	for (int i = 0; i < TQSIZE; i++) {
@@ -85,12 +106,18 @@ int e1000_init(unsigned maxMTA) {
 	}
 	
 	for (int i = 0; i < RQSIZE; i++) {
+		if (i % 2 == 1) {
+			rq[i].addr = rq[i - 1].addr + PGSIZE / 2;
+			rq_vaddrs[i] = (char *) rq_vaddrs[i - 1] + PGSIZE / 2;
+			continue;
+		}
 		uint32_t pa;
 		r = sys_page_alloc_with_pa(0, (void *) rq_pages[i], PTE_U | PTE_P | PTE_W, &pa);
 		if (r < 0) {
 			return r;
 		}
 		rq[i].addr = pa;
+		rq_vaddrs[i] = rq_pages[i];
 	}
 	
 	// For allocating fragments
@@ -143,7 +170,11 @@ int e1000_init(unsigned maxMTA) {
 	e1000_rdt = RQSIZE - 1;
 	e1000_rdt_real = e1000_rdt;
 	
-	uint32_t rctl = (1 << 1) | (1 << 15) | (3 << 16) | (1 << 25) | (1 << 26);
+	// RXDCTL: GRAN=1 | WTHRESH=4 | HTHRESH=4 | PTHRESH=0x20
+	*(volatile uint32_t *) (e1000 + 0x2828) = (1u << 24) | (4u << 16) | (4u << 8) | 0x20;
+	
+	// RCTL: EN | BAM | BSIZE=2048 | BSEX=0 | SECRC=1
+	uint32_t rctl = (1 << 1) | (1 << 15) | (0 << 16) | (0 << 25) | (1 << 26);
 	*(volatile uint32_t *) (e1000 + 0x100) = rctl;        // RCTL
 	
 	cprintf("e1000 status = %x\n", *(volatile uint32_t *) (e1000 + 0x8));
@@ -217,13 +248,10 @@ int network_flush() {
 // returns: length
 int network_try_receive(void *bufpage) {
 	uint32_t idx = (e1000_rdt + 1) % RQSIZE;
-	if (idx == e1000_rdh) {
-		e1000_rdh = *(volatile uint32_t *) (e1000 + 0x2810);
-	}
-	if (idx == e1000_rdh) {
+	volatile struct RecvDesc *rd = rq + idx;
+	if (!(rd->status & 1)) {
 		return -1;
 	}
-	volatile struct RecvDesc *rd = rq + idx;
 	int len = rd->length;
 	if (len < 0) {
 		return -1;
@@ -231,10 +259,10 @@ int network_try_receive(void *bufpage) {
 	if (len > PGSIZE) {
 		len = PGSIZE;
 	}
-	memcpy(bufpage, rq_pages[idx], len);
+	memcpy(bufpage, rq_vaddrs[idx], len);
 	rd->status &= ~1;
 	e1000_rdt = idx;
-	if ((e1000_rdt - e1000_rdt_real + RQSIZE) % RQSIZE == RQSIZE / 2) {
+	if (e1000_rdt % RQ_FLUSH_COUNT == 0) {
 		*(volatile uint32_t *) (e1000 + 0x2818) = e1000_rdt;  // ???
 		e1000_rdt_real = e1000_rdt;
 	}
