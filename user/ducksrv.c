@@ -24,6 +24,8 @@ struct RecvDesc {
 	uint16_t special;
 } __attribute__((packed));
 
+#define TQ_FLUSH_COUNT 32
+
 #define TQSIZE ((PGSIZE) / sizeof(struct TransDesc))
 #define RQSIZE ((PGSIZE) / sizeof(struct RecvDesc))
 volatile struct TransDesc tq[TQSIZE] __attribute__((aligned(PGSIZE)));
@@ -31,6 +33,8 @@ volatile struct RecvDesc rq[RQSIZE] __attribute__((aligned(PGSIZE)));
 char tq_pages[TQSIZE][PGSIZE] __attribute__((aligned(PGSIZE)));
 char rq_pages[RQSIZE][PGSIZE] __attribute__((aligned(PGSIZE)));
 void *tq_addrs[TQSIZE];
+int last_tq_page_id;
+int last_tq_page_offset;
 
 volatile char e1000[0x10000] __attribute__((aligned(PGSIZE)));
 
@@ -38,6 +42,24 @@ uint32_t e1000_rdt, e1000_rdh;
 uint32_t e1000_rdt_real;
 uint32_t e1000_tdt, e1000_tdh;
 uint32_t e1000_tdt_real;
+
+int tq_frag_alloc(int cnt, void **va, void **pa) {
+	cnt += (-cnt) & (64 - 1);  // ???
+	if (last_tq_page_offset + cnt <= PGSIZE) {
+		*pa = (char *) tq_addrs[last_tq_page_id] + last_tq_page_offset;
+		*va = tq_pages[last_tq_page_id] + last_tq_page_offset;
+		last_tq_page_offset += cnt;
+		return 0;
+	} else if (cnt <= PGSIZE) {
+		last_tq_page_id = (last_tq_page_id + 1) % TQSIZE;
+		*pa = tq_addrs[last_tq_page_id];
+		*va = tq_pages[last_tq_page_id];
+		last_tq_page_offset = cnt;
+		return 0;
+	} else {
+		return -1;
+	}
+}
 
 int e1000_init(unsigned maxMTA) {
 	cprintf("e1000 status = %x\n", *(volatile uint32_t *) (e1000 + 0x8));
@@ -71,6 +93,10 @@ int e1000_init(unsigned maxMTA) {
 		rq[i].addr = pa;
 	}
 	
+	// For allocating fragments
+	last_tq_page_id = 0;
+	last_tq_page_offset = 0;
+	
 	// CTRL: force 1Gbps duplex
 	*(volatile uint32_t *) (e1000 + 0x0) = (1u << 0) | (0u << 5) | (1u << 6) | (2u << 8) | (1u << 11) | (1u << 12);
 	
@@ -84,7 +110,11 @@ int e1000_init(unsigned maxMTA) {
 	e1000_tdt_real = 0;
 	e1000_tdh = 0;
 	
-	uint32_t tctl = (1 << 1) | (1 << 3) | (0x10 << 4) | (0x40 << 12);
+	// TXDCTL: GRAN=0 | 1<<22(must=1) | WTHRESH=3 | HTHRESH=4 | PTHRESH=3
+	*(volatile uint32_t *) (e1000 + 0x3828) = (0u << 24) | (1u << 22) | (3u << 16) | (4u << 8) | 3u;
+	
+	// TCTL: EN | PSP | CT=0x10 | COLD=0x40 | MULR
+	uint32_t tctl = (1 << 1) | (1 << 3) | (0x10 << 4) | (0x40 << 12) | (1u << 28);
 	*(volatile uint32_t *) (e1000 + 0x400) = tctl;        // TCTL
 	// ??? *(volatile uint32_t *) (e1000 + 0x410) = 0xa | (0x8 << 10) | (0xc << 20);    // TIPG
 	*(volatile uint32_t *) (e1000 + 0x410) = 0x00602006;
@@ -151,10 +181,15 @@ int network_try_transmit(const void *buf, int cnt) {
 		return -1;
 	}
 	
-	memcpy(tq_pages[e1000_tdt], buf, cnt);
+	void *va, *pa;
+	if (tq_frag_alloc(cnt, &va, &pa) < 0) {
+		return -1;
+	}
+	memcpy(va, buf, cnt);
+	
 	struct TransDesc td;
 	memset(&td, 0, sizeof(td));
-	td.addr = (uint32_t) tq_addrs[e1000_tdt];
+	td.addr = (uint32_t) pa;
 	td.length = cnt;
 	td.cmd &= ~(1 << 5);
 	td.cmd |= (1 << 3) | (1 << 0);
@@ -162,7 +197,7 @@ int network_try_transmit(const void *buf, int cnt) {
 	tq[e1000_tdt] = td;
 	e1000_tdt = (e1000_tdt + 1) % TQSIZE;
 	
-	if ((e1000_tdt - e1000_tdt_real + TQSIZE) % TQSIZE == TQSIZE / 2) {
+	if (e1000_tdt % TQ_FLUSH_COUNT == 0) {
 		*(volatile uint32_t *) (e1000 + 0x3818) = e1000_tdt;
 		e1000_tdt_real = e1000_tdt;
 	}
