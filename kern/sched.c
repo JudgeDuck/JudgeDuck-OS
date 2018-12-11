@@ -53,13 +53,11 @@ sched_yield(void)
 			env_run(ne);
 		}
 	}
-	/*if(curenv && curenv->env_status == ENV_RUNNING)
+	if(curenv && curenv->env_status == ENV_RUNNING)
 	{
 		timer_single_shot_ns(DEFAULT_TIMER_INTERVAL);
 		env_run(curenv);
-	}*/
-	// What if there's no halt ???
-	env_run(curenv);
+	}
 
 	// sched_halt never returns
 	sched_halt();

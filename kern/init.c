@@ -37,10 +37,12 @@ i386_init(void)
 
 	cprintf("6828 decimal is %o octal!\n", 6828);
 	
-	sm_init();
+	sm_init_part1();
 
 	// Lab 2 memory management initialization functions
 	mem_init();
+	
+	sm_init_part2();
 
 	// Lab 3 user environment initialization functions
 	env_init();
@@ -62,7 +64,7 @@ i386_init(void)
 	lock_kernel();
 
 	// Starting non-boot CPUs
-	// boot_aps();
+	boot_aps();
 	//ENV_CREATE(user_idle, ENV_TYPE_USER);
 
 	// Start fs.

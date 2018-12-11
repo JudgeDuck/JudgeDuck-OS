@@ -2,6 +2,8 @@
 #include <inc/stdio.h>
 #include <inc/assert.h>
 #include <kern/time.h>
+#include <kern/pmap.h>
+#include <inc/x86.h>
 
 typedef unsigned char uchar;
 typedef unsigned short ushort;
@@ -68,42 +70,47 @@ sm_table_len(struct SMBIOSHeader *hd)
     return hd->Length + i + 1;
 }
 
+static struct SMBIOSHeader *cur_head;
+static struct SMBIOSHeader *sm_table_end;
+
 void
-sm_init()
+sm_init_part1()
 {
-	cprintf("sm_init\n");
-	// external_clock_frequency = 1000;
-	// cprintf("force 1000\n");
-	// return;
+	cprintf("sm_init_part1\n");
 	get_sm_entry();
-	// cprintf("Major Version: %d\n", (int) entry->MajorVersion);
-	// cprintf("Minor Version: %d\n", (int) entry->MinorVersion);
-	struct SMBIOSHeader *cur_head = (struct SMBIOSHeader *) (entry->TableAddress);
-	int n = entry->NumberOfStructures;
-	// cprintf("asdf %d\n", n);
-	// for(char *c = (char *) entry->TableAddress; c < (char *) (entry->TableAddress + entry->TableLength); ++c) cprintf("%p -> %02x\n", c, (int) (unsigned char) *c);
-	while(cur_head < (struct SMBIOSHeader *) (entry->TableAddress + entry->TableLength))
-	{
-		// cprintf("head %p, type %d\n", cur_head, (int) cur_head->Type);
-		if(cur_head->Type != 4)
-		{
-			cur_head = (struct SMBIOSHeader *) ((void *) cur_head + sm_table_len(cur_head));
+	cur_head = (struct SMBIOSHeader *) (entry->TableAddress);
+	sm_table_end = (struct SMBIOSHeader *) (entry->TableAddress + entry->TableLength);
+}
+
+void
+sm_init_part2()
+{
+	cprintf("sm_init_part2\n");
+	while (cur_head < sm_table_end) {
+		// assume two pages are enough ???
+		boot_map_region(kern_pgdir, 0, PGSIZE, ROUNDDOWN((uint32_t) cur_head, PGSIZE), PTE_W);
+		boot_map_region(kern_pgdir, PGSIZE, PGSIZE, ROUNDDOWN((uint32_t) cur_head, PGSIZE) + PGSIZE, PTE_W);
+		lcr3(PADDR(kern_pgdir));
+		invlpg(0);
+		invlpg((void *) PGSIZE);
+		
+		struct SMBIOSHeader *head = (struct SMBIOSHeader *) (((uint32_t) cur_head) % PGSIZE);
+		if (head->Type != 4) {
+			cur_head = (struct SMBIOSHeader *) ((void *) cur_head + sm_table_len(head));
 			continue;
 		}
-		unsigned short max_speed = *(unsigned short *) ((void *) cur_head + 0x14);
-		unsigned short cur_speed = *(unsigned short *) ((void *) cur_head + 0x16);
+		unsigned short max_speed = *(unsigned short *) ((void *) head + 0x14);
+		unsigned short cur_speed = *(unsigned short *) ((void *) head + 0x16);
 		cprintf("max speed = %u\n", max_speed);
 		cprintf("cur speed = %u\n", cur_speed);
-		external_clock_frequency = *(unsigned short *) ((void *) cur_head + 0x12);
+		external_clock_frequency = *(unsigned short *) ((void *) head + 0x12);
 		cprintf("detected ext clock freq = %d MHz\n", external_clock_frequency);
 		if (cur_speed != 0) {
 			set_tsc_frequency(cur_speed * 1000000ull);
 		}
-		if(external_clock_frequency == 0) break;
-		// for(int i = 0; i < 2000000000; i++) asm volatile("");
+		if (external_clock_frequency == 0) break;
 		return;
 	}
 	external_clock_frequency = 1000;
 	cprintf("cannot detected ext clock freq, assume 1000\n");
-	// for(int i = 0; i < 2000000000; i++) asm volatile("");
 }

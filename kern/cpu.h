@@ -7,11 +7,12 @@
 #include <inc/mmu.h>
 #include <inc/env.h>
 
-void sm_init();
+void sm_init_part1();
+void sm_init_part2();
 int external_clock_frequency;
 
 // Maximum number of CPUs
-#define NCPU  8
+#define NCPU  32
 
 // Values of status in struct Cpu
 enum {

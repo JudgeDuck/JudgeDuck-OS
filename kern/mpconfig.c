@@ -69,6 +69,62 @@ struct mpproc {         // processor table entry [MP 4.3.1]
 #define MPIOINTR  0x03  // One per bus interrupt source
 #define MPLINTR   0x04  // One per system interrupt source
 
+// ACPI structs
+
+struct ACPI_RDSP {
+	uint8_t signature[8];
+	uint8_t checksum;
+	uint8_t oem_id[6];
+	uint8_t revision;
+	uint32_t rsdt_addr_phys;
+	uint32_t length;
+	uint64_t xsdt_addr_phys;
+	uint8_t xchecksum;
+	uint8_t reserved[3];
+} __attribute__((__packed__));
+
+struct ACPI_desc_header {
+	uint8_t signature[4];
+	uint32_t length;
+	uint8_t revision;
+	uint8_t checksum;
+	uint8_t oem_id[6];
+	uint8_t oem_tableid[8];
+	uint32_t oem_revision;
+	uint8_t creator_id[4];
+	uint32_t creator_revision;
+} __attribute__((__packed__));
+
+struct ACPI_RSDT {
+	struct ACPI_desc_header header;
+	uint32_t entry[0];
+} __attribute__((__packed__));
+
+struct ACPI_MADT {
+	struct ACPI_desc_header header;
+	uint32_t lapic_addr_phys;
+	uint32_t flags;
+	uint8_t table[0];
+} __attribute__((__packed__));
+
+#define MADT_TYPE_LAPIC 0
+#define MADT_TYPE_IOAPIC 1
+#define MADT_TYPE_INT_SRC_OVERRIDE 2
+#define MADT_TYPE_NMI_INT_SRC 3
+#define MADT_TYPE_LAPIC_NMI 4
+
+struct MADT_LAPIC {
+	uint8_t type;
+	uint8_t length;
+	uint8_t acpi_id;
+	uint8_t apic_id;
+	uint32_t flags;
+} __attribute__((__packed__));
+
+#define APIC_LAPIC_ENABLED 1
+
+// ================
+
 static uint8_t
 sum(void *addr, int len)
 {
@@ -78,6 +134,26 @@ sum(void *addr, int len)
 	for (i = 0; i < len; i++)
 		sum += ((uint8_t *)addr)[i];
 	return sum;
+}
+
+static struct ACPI_RDSP *scan_rdsp(uint32_t base, uint32_t len) {
+	char *p;
+	for (p = KADDR(base); len >= sizeof(struct ACPI_RDSP); len -= 4, p += 4) {
+		if (memcmp(p, "RSD PTR ", 8) == 0 && sum(p, 20) == 0) {
+			return (struct ACPI_RDSP *) p;
+		}
+	}
+	return (struct ACPI_RDSP *) 0;  
+}
+
+static struct ACPI_RDSP *find_rdsp() {
+	struct ACPI_RDSP *rdsp;
+	uint32_t pa;
+	pa = *((uint16_t *) KADDR(0x40e)) << 4;
+	if (pa && (rdsp = scan_rdsp(pa, 1024))) {
+		return rdsp;
+	}
+	return scan_rdsp(0xe0000, 0x20000);
 }
 
 // Look for an MP structure in the len bytes at physical address addr.
@@ -162,6 +238,29 @@ mpconfig(struct mp **pmp)
 	return conf;
 }
 
+static void read_mem(void *dstva, void *srcpa, int len) {
+	void *endpa = (char *) srcpa + len;
+	boot_map_region(kern_pgdir, 0, ROUNDDOWN((uint32_t) endpa, PGSIZE) - ROUNDDOWN((uint32_t) srcpa, PGSIZE) + PGSIZE, ROUNDDOWN((uint32_t) srcpa, PGSIZE), PTE_W);
+	lcr3(PADDR(kern_pgdir));
+	uint32_t start = ROUNDDOWN((uint32_t) srcpa, PGSIZE);
+	uint32_t end = ROUNDDOWN((uint32_t) endpa, PGSIZE);
+	while (start != end) {
+		invlpg((void *) start);
+		start += PGSIZE;
+	}
+	invlpg((void *) start);
+	memcpy(dstva, (void *)(((uint32_t) srcpa) % PGSIZE), len);
+}
+
+int find_cpu_index(int apic_id) {
+	for (int i = 0; i < ncpu; i++) {
+		if (cpus[i].cpu_id == apic_id) {
+			return i;
+		}
+	}
+	return 0;
+}
+
 void
 mp_init(void)
 {
@@ -176,21 +275,65 @@ mp_init(void)
 		return;
 	ismp = 1;
 	lapicaddr = conf->lapicaddr;
+	
+	struct ACPI_RDSP *rdsp = find_rdsp();
+	cprintf("rdsp_v = %p\n", rdsp);
+	
+	struct ACPI_RSDT *rsdt_p = (void *)(rdsp->rsdt_addr_phys);
+	cprintf("rsdt_p = %p\n", rsdt_p);
+	
+	static struct ACPI_RSDT rsdt;
+	read_mem(&rsdt, rsdt_p, sizeof(struct ACPI_RSDT));
+	
+	struct ACPI_MADT *madt_p = 0;
+	int count = (rsdt.header.length - sizeof(struct ACPI_RSDT)) / 4;
+	for (int i = 0; i < count; i++) {
+		char buf[4];
+		read_mem(buf, (char *) rsdt_p + offsetof(struct ACPI_RSDT, entry) + i * 4, 4);
+		struct ACPI_desc_header *hdr_p = (struct ACPI_desc_header *) *((uint32_t *) buf);
+		read_mem(buf, (char *) hdr_p + offsetof(struct ACPI_desc_header, signature), 4);
+		if (memcmp(buf, "APIC", 4) == 0) {
+			madt_p = (struct ACPI_MADT *) hdr_p;
+			break;
+		}
+	}
+	cprintf("madt_p = %p\n", madt_p);
+	
+	static char madt_buf[23333];  // enough ???
+	uint32_t madt_length;
+	read_mem(&madt_length, (char *) madt_p + offsetof(struct ACPI_desc_header, length), 4);
+	cprintf("madt_len = %d\n", madt_length);
+	read_mem(madt_buf, madt_p, madt_length);
+	struct ACPI_MADT *madt = (struct ACPI_MADT *) madt_buf;
+	{
+		void *p = madt->table;
+		void *e = (char *) madt + madt_length;
+		while (p < e) {
+			int len = *((unsigned char *) p + 1);
+			int type = *((unsigned char *) p);
+			if (type == MADT_TYPE_LAPIC) {
+				struct MADT_LAPIC *lapic = (struct MADT_LAPIC *) p;
+				if (lapic->flags & APIC_LAPIC_ENABLED) {
+					cprintf("ACPI: CPU #%d APIC id %d\n", ncpu, lapic->apic_id);
+					if (ncpu < NCPU) {
+						cpus[ncpu].cpu_id = lapic->apic_id;
+						ncpu++;
+					} else {
+						cprintf("SMP: too many CPUs, CPU %d disabled\n", lapic->apic_id);
+					}
+				}
+			}
+			p += len;
+		}
+	}
 
 	for (p = conf->entries, i = 0; i < conf->entry; i++) {
+		break;
 		switch (*p) {
 		case MPPROC:
-			continue;
 			proc = (struct mpproc *)p;
 			if (proc->flags & MPPROC_BOOT)
-				bootcpu = &cpus[ncpu];
-			if (ncpu < NCPU) {
-				cpus[ncpu].cpu_id = ncpu;
-				ncpu++;
-			} else {
-				cprintf("SMP: too many CPUs, CPU %d disabled\n",
-					proc->apicid);
-			}
+				bootcpu = &cpus[find_cpu_index(proc->apicid)];
 			p += sizeof(struct mpproc);
 			continue;
 		case MPBUS:
