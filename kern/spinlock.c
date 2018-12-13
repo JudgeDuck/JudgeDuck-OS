@@ -21,6 +21,7 @@ struct spinlock kernel_lock = {
 static void
 get_caller_pcs(uint32_t pcs[])
 {
+	return;  // to prevent bugs ??? (kernel pagefault when reading ebp)
 	uint32_t *ebp;
 	int i;
 
