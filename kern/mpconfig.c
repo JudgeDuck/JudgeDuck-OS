@@ -10,7 +10,8 @@
 #include <kern/cpu.h>
 #include <kern/pmap.h>
 
-struct CpuInfo cpus[NCPU];
+struct CpuInfo cpus[NCPU];  // index: apic_id
+int cpu_apic_id[NCPU];  // index: cpu_id
 struct CpuInfo *bootcpu;
 int ismp;
 int ncpu;
@@ -315,8 +316,9 @@ mp_init(void)
 				struct MADT_LAPIC *lapic = (struct MADT_LAPIC *) p;
 				if (lapic->flags & APIC_LAPIC_ENABLED) {
 					cprintf("ACPI: CPU #%d APIC id %d\n", ncpu, lapic->apic_id);
-					if (ncpu < NCPU) {
-						cpus[ncpu].cpu_id = lapic->apic_id;
+					if (ncpu < NCPU && lapic->apic_id < NCPU) {
+						cpus[lapic->apic_id].cpu_id = ncpu;
+						cpu_apic_id[ncpu] = lapic->apic_id;
 						ncpu++;
 					} else {
 						cprintf("SMP: too many CPUs, CPU %d disabled\n", lapic->apic_id);
@@ -333,7 +335,7 @@ mp_init(void)
 		case MPPROC:
 			proc = (struct mpproc *)p;
 			if (proc->flags & MPPROC_BOOT)
-				bootcpu = &cpus[find_cpu_index(proc->apicid)];
+				bootcpu = &cpus[proc->apicid];
 			p += sizeof(struct mpproc);
 			continue;
 		case MPBUS:

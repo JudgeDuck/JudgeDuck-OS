@@ -39,6 +39,8 @@
 #define IRQ_IDE         14
 #define IRQ_ERROR       19
 
+#define T_IPI 251
+
 #ifndef __ASSEMBLER__
 
 #include <inc/types.h>

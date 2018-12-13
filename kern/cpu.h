@@ -12,7 +12,7 @@ void sm_init_part2();
 int external_clock_frequency;
 
 // Maximum number of CPUs
-#define NCPU  32
+#define NCPU  8
 
 // Values of status in struct Cpu
 enum {
@@ -27,10 +27,12 @@ struct CpuInfo {
 	volatile unsigned cpu_status;   // The status of the CPU
 	struct Env *cpu_env;            // The currently-running environment.
 	struct Taskstate cpu_ts;        // Used by x86 to find stack for interrupt
+	uint64_t lapic_tccr;
 };
 
 // Initialized in mpconfig.c
-extern struct CpuInfo cpus[NCPU];
+extern struct CpuInfo cpus[NCPU];   // index: apic_id
+extern int cpu_apic_id[NCPU];       // index: id
 extern int ncpu;                    // Total number of CPUs in the system
 extern struct CpuInfo *bootcpu;     // The boot-strap processor (BSP)
 extern physaddr_t lapicaddr;        // Physical MMIO address of the local APIC

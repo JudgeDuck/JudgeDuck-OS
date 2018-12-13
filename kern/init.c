@@ -119,17 +119,17 @@ boot_aps(void)
 	memmove(code, mpentry_start, mpentry_end - mpentry_start);
 
 	// Boot each AP one at a time
-	for (c = cpus; c < cpus + ncpu; c++) {
-		if (c == cpus + cpunum())  // We've started already.
-			continue;
-
+	for (int i = 0; i < ncpu; i++) {
+		int apic_id = cpu_apic_id[i];
+		if (apic_id == cpunum()) continue;
+		c = &cpus[apic_id];
+		
 		// Tell mpentry.S what stack to use 
 		mpentry_kstack = percpu_kstacks[c - cpus] + KSTKSIZE;
 		// Start the CPU at mpentry_start
-		lapic_startap(c->cpu_id, PADDR(code));
+		lapic_startap(apic_id, PADDR(code));
 		// Wait for the CPU to finish some basic setup in mp_main()
-		while(c->cpu_status != CPU_STARTED)
-			;
+		while(c->cpu_status != CPU_STARTED);
 	}
 }
 
@@ -181,7 +181,6 @@ _panic(const char *file, int line, const char *fmt,...)
 	asm volatile("cli; cld");
 
 	va_start(ap, fmt);
-	cprintf("kernel panic on CPU %d at %s:%d: ", cpunum(), file, line);
 	vcprintf(fmt, ap);
 	cprintf("\n");
 	va_end(ap);

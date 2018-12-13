@@ -6,6 +6,7 @@
 #endif
 
 #include <inc/types.h>
+#include <kern/cpu.h>
 
 #define TIMER_EX 1
 #define TIMER_EX_T X1
@@ -22,7 +23,8 @@ void timer_single_shot_s(uint64_t);
 extern uint64_t next_timer_shot;
 extern bool need_timer_shot;
 extern uint64_t tsc_when_trap_begin;
-extern uint64_t lapic_tccr_when_trap_begin;
+// extern uint64_t lapic_tccr_when_trap_begin;
+#define lapic_tccr_when_trap_begin (thiscpu->lapic_tccr)
 
 // #define DEFAULT_TIMER_INTERVAL ((uint64_t) 500000000000ll)
 #define DEFAULT_TIMER_INTERVAL ((uint64_t) 100000000)

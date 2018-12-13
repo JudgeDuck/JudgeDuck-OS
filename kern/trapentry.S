@@ -87,6 +87,8 @@
 	TRAPHANDLER_NOEC(trap_47, 47)
 
 	TRAPHANDLER_NOEC(trap_48, 48)
+	
+	TRAPHANDLER_NOEC(trap_251, 251)
 
 /*
  * Lab 3: Your code here for _alltraps

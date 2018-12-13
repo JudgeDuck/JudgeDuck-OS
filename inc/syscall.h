@@ -27,6 +27,7 @@ enum {
 	SYS_map_pci_device,
 	SYS_page_alloc_with_pa,
 	SYS_get_tsc_frequency,
+	SYS_send_ipi,
 	NSYSCALLS
 };
 

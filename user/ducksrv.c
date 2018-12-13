@@ -1,6 +1,9 @@
 #include <inc/lib.h>
 #include <ip-config.h>
 #include <ducknet.h>
+#include <inc/x86.h>
+
+uint64_t tsc_freq;
 
 // ==== duck e1000 driver ====
 
@@ -272,6 +275,10 @@ int network_try_receive(void *bufpage) {
 
 #define MAX_ELF_SIZE (20 * 1024 * 1024)
 
+unsigned * volatile start_signal;
+unsigned * volatile contestant_ready;
+unsigned * volatile contestant_done;
+
 static const char *trapname(int trapno) {
 	static const char * const excnames[] = {
 		"Divide error",
@@ -305,6 +312,33 @@ static const char *trapname(int trapno) {
 	return "(unknown trap)";
 }
 
+static void wait_or_kill(envid_t envid, int ms) {
+	const volatile struct Env *e;
+
+	assert(envid != 0);
+	e = &envs[ENVX(envid)];
+	uint64_t tsc_end = read_tsc() + tsc_freq / 1000 * ms;
+	int ok = 0;
+	while (read_tsc() < tsc_end) {
+		if (!(e->env_id == envid && e->env_status != ENV_FREE)) {
+			ok = 1;
+			break;
+		}
+		sys_yield();
+		
+		// Wait a small piece of time
+		uint64_t tsc_wait = read_tsc() + tsc_freq / 1000 * 10;
+		while (read_tsc() < tsc_wait);
+	}
+	if (!ok) {
+		sys_env_destroy(envid);
+		
+		// Wait 1s to make sure it is killed
+		uint64_t tsc_wait = read_tsc() + tsc_freq;
+		while (read_tsc() < tsc_wait);
+	}
+}
+
 #define MAXARGS 16
 
 static void run_arbiter(const char *judging_elf, const char *args) {
@@ -336,6 +370,11 @@ static void run_arbiter(const char *judging_elf, const char *args) {
 		exit();
 	}
 	
+	// Setup contestant signals
+	*start_signal = 0;
+	*contestant_ready = 0;
+	*contestant_done = 0;
+	
 	envid_t env = spawn_contestant_from_memory(judging_elf, (const char **) argv);
 	if (env < 0) {
 		panic("arbiter(): spawn contestant failed\n");
@@ -346,23 +385,62 @@ static void run_arbiter(const char *judging_elf, const char *args) {
 	
 	static struct JudgeResult res;
 	int ok = 0;
+	uint64_t tsc_deadline = read_tsc() + tsc_freq * 10;
 	
-	for (int id = 0; id < 5; id++) {
+	while (read_tsc() < tsc_deadline) {
 		int ret = sys_accept_enter_judge(env, &res);
 		if (ret == 0) {
 			ok = 1;
 			break;
 		}
-		for (int i = 0; i < 150 * 10; i++) sys_yield();
+		sys_yield();
 	}
 	
-	wait(env);
-	// Bug: What if the program fall into an infinity loop ...
-	
 	if (!ok) {
+		contestant_gg:
+		sys_env_destroy(env);
+		
+		// Wait 1s to make sure it is killed
+		uint64_t tsc_wait = read_tsc() + tsc_freq;
+		while (read_tsc() < tsc_wait);
+		
 		cprintf("arbiter(): failed since enter_judge() seems not called\n");
+		fprintf(fd, "verdict = Judge Failed\n");
+		fprintf(fd, "time_ms = 0\n");
+		fprintf(fd, "mem_kb = 0\n");
+		fprintf(fd, "\n");
 		fprintf(fd, "Judge Failed: enter_judge() seems not called\n");
 	} else {
+		uint64_t tsc_deadline = read_tsc() + tsc_freq * 5;
+		
+		// Wait contestant to get ready
+		while (*contestant_ready == 0 && read_tsc() < tsc_deadline);
+		if (!contestant_ready) goto contestant_gg;
+		
+		// Wait a small piece of time
+		for (int i = 0; i < 100000000; i++) __asm__ volatile("");
+		
+		// Send start signal
+		*start_signal = 1;
+		uint64_t tsc_start = read_tsc();
+		
+		// Wait contestant to finish
+		// It must finish even it dropped into kernel
+		while (*contestant_done == 0) __asm__ volatile("pause");
+		uint64_t tsc_done = read_tsc();
+		
+		// Kill contestant
+		sys_send_ipi(251);
+		
+		wait_or_kill(env, 5000);
+		
+		if (*contestant_done) {
+			res.time_cycles = tsc_done - tsc_start;
+			uint64_t time_secs = res.time_cycles / tsc_freq;
+			uint64_t time_frac = res.time_cycles % tsc_freq;
+			res.time_ns = time_secs * 1000000000ull + time_frac * 1000000000ull / tsc_freq;
+		}
+		
 		static const char *verdict_str[] = {
 			"Run Finished", "Time Limit Exceeded", "Runtime Error", "Illegal Syscall", "System Error", "Memory Limit Exceeded"
 		};
@@ -416,7 +494,7 @@ int ducksrv_state;
 #define STATE_RECV_OBJECT 3
 
 char *judge_pages;
-unsigned *first_page;
+unsigned *first_page;  // The 'idx=1' page
 unsigned *second_page;
 unsigned *input_pos;
 unsigned *input_len;
@@ -439,14 +517,17 @@ void ducksrv_init() {
 	cprintf("sys_map_judge_pages returns %d, expected %d\n", ret, JUDGE_PAGES_COUNT);
 	memset(judge_pages, 0, sizeof(judge_pages));
 	
-	first_page = (unsigned *) judge_pages;
+	first_page = (unsigned *) ((char *) judge_pages + PGSIZE);
 	second_page = first_page + PGSIZE / sizeof(unsigned);
 	input_pos = first_page;
 	input_len = first_page + 1;
+	start_signal = (unsigned * volatile) ((char *) judge_pages + 0x100);
+	contestant_ready = (unsigned * volatile) ((char *) judge_pages + 0x104);
+	contestant_done = (unsigned * volatile) ((char *) judge_pages + 0x108);
 	answer_pos = second_page;
 	answer_len = second_page + 1;
 	
-	judging_elf = judge_pages + PGSIZE * 2;
+	judging_elf = judge_pages + PGSIZE * 3;
 	
 	meta_start = judging_elf + MAX_ELF_SIZE;
 	filedata = (FileData *) meta_start;
@@ -719,8 +800,6 @@ void ducksrv_udp_packet_handle(char *s, int len) {
 }
 
 // ========
-
-uint64_t tsc_freq;
 
 int my_idle() {
 	return 0;

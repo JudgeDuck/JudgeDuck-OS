@@ -108,6 +108,8 @@ void trap_47();
 
 void trap_48();
 
+void trap_251();
+
 void
 trap_init(void)
 {
@@ -153,6 +155,9 @@ trap_init(void)
 	SETGATE(idt[47], 0, GD_KT, &trap_47, 0);
 	
 	SETGATE(idt[48], 0, GD_KT, &trap_48, 3);
+	
+	SETGATE(idt[251], 0, GD_KT, &trap_251, 3);  // for IPI
+	
 	// Per-CPU setup
 	trap_init_percpu();
 }
@@ -206,7 +211,7 @@ trap_init_percpu(void)
 
 void
 print_trapframe(struct Trapframe *tf)
-{
+{for (unsigned i = 1; i; i++) {__asm__ volatile("");}
 	cprintf("TRAP frame at %p from CPU %d\n", tf, cpunum());
 	print_regs(&tf->tf_regs);
 	cprintf("  es   0x----%04x\n", tf->tf_es);
@@ -317,6 +322,18 @@ trap_dispatch(struct Trapframe *tf)
 	if (tf->tf_trapno == IRQ_OFFSET + IRQ_SPURIOUS) {
 		// cprintf("Spurious interrupt on irq 7\n");
 		// print_trapframe(tf);
+		return;
+	}
+	
+	// Handle IPI
+	// Currently it is used for kill contestant processes
+	// TODO: extend its usage
+	if (tf->tf_trapno == T_IPI) {
+		lapic_eoi();
+		if (tf->tf_cs == GD_KT) return;
+		if (curenv && curenv->env_judging) {
+			finish_judge(VERDICT_OK);
+		}
 		return;
 	}
 

@@ -402,7 +402,7 @@ page_init(void)
 	
 	assert(MPENTRY_PADDR % PGSIZE == 0);
 	for(int i = npages - 1; i >= 0; i--)
-		if(i == 0 || (i * PGSIZE >= IOPHYSMEM && i * PGSIZE < EXTPHYSMEM + (64 << 20)) || i * PGSIZE == MPENTRY_PADDR)
+		if(i == 0 || ((uint32_t) i * PGSIZE >= IOPHYSMEM && (uint32_t) i * PGSIZE < EXTPHYSMEM + (64 << 20)) || i * PGSIZE == MPENTRY_PADDR)
 		{
 			pages[i].pp_ref = 233; // 233?
 		}

@@ -10,6 +10,14 @@
 void
 finish_judge(int verdict)
 {
+	// Tell arbiter I'm done
+	void *judge_page = (void *) page2pa(get_first_judge_page());
+	boot_map_region(curenv->env_pgdir, 0, PGSIZE, (uint32_t) judge_page, PTE_P | PTE_W);
+	lcr3(PADDR(curenv->env_pgdir));
+	invlpg(0);
+	unsigned * volatile contestant_done = (unsigned * volatile) 0x108;
+	*contestant_done = 1;
+	
 	struct Trapframe tf = curenv->env_tf;
 	curenv->env_judging = 0;
 	curenv->env_tf = curenv->env_judge_tf;

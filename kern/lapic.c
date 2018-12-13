@@ -10,6 +10,7 @@
 #include <kern/pmap.h>
 #include <kern/cpu.h>
 #include <kern/timer.h>
+#include <kern/time.h>
 
 // Local APIC registers, divided by 4 for use as uint32_t[] indices.
 #define ID      (0x0020/4)   // ID
@@ -159,6 +160,13 @@ lapic_eoi(void)
 static void
 microdelay(int us)
 {
+	uint64_t start = read_tsc();
+	uint64_t freq = get_tsc_frequency();
+	if (!freq) {
+		freq = 3000000000ull;  // ???
+	}
+	uint64_t end = start + freq / 1000000 * us;
+	while (read_tsc() < end);
 }
 
 #define IO_RTC  0x70
@@ -186,7 +194,7 @@ lapic_startap(uint8_t apicid, uint32_t addr)
 	lapicw(ICRLO, INIT | LEVEL | ASSERT);
 	microdelay(200);
 	lapicw(ICRLO, INIT | LEVEL);
-	microdelay(100);    // should be 10ms, but too slow in Bochs!
+	microdelay(10000);    // should be 10ms, but too slow in Bochs!
 
 	// Send startup IPI (twice!) to enter code.
 	// Regular hardware is supposed to only accept a STARTUP

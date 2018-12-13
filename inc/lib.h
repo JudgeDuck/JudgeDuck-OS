@@ -71,6 +71,7 @@ int sys_quit_judge();
 int sys_map_judge_pages(void *dst, unsigned offset, unsigned len);  // returns: how many pages actually mapped
 unsigned int sys_time_msec(void);
 int sys_set_tls_base(void *base);
+int sys_send_ipi(int vector);
 
 // PCI
 // TODO: lspci

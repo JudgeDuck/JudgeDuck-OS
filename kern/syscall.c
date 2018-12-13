@@ -486,24 +486,13 @@ sys_accept_enter_judge(envid_t envid, struct JudgeResult *res)
 	env->env_judge_waiting = 0;
 	env->env_judging = 1;
 	
-	// Set up %gs for TLS
-	// TODO: Do this in env_tf when trapframe supports %gs
-	asm volatile("movw %%ax, %%gs" : : "a" (GD_TLS | 3));
-	
 	unsigned sum = 0;
 	for(unsigned *i = (unsigned *) 0xf0000000; i < (unsigned *) 0xf1000000; i++)
 		sum ^= *i;
 	cprintf("magic checksum %08x\n", sum);
 	
-	judger_env->env_judge_res->time_ns = prm.ns;
-	res->time_cycles = -read_tsc();
-	
-	asm volatile("wbinvd\n");
-	for (register int i = 0; i < 100000000; i++) asm volatile("");
-	asm volatile("invd\n");
-	
-	timer_single_shot_ns(prm.ns);
-	env_run(env);
+	env->env_status = ENV_RUNNABLE;
+	env_run(curenv);
 	
 	// won't reach here
 	return 233;
@@ -577,6 +566,13 @@ static int
 sys_map_pci_device(uint32_t key1, uint32_t key2, void *base, int maxlen)
 {
 	return map_pci_device(key1, key2, base, maxlen);
+}
+
+static int
+sys_send_ipi(int vector)
+{
+	lapic_ipi(vector);
+	return 0;
 }
 
 static int
@@ -688,6 +684,8 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 		return sys_page_alloc_with_pa(a1, (void *) a2, a3, (uint32_t *) a4);
 	case SYS_get_tsc_frequency:
 		return sys_get_tsc_frequency((uint64_t *) a1);
+	case SYS_send_ipi:
+		return sys_send_ipi((int) a1);
 	default:
 		return -E_INVAL;
 	}

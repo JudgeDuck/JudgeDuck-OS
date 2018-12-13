@@ -566,12 +566,27 @@ env_run(struct Env *e)
 	//cprintf("check pdx %p %p\n", e->env_pgdir[PDX(UVPT)], e->env_pgdir);
 	lcr3(PADDR(e->env_pgdir));
 	
+	// Set up %gs for TLS
+	// TODO: Do this in env_tf when trapframe supports %gs
+	asm volatile("movw %%ax, %%gs" : : "a" (GD_TLS | 3));
+	
+	if (e->env_judging) {
+		asm volatile("wbinvd\n");
+		for (register int i = 0; i < 100000000; i++) asm volatile("");
+	}
+	
 	// cprintf("next = %lld\n", next_timer_shot);
 	// cprintf("env_run %x\n", e->env_id);
-	if(need_timer_shot)
+	if(need_timer_shot || e->env_judging)  // Run contestant without interrupts
 	{
 		need_timer_shot = 0;
-		lapic_timer_single_shot(next_timer_shot);
+		if (e->env_judging) {
+			// +0.2s for init
+			// TODO: use IPI
+			lapic_timer_single_shot(e->env_judge_prm.ns + (int) 1e9 / 5);
+		} else {
+			lapic_timer_single_shot(next_timer_shot);
+		}
 	}
 	
 	env_pop_tf(&e->env_tf);

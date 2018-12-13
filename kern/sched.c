@@ -46,7 +46,8 @@ sched_yield(void)
 			//cprintf("consider env_id %x status %d\n", ne->env_id, ne->env_status);
 			//print_trapframe(&ne->env_tf);
 		}
-		if(ne->env_status == ENV_RUNNABLE)
+		// TODO: No hard pinning
+		if(ne->env_status == ENV_RUNNABLE && (ne->env_id != 0x1001 || cpunum() == cpu_apic_id[0]))  // Pin ducksrv to cpu 0
 		{
 			timer_single_shot_ns(DEFAULT_TIMER_INTERVAL);
 			// ???
@@ -101,6 +102,7 @@ sched_halt(void)
 
 	// Release the big kernel lock as if we were "leaving" the kernel
 	unlock_kernel();
+	lapic_timer_single_shot(DEFAULT_TIMER_INTERVAL);
 
 	// Reset stack pointer, enable interrupts and then halt.
 	asm volatile (

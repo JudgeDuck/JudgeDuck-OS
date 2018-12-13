@@ -177,3 +177,9 @@ sys_get_tsc_frequency(uint64_t *freq_store)
 	return syscall(SYS_get_tsc_frequency, 0, (uint32_t) freq_store, 0, 0, 0, 0);
 }
 
+int
+sys_send_ipi(int vector)
+{
+	return syscall(SYS_send_ipi, 0, vector, 0, 0, 0, 0);
+}
+
