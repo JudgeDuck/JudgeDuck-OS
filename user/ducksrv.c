@@ -275,9 +275,9 @@ int network_try_receive(void *bufpage) {
 
 #define MAX_ELF_SIZE (20 * 1024 * 1024)
 
-unsigned * volatile start_signal;
-unsigned * volatile contestant_ready;
-unsigned * volatile contestant_done;
+volatile unsigned *start_signal;
+volatile unsigned *contestant_ready;
+volatile unsigned *contestant_done;
 
 static const char *trapname(int trapno) {
 	static const char * const excnames[] = {
@@ -532,9 +532,9 @@ void ducksrv_init() {
 	second_page = first_page + PGSIZE / sizeof(unsigned);
 	input_pos = first_page;
 	input_len = first_page + 1;
-	start_signal = (unsigned * volatile) ((char *) judge_pages + 0x100);
-	contestant_ready = (unsigned * volatile) ((char *) judge_pages + 0x104);
-	contestant_done = (unsigned * volatile) ((char *) judge_pages + 0x108);
+	start_signal = (volatile unsigned *) ((char *) judge_pages + 0x100);
+	contestant_ready = (volatile unsigned *) ((char *) judge_pages + 0x104);
+	contestant_done = (volatile unsigned *) ((char *) judge_pages + 0x108);
 	answer_pos = second_page;
 	answer_len = second_page + 1;
 	

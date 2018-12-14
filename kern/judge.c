@@ -15,7 +15,7 @@ finish_judge(int verdict)
 	boot_map_region(curenv->env_pgdir, 0, PGSIZE, (uint32_t) judge_page, PTE_P | PTE_W);
 	lcr3(PADDR(curenv->env_pgdir));
 	invlpg(0);
-	unsigned * volatile contestant_done = (unsigned * volatile) 0x108;
+	volatile unsigned *contestant_done = (volatile unsigned *) 0x108;
 	*contestant_done = 1;
 	
 	struct Trapframe tf = curenv->env_tf;
