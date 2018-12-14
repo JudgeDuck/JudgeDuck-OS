@@ -439,6 +439,18 @@ static void run_arbiter(const char *judging_elf, const char *args) {
 			uint64_t time_secs = res.time_cycles / tsc_freq;
 			uint64_t time_frac = res.time_cycles % tsc_freq;
 			res.time_ns = time_secs * 1000000000ull + time_frac * 1000000000ull / tsc_freq;
+		} else {
+			cprintf("gg contestant_done == 0 ??\n");
+			assert(0);
+		}
+		
+		const volatile struct Env *my_env;
+		my_env = &envs[ENVX(sys_getenvid())];
+		if (res.time_ns > my_env->env_judge_prm.ns) {
+			if (res.verdict == 0) {
+				res.verdict = VERDICT_TLE;
+			}
+			res.time_ns = my_env->env_judge_prm.ns;
 		}
 		
 		static const char *verdict_str[] = {
@@ -457,7 +469,6 @@ static void run_arbiter(const char *judging_elf, const char *args) {
 		cprintf("ARBITER: time_Mcycles = %d.%06d\n", (int) (res.time_cycles / 1000000), (int) (res.time_cycles % 1000000));
 		cprintf("ARBITER: time_ms = %d.%06d\n", (int) (res.time_ns / 1000000), (int) (res.time_ns % 1000000));
 		cprintf("ARBITER: mem_kb = %d\n", res.mem_kb);
-		fprintf(fd, "time_Mcycles = %d.%06d\n", (int) (res.time_cycles / 1000000), (int) (res.time_cycles % 1000000));
 		fprintf(fd, "time_ms = %d.%06d\n", (int) (res.time_ns / 1000000), (int) (res.time_ns % 1000000));
 		fprintf(fd, "mem_kb = %d\n", res.mem_kb);
 		
