@@ -425,7 +425,7 @@ static void run_arbiter(const char *judging_elf, const char *args) {
 		uint64_t tsc_start = read_tsc();
 		
 		// Wait contestant to finish
-		// It must finish even it dropped into kernel
+		// It must finish even if it dropped into kernel
 		while (*contestant_done == 0) __asm__ volatile("pause");
 		uint64_t tsc_done = read_tsc();
 		
