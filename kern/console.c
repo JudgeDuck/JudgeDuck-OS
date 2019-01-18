@@ -363,7 +363,7 @@ kbd_proc_data(void)
 	// Ctrl-Alt-Del: reboot
 	if (!(~shift & (CTL | ALT)) && c == KEY_DEL) {
 		cprintf("Rebooting!\n");
-		outb(0x92, 0x3); // courtesy of Chris Frost
+		outb(0x64, 0xfe); // courtesy of Chris Frost
 	}
 
 	return c;
