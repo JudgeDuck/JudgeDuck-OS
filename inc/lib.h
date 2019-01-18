@@ -72,6 +72,7 @@ int sys_map_judge_pages(void *dst, unsigned offset, unsigned len);  // returns: 
 unsigned int sys_time_msec(void);
 int sys_set_tls_base(void *base);
 int sys_send_ipi(int vector);
+int sys_reboot();
 
 // PCI
 // TODO: lspci

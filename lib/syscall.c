@@ -183,3 +183,9 @@ sys_send_ipi(int vector)
 	return syscall(SYS_send_ipi, 0, vector, 0, 0, 0, 0);
 }
 
+int
+sys_reboot()
+{
+	return syscall(SYS_reboot, 0, 0, 0, 0, 0, 0);
+}
+

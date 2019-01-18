@@ -28,6 +28,7 @@ enum {
 	SYS_page_alloc_with_pa,
 	SYS_get_tsc_frequency,
 	SYS_send_ipi,
+	SYS_reboot,
 	NSYSCALLS
 };
 

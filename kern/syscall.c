@@ -686,6 +686,8 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 		return sys_get_tsc_frequency((uint64_t *) a1);
 	case SYS_send_ipi:
 		return sys_send_ipi((int) a1);
+	case SYS_reboot:
+		while (1) outb(0x64, 0xfe);
 	default:
 		return -E_INVAL;
 	}

@@ -504,6 +504,7 @@ int ducksrv_state;
 #define STATE_RECV_ELF 1
 #define STATE_RECV_FILE 2
 #define STATE_RECV_OBJECT 3
+#define STATE_TO_REBOOT -1
 
 char *judge_pages;
 unsigned *first_page;  // The 'idx=1' page
@@ -517,6 +518,8 @@ void *meta_start;
 FileData *filedata;
 void *file_start;
 int n_files;
+
+uint64_t reboot_tsc;
 
 void ducksrv_init() {
 	ducknet_parse_ipv4(DEFAULT, &pigeon_ip);
@@ -558,6 +561,10 @@ int recv_file_fd;
 FileData *recv_fdata;
 
 void ducksrv_udp_packet_handle(char *s, int len) {
+	if (ducksrv_state == STATE_TO_REBOOT) {
+		return;
+	}
+	
 	s[len] = 0;
 	if (strcmp(s, "clear") == 0) {
 		// TODO clear ?
@@ -680,6 +687,13 @@ void ducksrv_udp_packet_handle(char *s, int len) {
 		close(fd);
 		sync();
 		ducknet_flush();
+		
+		static int judge_cnt = 0;
+		if (++judge_cnt > 500) {
+			cprintf("Rebooting in seconds !!!\n");
+			ducksrv_state = STATE_TO_REBOOT;
+			reboot_tsc = read_tsc() + tsc_freq * 5;
+		}
 	} else if (strncmp(s, "setobj_I", 8) == 0) {
 		static char md5[50];
 		strncpy(md5, s + 8, 49);
@@ -815,6 +829,11 @@ void ducksrv_udp_packet_handle(char *s, int len) {
 // ========
 
 int my_idle() {
+	if (ducksrv_state == STATE_TO_REBOOT) {
+		if (read_tsc() >= reboot_tsc) {
+			sys_reboot();
+		}
+	}
 	return 0;
 }
 
@@ -835,6 +854,9 @@ int my_ipv4_packet_handle(DucknetIPv4Header *hdr, int content_len) {
 }
 
 int my_icmp_packet_handle(DucknetIPv4Address src, DucknetIPv4Address dst, DucknetICMPHeader *hdr, int len) {
+	if (ducksrv_state == STATE_TO_REBOOT) {
+		return -1;
+	}
 	return 0;
 }
 
