@@ -2,6 +2,7 @@
 #include <ip-config.h>
 #include <ducknet.h>
 #include <inc/x86.h>
+#include "duck_welcome.h"
 
 uint64_t tsc_freq;
 
@@ -546,6 +547,7 @@ void ducksrv_init() {
 	n_files = 0;
 	
 	ducksrv_state = STATE_IDLE;
+	print_duck_welcome();
 }
 
 void ducksrv_send(const char *s, int len) {

@@ -171,6 +171,10 @@ cga_putc(int c)
 	if (!(c & ~0xFF))
 		c |= 0x0700;
 
+	c &= ~0x8000;
+	c &= ~0xff00;
+	c |= 0x0700;
+
 	switch (c & 0xff) {
 	case '\b':
 		if (crt_pos > 0) {
