@@ -474,7 +474,7 @@ static void run_arbiter(const char *judging_elf, const char *args) {
 		fprintf(fd, "mem_kb = %d\n", res.mem_kb);
 		
 		int fd_in = open("arbiter.in", O_RDWR);
-		static char buf[256];
+		static char buf[2048];
 		int r = read(fd_in, buf, sizeof(buf));
 		if (r > 0) write(fd, buf, r);
 		close(fd_in);
