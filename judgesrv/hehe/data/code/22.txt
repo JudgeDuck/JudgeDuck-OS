@@ -1,4 +1,0 @@
-#pragma GCC diagnostic ignored "-Wreturn-type"
-int plus(int a, int b) {
-    asm volatile("leal (%0,%1), %%eax" : : "r"(b),"r"(a));
-}

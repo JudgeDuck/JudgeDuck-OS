@@ -1,7 +1,0 @@
-compiling...
-compile success!
-verdict = Time Limit Exceeded
-time_Mcycles = 17000.004836
-time_ms = 5000.000000
-mem_kb = 4
-Wrong Answer at 0

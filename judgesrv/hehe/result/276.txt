@@ -1,8 +1,0 @@
-compiling...
-compile success!
-verdict = Runtime Error
-runtime error 14 (Page Fault)
-time_Mcycles = 1675.995304
-time_ms = 492.939520
-mem_kb = 78132
-Wrong Answer at 0

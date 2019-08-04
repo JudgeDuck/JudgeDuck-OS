@@ -1,5 +1,0 @@
-int plus(int a, int b)
-{
-    asm volatile("addl %1,%0;" : "+r"(a) : "r"(b) :"cc");
-    return a;
-}

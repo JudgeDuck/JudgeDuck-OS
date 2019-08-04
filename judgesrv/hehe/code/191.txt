@@ -1,6 +1,0 @@
-////// Author: catch me if you can
-#include <inc/lib.h>
-void sort(unsigned *a, int n){
-while(1);
-
-}

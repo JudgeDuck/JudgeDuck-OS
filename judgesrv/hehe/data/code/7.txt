@@ -1,5 +1,0 @@
-int plus(int a, int b)
-{
-asm("addl %1,%0;":"=r"(a):"r"(b));
-return a;
-}

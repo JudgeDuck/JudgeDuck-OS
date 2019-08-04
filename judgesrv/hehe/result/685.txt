@@ -1,7 +1,0 @@
-compiling...
-compile success!
-verdict = Run Finished
-time_Mcycles = 6733.656432
-time_ms = 1980.486400
-mem_kb = 39068
-Correct Answer!

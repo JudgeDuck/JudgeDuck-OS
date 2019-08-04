@@ -1,2 +1,0 @@
-////// Author: hhh
-while(1);

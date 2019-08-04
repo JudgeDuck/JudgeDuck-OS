@@ -1,4 +1,0 @@
-name 元旦激光炮·改
-description n=1e7
-time_limit 1
-memory_limit 32

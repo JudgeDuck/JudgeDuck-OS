@@ -1,4 +1,0 @@
-int binary_search(const unsigned *a, int n, unsigned x)
-{
-	return 233;
-}

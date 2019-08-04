@@ -1,3 +1,0 @@
-compiling...
-compile success!
-Correct Answer!

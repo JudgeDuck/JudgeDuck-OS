@@ -1,7 +1,0 @@
-int plus(int a, int b)
-{
-int x = 0;
-for (int i = 1; i <= 100000; ++ i)
- x *= 10;
-	return a + b;
-}

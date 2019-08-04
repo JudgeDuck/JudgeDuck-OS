@@ -1,5 +1,0 @@
-int plus(int a, int b)
-{
-for(int i = 0; i < 100; i++) asm volatile("");
-	return a + b;
-}
