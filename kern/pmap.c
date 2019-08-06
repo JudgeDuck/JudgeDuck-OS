@@ -12,6 +12,8 @@
 #include <kern/env.h>
 #include <kern/cpu.h>
 
+#include "mem-config.h"
+
 // These variables are set by i386_detect_memory()
 size_t npages;			// Amount of physical memory (in pages)
 static size_t npages_basemem;	// Amount of base memory (in pages)
@@ -100,7 +102,7 @@ i386_detect_memory(void)
 	else
 		totalmem = basemem;
 	
-	int max = (4096 << 10);
+	int max = MAX_SYSTEM_MEMORY;  // GG!!!
 	if(totalmem > max)
 		totalmem = max;
 

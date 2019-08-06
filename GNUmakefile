@@ -93,6 +93,7 @@ CFLAGS += -Wall -Wno-format -Wno-unused -Werror -m32
 #CFLAGS += -Wno-aggressive-loop-optimizations
 CFLAGS += -Wno-array-bounds
 CFLAGS += -Wno-strict-aliasing
+CFLAGS += -fno-PIC  # gg for new GCCs
 # -fno-tree-ch prevented gcc from sometimes reordering read_ebp() before
 # mon_backtrace()'s function prologue on gcc version: (Debian 4.7.2-5) 4.7.2
 #CFLAGS += -fno-tree-ch
@@ -164,8 +165,7 @@ IMAGES = $(OBJDIR)/kern/kernel.img
 QEMUOPTS += -smp $(CPUS)
 QEMUOPTS += -drive file=$(OBJDIR)/fs/fs.img,index=1,media=disk,format=raw
 IMAGES += $(OBJDIR)/fs/fs.img
-QEMUOPTS += -net user -net nic,model=e1000 -redir tcp:$(PORT7)::7 \
-	   -redir tcp:$(PORT80)::80 -redir udp:$(PORT80)::80 -redir udp:$(PORT7)::7 -net dump,file=qemu.pcap
+QEMUOPTS += -net user -net nic,model=e1000 -net dump,file=qemu.pcap
 QEMUOPTS += $(QEMUEXTRA)
 
 .gdbinit: .gdbinit.tmpl
@@ -200,7 +200,10 @@ qemu-nox-gdb: $(IMAGES) pre-qemu
 	$(QEMU) -nographic $(QEMUOPTS) -S
 
 qemu-jd: $(IMAGES) pre-qemu
-	$(QEMU) -smp $(CPUS) -netdev tap,id=mynet0 -device e1000,netdev=mynet0 -redir udp:23333::23333 -nographic -m 2000M -drive file=obj/kern/kernel.img,index=0,media=disk,format=raw -serial mon:stdio -gdb tcp::26000 -D qemu.log -drive file=obj/fs/fs.img,index=1,media=disk,format=raw
+	$(QEMU) -smp $(CPUS) -netdev tap,id=mynet0 -device e1000,netdev=mynet0 -nographic -m 2000M -drive file=obj/kern/kernel.img,index=0,media=disk,format=raw -serial mon:stdio -gdb tcp::26000 -D qemu.log -drive file=obj/fs/fs.img,index=1,media=disk,format=raw
+
+qemu-jd1: $(IMAGES) pre-qemu
+	$(QEMU) -smp $(CPUS) -net nic,model=e1000 -nographic -m 2000M -drive file=obj/kern/kernel.img,index=0,media=disk,format=raw -serial mon:stdio -gdb tcp::26000 -D qemu.log -drive file=obj/fs/fs.img,index=1,media=disk,format=raw
 
 print-qemu:
 	@echo $(QEMU)

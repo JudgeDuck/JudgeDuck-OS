@@ -261,4 +261,11 @@ xchg(volatile uint32_t *addr, uint32_t newval)
 	return result;
 }
 
+static inline void triple_fault() {
+	uint32_t a[2];
+	a[0] = a[1] = 0;
+	lidt(a);
+	breakpoint();
+}
+
 #endif /* !JOS_INC_X86_H */

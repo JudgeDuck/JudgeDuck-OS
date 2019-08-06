@@ -7,7 +7,7 @@ FSOFILES := 		$(OBJDIR)/fs/ide.o \
 			$(OBJDIR)/fs/serv.o \
 			$(OBJDIR)/fs/test.o \
 
-USERAPPS := 		$(OBJDIR)/user/init
+USERAPPS := 		
 
 FSIMGTXTFILES :=	fs/newmotd \
 			fs/motd
@@ -15,33 +15,6 @@ FSIMGTXTFILES :=	fs/newmotd \
 FSIMGTXTFILES :=	$(FSIMGTXTFILES) \
 			fs/index.html
 
-USERAPPS :=		$(USERAPPS) \
-			$(OBJDIR)/user/cat \
-			$(OBJDIR)/user/echo \
-			$(OBJDIR)/user/init \
-			$(OBJDIR)/user/ls \
-			$(OBJDIR)/user/lsfd \
-			$(OBJDIR)/user/num \
-			$(OBJDIR)/user/forktree \
-			$(OBJDIR)/user/primes \
-			$(OBJDIR)/user/primespipe \
-			$(OBJDIR)/user/sh \
-			$(OBJDIR)/user/spin \
-			$(OBJDIR)/user/testfdsharing \
-			$(OBJDIR)/user/testkbd \
-			$(OBJDIR)/user/testpipe \
-			$(OBJDIR)/user/testpteshare \
-			$(OBJDIR)/user/testshell \
-			$(OBJDIR)/user/hello \
-			$(OBJDIR)/user/faultio \
-			$(OBJDIR)/user/arbiter \
-			$(OBJDIR)/user/bubble \
-			$(OBJDIR)/user/bubble_dirty \
-			$(OBJDIR)/user/quick \
-			$(OBJDIR)/user/select \
-			$(OBJDIR)/user/tf \
-			$(OBJDIR)/user/bh \
-			$(OBJDIR)/user/idle \
 
 FSIMGTXTFILES :=	$(FSIMGTXTFILES) \
 			fs/lorem \

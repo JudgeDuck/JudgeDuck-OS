@@ -82,6 +82,24 @@ sm_init_part1()
 	sm_table_end = (struct SMBIOSHeader *) (entry->TableAddress + entry->TableLength);
 }
 
+static int get_tsc_clock_ratio(uint32_t *a, uint32_t *b) {
+	uint32_t _a, _b, _c, _d;
+	cpuid(0x15, &_a, &_b, &_c, &_d);
+	if (_b == 0) {
+		return -1;
+	} else {
+		*a = _b;
+		*b = _a;
+		return 0;
+	}
+}
+
+static uint32_t get_base_freq() {
+	uint32_t _a, _b, _c, _d;
+	cpuid(0x16, &_a, &_b, &_c, &_d);
+	return _a;
+}
+
 void
 sm_init_part2()
 {
@@ -105,6 +123,20 @@ sm_init_part2()
 		cprintf("cur speed = %u\n", cur_speed);
 		external_clock_frequency = *(unsigned short *) ((void *) head + 0x12);
 		cprintf("detected ext clock freq = %d MHz\n", external_clock_frequency);
+		
+		uint32_t base_freq;
+		uint32_t tsc_clock_ratio_a, tsc_clock_ratio_b;
+		base_freq = get_base_freq();
+		if (get_tsc_clock_ratio(&tsc_clock_ratio_a, &tsc_clock_ratio_b) < 0) {
+			panic("gg get tsc clock ratio failed\n");
+		}
+		cprintf("base_freq = %u MHz, TSC/clock = %u/%u\n", base_freq, tsc_clock_ratio_a, tsc_clock_ratio_b);
+		
+		if (base_freq != 0) {
+			external_clock_frequency = 1ull * base_freq * tsc_clock_ratio_b / tsc_clock_ratio_a;
+			cur_speed = base_freq;
+		}
+		
 		if (cur_speed != 0) {
 			set_tsc_frequency(cur_speed * 1000000ull);
 		}

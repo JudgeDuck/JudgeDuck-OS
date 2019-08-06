@@ -50,64 +50,11 @@ KERN_SRCFILES +=	kern/e100.c \
 # Only build files if they exist.
 KERN_SRCFILES := $(wildcard $(KERN_SRCFILES))
 
-# Binary program images to embed within the kernel.
-# Binary files for LAB3
-KERN_BINFILES :=	user/hello \
-			user/buggyhello \
-			user/buggyhello2 \
-			user/evilhello \
-			user/testbss \
-			user/divzero \
-			user/breakpoint \
-			user/softint \
-			user/badsegment \
-			user/faultread \
-			user/faultreadkernel \
-			user/faultwrite \
-			user/faultwritekernel
-
 # Binary files for LAB4
-KERN_BINFILES +=	user/idle \
-			user/yield \
-			user/dumbfork \
-			user/stresssched \
-			user/faultdie \
-			user/faultregs \
-			user/faultalloc \
-			user/faultallocbad \
-			user/faultnostack \
-			user/tf \
-			user/faultbadhandler \
-			user/faultevilhandler \
-			user/forktree \
-			user/sendpage \
-			user/spin \
-			user/fairness \
-			user/pingpong \
-			user/pingpongs \
-			user/bh \
-			user/ducksrv \
-			user/primes
-# Binary files for LAB5
-KERN_BINFILES +=	user/faultio\
-	      		user/spawnfaultio\
-	      		user/testfile \
-			user/spawnhello \
-			user/icode \
-			fs/fs
-
-# Binary files for LAB6
-KERN_BINFILES +=	user/testtime \
+KERN_BINFILES +=	user/ducksrv 
 
 # Binary files for LAB5
-KERN_BINFILES +=	user/testpteshare \
-			user/testfdsharing \
-			user/testpipe \
-			user/testpiperace \
-			user/testpiperace2 \
-			user/primespipe \
-			user/testkbd \
-			user/testshell
+KERN_BINFILES +=	fs/fs
 
 KERN_OBJFILES := $(patsubst %.c, $(OBJDIR)/%.o, $(KERN_SRCFILES))
 KERN_OBJFILES := $(patsubst %.S, $(OBJDIR)/%.o, $(KERN_OBJFILES))

@@ -143,7 +143,10 @@ monitor(struct Trapframe *tf)
 	while (1) {
 		cprintf("GG, reboot\n");
 		for(int j = 0; j < 10; j++) for(unsigned i = 1; i; i++) asm volatile("");
-		outb(0x64, 0xfe);
+		triple_fault();
+		// uint8_t good = 0x02;
+		// while (good & 0x02) good = inb(0x64);
+		// outb(0x64, 0xfe);
 		buf = readline("K> ");
 		if (buf != NULL)
 			if (runcmd(buf, tf) < 0)

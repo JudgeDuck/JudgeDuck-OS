@@ -22,4 +22,5 @@ judge-duck-service/
 /ducks.txt
 /arp-bind.sh
 /ducks-config.txt
+/mem-config.h
 

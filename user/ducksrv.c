@@ -566,6 +566,10 @@ void ducksrv_udp_packet_handle(char *s, int len) {
 	}
 	
 	s[len] = 0;
+	if (strcmp(s, "reboot") == 0) {
+		__asm__ volatile("int3");  // ???
+		return;
+	}
 	if (strcmp(s, "clear") == 0) {
 		// TODO clear ?
 		if (ducksrv_state == STATE_RECV_FILE) {

@@ -2,6 +2,10 @@
 
 import subprocess
 
+PREFIX = "192.168.2."
+MASK = "255.255.255.0"
+PIGEON = "192.168.2.104"
+
 def read_file(name, fallback = ""):
 	try:
 		f = open(name, "r")
@@ -34,7 +38,7 @@ last_ip_addr = 50
 def get_next_ip():
 	global last_ip_addr
 	last_ip_addr += 1
-	return "10.0.2.%s" % last_ip_addr
+	return "%s%s" % (PREFIX, last_ip_addr)
 
 last_port = 20800
 
@@ -61,8 +65,8 @@ for MAC in MACs:
 
 	ip_str = get_next_ip()
 	ip = '"%s"' % ip_str
-	mask = '"255.255.255.0"'
-	default = '"10.0.2.2"'
+	mask = '"%s"' % MASK
+	default = '"%s"' % PIGEON
 	pigeon_port = get_next_port()
 
 	content = "\n".join([
