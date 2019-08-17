@@ -6,6 +6,11 @@
 
 uint64_t tsc_freq;
 
+inline static void microdelay(uint64_t us) {
+	uint64_t tsc_target = read_tsc() + us * (tsc_freq / 1000000);
+	while ((long long) (read_tsc() - tsc_target) < 0ll);  // prevent overflow
+}
+
 // ==== duck e1000 driver ====
 
 struct TransDesc {
@@ -30,7 +35,7 @@ struct RecvDesc {
 #define TQ_FLUSH_COUNT 32
 #define RQ_FLUSH_COUNT 128
 
-#define RQ_DESC_PAGE_COUNT 10
+#define RQ_DESC_PAGE_COUNT 1
 
 #define TQSIZE ((PGSIZE) / sizeof(struct TransDesc))
 #define RQSIZE ((PGSIZE * RQ_DESC_PAGE_COUNT) / sizeof(struct RecvDesc))
@@ -127,8 +132,28 @@ int e1000_init(unsigned maxMTA) {
 	last_tq_page_id = 0;
 	last_tq_page_offset = 0;
 	
+	// try reset
+	*(volatile uint32_t *) (e1000 + 0xd8) = 0xffffffff;
+	uint32_t ctrl = *(volatile uint32_t *) (e1000 + 0x0);
+	*(volatile uint32_t *) (e1000 + 0x0) = ctrl | 0x04000000;
+	microdelay(1);
+	*(volatile uint32_t *) (e1000 + 0xd8) = 0xffffffff;
+	
+	// try phy reset
+	ctrl = *(volatile uint32_t *) (e1000 + 0x0);
+	*(volatile uint32_t *) (e1000 + 0x0) = ctrl | 0x80000000;
+	microdelay(10000);
+	*(volatile uint32_t *) (e1000 + 0x0) = ctrl;
+	
 	// CTRL: force 1Gbps duplex
 	*(volatile uint32_t *) (e1000 + 0x0) = (1u << 0) | (0u << 5) | (1u << 6) | (2u << 8) | (1u << 11) | (1u << 12);
+	
+	cprintf("e1000: waiting for link ...\n");
+	while (1) {
+		if ((*(volatile uint32_t *) (e1000 + 0x8)) & 0x2) break;  // link up
+		microdelay(100000);
+	}
+	cprintf("e1000: link up\n");
 	
 	uint32_t tdbal = tq_pa;
 	*(volatile uint32_t *) (e1000 + 0x3800) = tdbal;      // TDBAL
@@ -158,9 +183,12 @@ int e1000_init(unsigned maxMTA) {
 	uint32_t rah = RAH | (1u << 31);
 	*(volatile uint32_t *) (e1000 + 0x5404) = rah;        // RAH
 	
-	for (unsigned i = 0x5200; i < maxMTA; i++) {
-		e1000[i] = 0;                         // MTA
+	for (unsigned i = 0x5200; i < maxMTA; i += 4) {
+		*(volatile uint32_t *)(e1000 + i) = 0;                         // MTA
 	}
+	
+	*(volatile uint32_t *) (e1000 + 0xd8) = 0xffffffff;            // IMC
+	*(volatile uint32_t *) (e1000 + 0xc0);  // read ICR
 	
 	*(volatile uint32_t *) (e1000 + 0xd0) = 0;            // IMS
 	uint32_t rdbal = rq_pa;
@@ -174,7 +202,9 @@ int e1000_init(unsigned maxMTA) {
 	e1000_rdt_real = e1000_rdt;
 	
 	// RXDCTL: GRAN=1 | WTHRESH=4 | HTHRESH=4 | PTHRESH=0x20
+	/* not working on I219-V
 	*(volatile uint32_t *) (e1000 + 0x2828) = (1u << 24) | (4u << 16) | (4u << 8) | 0x20;
+	*/
 	
 	// RCTL: EN | BAM | BSIZE=2048 | BSEX=0 | SECRC=1
 	uint32_t rctl = (1 << 1) | (1 << 15) | (0 << 16) | (0 << 25) | (1 << 26);
@@ -190,6 +220,7 @@ int network_init() {
 		{0x8086, 0x15a3, 0x5280},  // e1000e
 		{0x8086, 0x10d3, 0x5280},  // e1000e
 		{0x8086, 0x100e, 0x5400},  // e1000
+		{0x8086, 0x15bc, 0x5400},  // I219-V
 		{0, 0, 0}
 	};
 	

@@ -57,6 +57,7 @@ struct pci_driver pci_attach_vendor[] = {
 	{0x8086, 0x15a3, &pci_store},  // e1000e
 	{0x8086, 0x10d3, &pci_store},  // e1000e
 	{0x8086, 0x100e, &pci_store},  // e1000
+	{0x8086, 0x15bc, &pci_store},  // I219-V
 	// {0x10ec, 0x8168, &e1000_attach},
 	{ 0, 0, 0 },
 };
