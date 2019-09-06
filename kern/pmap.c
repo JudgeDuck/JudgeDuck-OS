@@ -105,6 +105,9 @@ i386_detect_memory(void)
 	int max = MAX_SYSTEM_MEMORY;  // GG!!!
 	if(totalmem > max)
 		totalmem = max;
+	#ifdef FIXED_SYSTEM_MEMORY
+	totalmem = FIXED_SYSTEM_MEMORY;
+	#endif
 
 	npages = totalmem / (PGSIZE / 1024);
 	npages_basemem = basemem / (PGSIZE / 1024);
