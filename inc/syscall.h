@@ -8,6 +8,7 @@ enum {
 	SYS_getenvid,
 	SYS_env_destroy,
 	SYS_page_alloc,
+	SYS_page_alloc_range,
 	SYS_page_map,
 	SYS_page_unmap,
 	SYS_exofork,

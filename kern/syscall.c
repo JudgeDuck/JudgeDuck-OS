@@ -18,6 +18,9 @@
 #include <kern/e1000.h>
 #include <kern/timer.h>
 
+// For sys_page_alloc_range
+static int sys_page_unmap(envid_t envid, void *va);
+
 // Print a string to the system console.
 // The string is exactly 'len' characters long.
 // Destroys the environment on memory errors.
@@ -236,6 +239,29 @@ sys_page_alloc(envid_t envid, void *va, int perm)
 	//cprintf("alloc\n");
 	return 0;
 	//panic("sys_page_alloc not implemented");
+}
+
+// Alloc pages in [va_start, va_end)
+// Atomic operation: all or none
+static int
+sys_page_alloc_range(envid_t envid, void *va_start, void *va_end, int perm)
+{
+	int r = 0;
+	char *p;
+	for (p = (char *) va_start; p != (char *) va_end; p += PGSIZE) {
+		r = sys_page_alloc(envid, (void *) p, perm);
+		if (r < 0) break;
+	}
+	
+	if (r < 0) {
+		while (p != (char *) va_start) {
+			p -= PGSIZE;
+			sys_page_unmap(envid, (void *) p);
+		}
+		return r;
+	} else {
+		return 0;
+	}
 }
 
 // Map the page of memory at 'srcva' in srcenvid's address space
@@ -647,6 +673,8 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 		return 0;
 	case SYS_page_alloc:
 		return sys_page_alloc(a1, (void *) a2, a3);
+	case SYS_page_alloc_range:
+		return sys_page_alloc_range(a1, (void *) a2, (void *) a3, a4);
 	case SYS_page_map:
 		return sys_page_map(a1, (void *) a2, a3, (void *) a4, a5);
 	case SYS_page_unmap:
