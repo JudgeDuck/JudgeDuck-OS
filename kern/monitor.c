@@ -142,7 +142,7 @@ monitor(struct Trapframe *tf)
 
 	while (1) {
 		cprintf("GG, reboot\n");
-		for(int j = 0; j < 10; j++) for(unsigned i = 1; i; i++) asm volatile("");
+		for(int j = 0; j < 5; j++) for(unsigned i = 1; i; i++) asm volatile("");
 		triple_fault();
 		// uint8_t good = 0x02;
 		// while (good & 0x02) good = inb(0x64);
