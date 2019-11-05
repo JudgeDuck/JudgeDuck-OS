@@ -282,7 +282,7 @@ trap_dispatch(struct Trapframe *tf)
 	}
 	else if(tf->tf_trapno == T_SYSCALL)
 	{
-		if(curenv && curenv->env_judging && !curenv->env_judge_prm.syscall_enabled[tf->tf_regs.reg_eax])
+		if(curenv && curenv->env_judging && ((unsigned) NSYSCALLS <= tf->tf_regs.reg_eax || !curenv->env_judge_prm.syscall_enabled[tf->tf_regs.reg_eax]))
 			finish_judge(VERDICT_IS);
 		tf->tf_regs.reg_eax = syscall(
 			tf->tf_regs.reg_eax, tf->tf_regs.reg_edx, tf->tf_regs.reg_ecx,
