@@ -410,8 +410,14 @@ static void run_arbiter(const char *judging_elf, const char *args) {
 	
 	envid_t env = spawn_contestant_from_memory(judging_elf, (const char **) argv);
 	if (env < 0) {
-		panic("arbiter(): spawn contestant failed\n");
-		exit();
+		cprintf("arbiter(): spawn contestant failed\n");
+		fprintf(fd, "verdict = Runtime Error\n");
+		fprintf(fd, "time_ms = 0\n");
+		fprintf(fd, "mem_kb = 0\n");
+		fprintf(fd, "\n");
+		fprintf(fd, "Runtime Error: spawn failed\n");
+		close(fd);
+		return;
 	}
 	
 	sys_yield();
