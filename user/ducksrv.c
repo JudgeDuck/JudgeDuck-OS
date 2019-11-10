@@ -544,6 +544,9 @@ int ducksrv_state;
 #define STATE_RECV_OBJECT 3
 #define STATE_TO_REBOOT -1
 
+#define MAX_STDOUT_SIZE (64 * 1024 * 1024)
+#define MAX_STDOUT_QUERY_LEN 1450
+
 char *judge_pages;
 unsigned *first_page;  // The 'idx=1' page
 unsigned *second_page;
@@ -551,6 +554,10 @@ unsigned *input_pos;
 unsigned *input_len;
 unsigned *answer_pos;
 unsigned *answer_len;
+char *contestant_stdout_metadata;
+volatile unsigned *contestant_stdout_len;
+char *contestant_stdout_content;
+char *contestant_stdout_limit;
 char *judging_elf;
 void *meta_start;
 FileData *filedata;
@@ -558,6 +565,14 @@ void *file_start;
 int n_files;
 
 uint64_t reboot_tsc;
+
+inline unsigned get_contestant_stdout_len() {
+	unsigned len = *contestant_stdout_len;
+	if (len > MAX_STDOUT_SIZE) {
+		len = MAX_STDOUT_SIZE;
+	}
+	return len;
+}
 
 void ducksrv_init() {
 	ducknet_parse_ipv4(DEFAULT, &pigeon_ip);
@@ -568,7 +583,7 @@ void ducksrv_init() {
 	
 	int ret = sys_map_judge_pages(judge_pages, 0, JUDGE_PAGES_SIZE);
 	cprintf("sys_map_judge_pages returns %d, expected %d\n", ret, JUDGE_PAGES_COUNT);
-	memset(judge_pages, 0, sizeof(judge_pages));
+	memset(judge_pages, 0, JUDGE_PAGES_SIZE);
 	
 	first_page = (unsigned *) ((char *) judge_pages + PGSIZE);
 	second_page = first_page + PGSIZE / sizeof(unsigned);
@@ -580,7 +595,12 @@ void ducksrv_init() {
 	answer_pos = second_page;
 	answer_len = second_page + 1;
 	
-	judging_elf = judge_pages + PGSIZE * 3;
+	contestant_stdout_metadata = judge_pages + PGSIZE * 3;
+	contestant_stdout_len = (volatile unsigned *) contestant_stdout_metadata;
+	contestant_stdout_content = contestant_stdout_metadata + PGSIZE;
+	contestant_stdout_limit = contestant_stdout_content + MAX_STDOUT_SIZE;
+	
+	judging_elf = contestant_stdout_limit;
 	
 	meta_start = judging_elf + MAX_ELF_SIZE;
 	filedata = (FileData *) meta_start;
@@ -729,13 +749,45 @@ void ducksrv_udp_packet_handle(char *s, int len) {
 		close(fd);
 		sync();
 		ducknet_flush();
-		
+	} else if (strcmp(s, "done") == 0) {
 		static int judge_cnt = 0;
 		if (++judge_cnt > 500) {
 			cprintf("Rebooting in seconds !!!\n");
 			ducksrv_state = STATE_TO_REBOOT;
 			reboot_tsc = read_tsc() + tsc_freq * 5;
 		}
+	} else if (strcmp(s, "stdout-query") == 0) {
+		// query stdout metadata (length)
+		memcpy(s, "slen", 4);
+		unsigned stdout_len = get_contestant_stdout_len();
+		memcpy(s + 4, &stdout_len, 4);
+		ducksrv_send(s, 8);
+		ducknet_flush();
+	} else if (strncmp(s, "stdout-get", 10) == 0) {
+		// get stdout content
+		// "stdout-get" <off> <len>
+		if (len < 10 + 4 + 4) {
+			return;
+		}
+		
+		unsigned stdout_len = get_contestant_stdout_len();
+		unsigned query_off, query_len;
+		memcpy(&query_off, s + 10, 4);
+		memcpy(&query_len, s + 14, 4);
+		
+		if (query_off > stdout_len) {
+			return;
+		}
+		if (query_len > MAX_STDOUT_QUERY_LEN || query_off + query_len > stdout_len) {
+			return;
+		}
+		
+		// "s content " <off> <len> <content>
+		memcpy(s, "s content ", 10);
+		// off & len already in packet
+		memcpy(s + 18, contestant_stdout_content + query_off, query_len);
+		
+		ducksrv_send(s, 18 + query_len);
 	} else if (strncmp(s, "setobj_I", 8) == 0) {
 		static char md5[50];
 		strncpy(md5, s + 8, 49);
