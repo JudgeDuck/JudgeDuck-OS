@@ -3,6 +3,7 @@
 #include <ducknet.h>
 #include <inc/x86.h>
 #include "duck_welcome.h"
+#include "duck_measurements.h"
 
 uint64_t tsc_freq;
 
@@ -10,6 +11,8 @@ inline static void microdelay(uint64_t us) {
 	uint64_t tsc_target = read_tsc() + us * (tsc_freq / 1000000);
 	while ((long long) (read_tsc() - tsc_target) < 0ll);  // prevent overflow
 }
+
+uint32_t metrics[3];
 
 // ==== duck e1000 driver ====
 
@@ -615,10 +618,14 @@ void ducksrv_send(const char *s, int len) {
 	ducknet_udp_send(pigeon_ip, pigeon_port, duck_port, s, len);
 }
 
+void ducksrv_send_with_port(const char *s, int len, uint16_t port) {
+	ducknet_udp_send(pigeon_ip, port, duck_port, s, len);
+}
+
 int recv_file_fd;
 FileData *recv_fdata;
 
-void ducksrv_udp_packet_handle(char *s, int len) {
+void ducksrv_udp_packet_handle(char *s, int len, uint16_t packet_sport) {
 	if (ducksrv_state == STATE_TO_REBOOT) {
 		return;
 	}
@@ -694,6 +701,10 @@ void ducksrv_udp_packet_handle(char *s, int len) {
 			ducknet_flush();
 			ducksrv_state = STATE_IDLE;
 		}
+	} else if (strcmp(s, "query-performance-metrics") == 0) {
+		snprintf(s, 100, "metrics: %u %u %u\n", metrics[0], metrics[1], metrics[2]);
+		ducksrv_send_with_port(s, strlen(s), packet_sport);
+		ducknet_flush();
 	} else if (s[0] == 'c') {
 		cprintf("command:%s:\n", s + 1);
 		s[len] = 0;
@@ -956,7 +967,7 @@ int my_icmp_packet_handle(DucknetIPv4Address src, DucknetIPv4Address dst, Duckne
 
 int my_udp_packet_handle(DucknetIPv4Address src, DucknetIPv4Address dst, DucknetUDPHeader *hdr, int len) {
 	if (src.addr == pigeon_ip.addr && hdr->dport == duck_port) {
-		ducksrv_udp_packet_handle((char *) (hdr + 1), len);
+		ducksrv_udp_packet_handle((char *) (hdr + 1), len, hdr->sport);
 		return -1;
 	}
 	return 0;
@@ -972,6 +983,9 @@ void umain(int argc, char **argv) {
 		return;
 	}
 	cprintf("tsc freq = %llu\n", tsc_freq);
+	
+	do_performance_measurements(metrics);
+	microdelay(1000 * 1000);
 	
 	if (network_init() < 0) {
 		cprintf("GG, network init failed\n");
