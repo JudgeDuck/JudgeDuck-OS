@@ -622,11 +622,58 @@ void ducksrv_send_with_port(const char *s, int len, uint16_t port) {
 	ducknet_udp_send(pigeon_ip, port, duck_port, s, len);
 }
 
+/* Stop-and-wait Protocol */
+
+int last_recv_seq_num = -1;
+char reply_buf[1600];  // larger than MTU is ok
+int reply_len = 0;
+
+// Returns: 1 on success, 0 on failure, -1 on repeat packet
+inline int process_stop_and_wait_packet(char **s_ref, int *len_ref) {
+	char *s = *s_ref;
+	int len = *len_ref;
+	if (s[0] & 128) {
+		int seq_num = ((unsigned) (unsigned char) s[0]) - 128;
+		if (seq_num == last_recv_seq_num) {
+			ducksrv_send(reply_buf, reply_len);
+			return -1;
+		} else {
+			last_recv_seq_num = seq_num;
+			*s_ref = s + 1;
+			*len_ref = len - 1;
+			return 1;
+		}
+	} else {
+		return 0;
+	}
+}
+
+inline void clear_stop_and_wait_state() {
+	last_recv_seq_num = -1;
+	reply_len = 0;
+}
+
+inline void set_stop_and_wait_reply(const char *s, int len) {
+	memcpy(reply_buf, s, len);
+	reply_len = len;
+}
+
+/* ====================== */
+
+void ducksrv_send_reply(const char *s, int len) {
+	set_stop_and_wait_reply(s, len);
+	ducksrv_send(s, len);
+}
+
 int recv_file_fd;
 FileData *recv_fdata;
 
 void ducksrv_udp_packet_handle(char *s, int len, uint16_t packet_sport) {
 	if (ducksrv_state == STATE_TO_REBOOT) {
+		return;
+	}
+	
+	if (process_stop_and_wait_packet(&s, &len) < 0) {
 		return;
 	}
 	
@@ -636,11 +683,13 @@ void ducksrv_udp_packet_handle(char *s, int len, uint16_t packet_sport) {
 		return;
 	}
 	if (strcmp(s, "clear") == 0) {
-		// TODO clear ?
 		if (ducksrv_state == STATE_RECV_FILE) {
 			close(recv_file_fd);
 			sync();
 		}
+		clear_stop_and_wait_state();
+		ducksrv_send_reply("cleared", 7);
+		ducknet_flush();
 		ducksrv_state = STATE_IDLE;
 	} else if (ducksrv_state == STATE_RECV_ELF) {
 		s[len] = 0;
@@ -654,7 +703,7 @@ void ducksrv_udp_packet_handle(char *s, int len, uint16_t packet_sport) {
 			ducksrv_send(s, 8);
 		} else {
 			strcpy(s, "sendFile elf ok");
-			ducksrv_send(s, strlen(s));
+			ducksrv_send_reply(s, strlen(s));
 			ducknet_flush();
 			ducksrv_state = STATE_IDLE;
 		}
@@ -673,7 +722,7 @@ void ducksrv_udp_packet_handle(char *s, int len, uint16_t packet_sport) {
 			close(recv_file_fd);
 			sync();
 			strcpy(s, "sendFile ok");
-			ducksrv_send(s, strlen(s));
+			ducksrv_send_reply(s, strlen(s));
 			ducknet_flush();
 			ducksrv_state = STATE_IDLE;
 		}
@@ -697,7 +746,7 @@ void ducksrv_udp_packet_handle(char *s, int len, uint16_t packet_sport) {
 			}
 			++n_files;
 			strcpy(s, "sendobj ok");
-			ducksrv_send(s, strlen(s));
+			ducksrv_send_reply(s, strlen(s));
 			ducknet_flush();
 			ducksrv_state = STATE_IDLE;
 		}
@@ -735,32 +784,28 @@ void ducksrv_udp_packet_handle(char *s, int len, uint16_t packet_sport) {
 			cprintf("wait ok\n");
 			strcpy(s, "runCmd ok");
 		}
-		ducksrv_send(s, strlen(s));
+		ducksrv_send_reply(s, strlen(s));
 		ducknet_flush();
 	} else if (s[0] == 'o') {
 		// open file
 		int fd = open(s + 1, O_RDONLY);
+		int len = 0;
+		s[0] = 'f';
 		if (fd < 0) {
 			cprintf("Can't open file [%s]\n", s + 1);
-			s[0] = 'F';
-			ducksrv_send(s, 1);
 		} else {
-			for (int i = 0; i < 64; i++) {
-				s[0] = 'f';
-				int r = read(fd, s + 1, 15);
-				if (r > 0) {
-					ducksrv_send(s, r + 1);
-				} else {
-					break;
-				}
+			len = read(fd, s + 1, 1024);
+			if (len < 0) {
+				len = 0;
 			}
-			s[0] = 'F';
-			ducksrv_send(s, 1);
+			close(fd);
+			sync();
 		}
-		close(fd);
-		sync();
+		ducksrv_send_reply(s, len + 1);
 		ducknet_flush();
 	} else if (strcmp(s, "done") == 0) {
+		ducksrv_send_reply("done", 4);
+		ducknet_flush();
 		static int judge_cnt = 0;
 		if (++judge_cnt > 500) {
 			cprintf("Rebooting in seconds !!!\n");
@@ -772,7 +817,7 @@ void ducksrv_udp_packet_handle(char *s, int len, uint16_t packet_sport) {
 		memcpy(s, "slen", 4);
 		unsigned stdout_len = get_contestant_stdout_len();
 		memcpy(s + 4, &stdout_len, 4);
-		ducksrv_send(s, 8);
+		ducksrv_send_reply(s, 8);
 		ducknet_flush();
 	} else if (strncmp(s, "stdout-get", 10) == 0) {
 		// get stdout content
@@ -798,7 +843,8 @@ void ducksrv_udp_packet_handle(char *s, int len, uint16_t packet_sport) {
 		// off & len already in packet
 		memcpy(s + 18, contestant_stdout_content + query_off, query_len);
 		
-		ducksrv_send(s, 18 + query_len);
+		ducksrv_send_reply(s, 18 + query_len);
+		ducknet_flush();
 	} else if (strncmp(s, "setobj_I", 8) == 0) {
 		static char md5[50];
 		strncpy(md5, s + 8, 49);
@@ -812,7 +858,7 @@ void ducksrv_udp_packet_handle(char *s, int len, uint16_t packet_sport) {
 		}
 		
 		strcpy(s, "setobj_I ok");
-		ducksrv_send(s, strlen(s));
+		ducksrv_send_reply(s, strlen(s));
 		ducknet_flush();
 	} else if (strncmp(s, "setobj_A", 8) == 0) {
 		static char md5[50];
@@ -827,7 +873,7 @@ void ducksrv_udp_packet_handle(char *s, int len, uint16_t packet_sport) {
 		}
 		
 		strcpy(s, "setobj_A ok");
-		ducksrv_send(s, strlen(s));
+		ducksrv_send_reply(s, strlen(s));
 		ducknet_flush();
 	} else if (s[0] == 'f' && strcmp(s + 1, "judging") == 0) {
 		cprintf("[j][recv judging elf!!!]\n");
@@ -835,7 +881,7 @@ void ducksrv_udp_packet_handle(char *s, int len, uint16_t packet_sport) {
 		// Clear elf header
 		memset(judging_elf, 0, 512);
 		
-		ducksrv_send("file", 4);
+		ducksrv_send_reply("file", 4);
 		ducknet_flush();
 		
 		ducksrv_state = STATE_RECV_ELF;
@@ -845,7 +891,7 @@ void ducksrv_udp_packet_handle(char *s, int len, uint16_t packet_sport) {
 		
 		recv_file_fd = open(s + 1, O_RDWR | O_CREAT | O_TRUNC);
 		
-		ducksrv_send("file", 4);
+		ducksrv_send_reply("file", 4);
 		ducknet_flush();
 		
 		ducksrv_state = STATE_RECV_FILE;
@@ -862,11 +908,11 @@ void ducksrv_udp_packet_handle(char *s, int len, uint16_t packet_sport) {
 		}
 		if (ok) {
 			strcpy(s, "gg sendobj");
-			ducksrv_send(s, strlen(s));
+			ducksrv_send_reply(s, strlen(s));
 			ducknet_flush();
 		} else {
 			strcpy(s, "sendobj begin");
-			ducksrv_send(s, strlen(s));
+			ducksrv_send_reply(s, strlen(s));
 			ducknet_flush();
 			
 			int last_pos = file_start - (void *) judge_pages;
