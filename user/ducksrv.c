@@ -679,7 +679,7 @@ void ducksrv_udp_packet_handle(char *s, int len, uint16_t packet_sport) {
 	
 	s[len] = 0;
 	if (strcmp(s, "reboot") == 0) {
-		__asm__ volatile("int3");  // ???
+		sys_reboot();
 		return;
 	}
 	if (strcmp(s, "clear") == 0) {

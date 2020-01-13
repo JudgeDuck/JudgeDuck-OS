@@ -715,8 +715,14 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 	case SYS_send_ipi:
 		return sys_send_ipi((int) a1);
 	case SYS_reboot:
-		triple_fault();
-		while (1) outb(0x64, 0xfe);
+		while (1) {
+			outb(0xcf9, 0x06);  // It works. But why?
+			for (int i = 0; i < 1000000; i++) __asm__ volatile("");
+			outb(0xcf9, 0x02);
+			for (int i = 0; i < 1000000; i++) __asm__ volatile("");
+			outb(0xcf9, 0x04);
+			for (int i = 0; i < 1000000; i++) __asm__ volatile("");
+		}
 	default:
 		return -E_INVAL;
 	}
