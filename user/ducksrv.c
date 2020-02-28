@@ -315,6 +315,10 @@ volatile unsigned *start_signal;
 volatile unsigned *contestant_ready;
 volatile unsigned *contestant_done;
 
+volatile unsigned *contestant_stdout_len;
+char *contestant_stdout_content;
+char *contestant_stdout_limit;
+
 static const char *trapname(int trapno) {
 	static const char * const excnames[] = {
 		"Divide error",
@@ -399,6 +403,9 @@ static void run_arbiter(const char *judging_elf, const char *args) {
 		if (argc >= MAXARGS) break;
 	}
 	argv[argc] = 0;
+	
+	// Clear contestant stdout
+	*contestant_stdout_len = 0;
 	
 	int fd = open("arbiter.out", O_RDWR | O_CREAT | O_TRUNC);
 	if (fd < 0) {
@@ -558,9 +565,6 @@ unsigned *input_len;
 unsigned *answer_pos;
 unsigned *answer_len;
 char *contestant_stdout_metadata;
-volatile unsigned *contestant_stdout_len;
-char *contestant_stdout_content;
-char *contestant_stdout_limit;
 char *judging_elf;
 void *meta_start;
 FileData *filedata;
