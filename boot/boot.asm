@@ -21,7 +21,7 @@ start:
 
 ; Prints `ERR: ` and the given error code to screen and hangs.
 ; parameter: error code (in ascii) in al
-error:
+boot_error:
     mov dword [0xb8000], 0x4f524f45
     mov dword [0xb8004], 0x4f3a4f52
     mov dword [0xb8008], 0x4f204f20
@@ -35,7 +35,7 @@ check_multiboot:
     ret
 .no_multiboot:
     mov al, "0"
-    jmp error
+    jmp boot_error
 
 
 check_cpuid:
@@ -72,7 +72,7 @@ check_cpuid:
     ret
 .no_cpuid:
     mov al, "1"
-    jmp error
+    jmp boot_error
 
 
 check_long_mode:
@@ -90,7 +90,7 @@ check_long_mode:
     ret
 .no_long_mode:
     mov al, "2"
-    jmp error
+    jmp boot_error
 
 
 set_up_page_tables:

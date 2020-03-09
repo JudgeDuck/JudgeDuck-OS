@@ -11,7 +11,7 @@ long_mode_start:
     mov fs, ax
     mov gs, ax
 
-    ; print `OKAY` to screen
-    mov rax, 0x2f592f412f4b2f4f
-    mov qword [0xb8000], rax
+    extern kern_main
+    call kern_main
+
     hlt
