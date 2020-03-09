@@ -131,6 +131,11 @@ enable_paging:
     or eax, 1 << 5
     mov cr4, eax
 
+    ; enable CR4.FSGSBASE[bit 16]
+    mov eax, cr4
+    or eax, 1 << 16
+    mov cr4, eax
+
     ; set the long mode bit in the EFER MSR (model specific register)
     mov ecx, 0xC0000080
     rdmsr

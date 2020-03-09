@@ -1,39 +1,34 @@
-#include <inc/vga_buffer.h>
+#include <inc/tls.h>
+#include <stdio.h>
+#include <math.h>
 
-using vga_buffer::writer;
+extern "C" void __duck64__libc_init();
 
-static void call_init_array() {
-	extern void (*const __init_array_start)(void), (*const __init_array_end)(void);
+static void init_libc() {
+	extern void *__duck64__tls_base;
+	TLS::set_fs(&__duck64__tls_base);
+	__duck64__tls_base = &__duck64__tls_base;
 	
-	uintptr_t a = (uintptr_t) &__init_array_start;
-	for (; a < (uintptr_t) &__init_array_end; a += sizeof(void(*)()))
-		(*(void (**)(void))a)();
+	__duck64__libc_init();
+}
+
+static void print_hello() {
+	printf("Hello world!\n");
+	
+	double e = 0, tmp = 1;
+	for (int i = 1; i <= 20; i++) {
+		e += tmp;
+		tmp /= i;
+	}
+	printf("e = %.15lf\n", e);
+	printf("pi = 2 * atan2(1, 0) = %.15lf\n", 2 * atan2(1, 0));
 }
 
 extern "C"
 void kern_main() {
-	// ATTENTION: we have a very small stack and no guard page
+	init_libc();
 	
-	call_init_array();
-	
-	const char *hello = "Hello World!";
-	const char color_byte = 0x1f;
-	
-	char hello_colored[24];
-	for (int i = 0; i < 12; i++) {
-		hello_colored[i * 2] = hello[i];
-		hello_colored[i * 2 - 1] = color_byte;
-	}
-	
-	// write `Hello World!` to the center of the VGA text buffer
-	// TODO: import memcpy from libc
-	char *buffer_ptr = (char *) (0xb8000 + 1988);
-	for (int i = 0; i < 24; i++) {
-		buffer_ptr[i] = hello_colored[i];
-	}
-	
-	writer->write_str("Hello\n");
-	writer->write_str("World\n");
+	print_hello();
 	
 	while (1);
 }

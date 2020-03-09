@@ -1,7 +1,12 @@
 kernel := build/kernel.bin
 iso := build/os.iso
 
-CXX := g++ -std=c++14 -Wall -Wextra -Werror -march=x86-64 -mno-mmx -mno-sse -mno-red-zone -I .
+CXX := g++
+CXX += -std=c++14
+CXX += -Wall -Wextra -Werror -march=x86-64
+CXX += -mno-red-zone
+CXX += -U_FORTIFY_SOURCE
+CXX += -I .
 
 linker_script := boot/linker.ld
 grub_cfg := boot/grub.cfg
@@ -10,6 +15,7 @@ assembly_object_files := $(patsubst boot/%.asm, \
 		build/boot/%.o, $(assembly_source_files))
 
 header_files := $(wildcard inc/*.h)
+libc_duck64 := ../libc-duck-64/lib/libc.a
 
 include kern/Makefile
 include lib/Makefile
@@ -22,7 +28,7 @@ clean:
 	@rm -r build/*
 
 run: $(iso)
-	@qemu-system-x86_64 -cdrom $(iso)
+	@qemu-system-x86_64 -cdrom $(iso) -cpu Haswell
 
 iso: $(iso)
 
@@ -33,8 +39,9 @@ $(iso): $(kernel) $(grub_cfg)
 	@grub-mkrescue -o $(iso) build/isofiles -d /usr/lib/grub/i386-pc 2> /dev/null
 	@rm -r build/isofiles
 
-$(kernel): $(assembly_object_files) $(kern_object_files) $(lib_object_files) $(linker_script)
-	@ld -n -T $(linker_script) -o $(kernel) $(assembly_object_files) $(kern_object_files) $(lib_object_files)
+$(kernel): $(assembly_object_files) $(kern_object_files) $(lib_object_files) $(linker_script) $(libc_duck64)
+	@echo + ld $(kernel)
+	@ld -n -T $(linker_script) -o $(kernel) $(assembly_object_files) $(kern_object_files) $(lib_object_files) $(libc_duck64)
 
 build/boot/%.o: boot/%.asm
 	@echo + nasm $@

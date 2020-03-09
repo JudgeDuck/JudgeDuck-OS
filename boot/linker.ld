@@ -3,14 +3,12 @@ ENTRY(start)
 SECTIONS {
     . = 1M;
 
-    .boot :
-    {
+    .boot : {
         /* ensure that the multiboot header is at the beginning */
         *(.multiboot_header)
     }
 
-    .text :
-    {
+    .text : {
         *(.text)
     }
     
@@ -33,5 +31,23 @@ SECTIONS {
         KEEP (*(SORT(.fini_array.*)))
         KEEP (*(.fini_array*))
         PROVIDE_HIDDEN (__fini_array_end = .);
+    }
+    
+    .tdata : {
+        *(.tdata)
+    }
+    .tbss : {
+        *(.tbss)
+        . = . + 0x1000;
+        PROVIDE(__duck64__tls_base = .);
+        . = . + 0x1000;  /* Some space maybe for canary ? */
+    }
+    
+    .data : {
+        *(.data)
+    }
+    
+    .bss : {
+        *(.bss)
     }
 }

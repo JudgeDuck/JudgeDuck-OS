@@ -59,6 +59,7 @@ namespace vga_buffer {
 		void clear_row(size_t row);
 		
 		void write_str(const char *s);
+		void write_buf(const char *s, size_t len);
 	};
 	
 	extern Writer *writer;
