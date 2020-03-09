@@ -4,7 +4,7 @@ kern_object_files := $(patsubst kern/%.cpp, \
 
 KERN_CXX := $(CXX) -O2
 
-build/kern/%.o: kern/%.cpp
+build/kern/%.o: kern/%.cpp $(header_files)
 	@echo + cxx $@
 	@mkdir -p $(shell dirname $@)
 	@$(KERN_CXX) -c $< -o $@
