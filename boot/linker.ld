@@ -5,11 +5,15 @@ SECTIONS {
 
     .boot : {
         /* ensure that the multiboot header is at the beginning */
-        *(.multiboot_header)
+        KEEP (*(.multiboot_header))
     }
 
     .text : {
-        *(.text)
+        *(.text .text.*)
+    }
+    
+    .rodata : {
+        *(.rodata .rodata.*)
     }
     
     .preinit_array : {
@@ -44,10 +48,14 @@ SECTIONS {
     }
     
     .data : {
-        *(.data)
+        *(.data .data.*)
     }
     
     .bss : {
-        *(.bss)
+        *(.bss .bss.*)
+    }
+    
+    /DISCARD/ : {
+        *(.eh_frame .note.GNU-stack .comment)
     }
 }
