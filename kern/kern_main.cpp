@@ -1,4 +1,5 @@
 #include <inc/tls.h>
+#include <inc/multiboot2_loader.h>
 #include <stdio.h>
 #include <math.h>
 
@@ -25,10 +26,14 @@ static void print_hello() {
 }
 
 extern "C"
-void kern_main() {
+void kern_main(unsigned multiboot_addr) {
 	init_libc();
 	
 	print_hello();
+	printf("addr = %08x\n", multiboot_addr);
+	printf("size = %08x\n", * (unsigned *) (unsigned long) multiboot_addr);
+	
+	multiboot2_loader::load((void *) (unsigned long) multiboot_addr);
 	
 	while (1);
 }

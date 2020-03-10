@@ -27,8 +27,10 @@ all: $(kernel)
 clean:
 	@rm -r build/*
 
+QEMUOPTS ?= 
+
 run: $(iso)
-	@qemu-system-x86_64 -cdrom $(iso) -cpu Haswell
+	@qemu-system-x86_64 -cdrom $(iso) -cpu Haswell $(QEMUOPTS)
 
 iso: $(iso)
 
