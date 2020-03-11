@@ -14,8 +14,17 @@ assembly_source_files := $(wildcard boot/*.asm)
 assembly_object_files := $(patsubst boot/%.asm, \
 		build/boot/%.o, $(assembly_source_files))
 
+kern_asm_source_files := $(wildcard kern/*.S)
+kern_asm_object_files := $(patsubst kern/%.S, \
+		build/kern/%.o, $(kern_asm_source_files))
+
 header_files := $(wildcard inc/*.h)
-libc_duck64 := ../libc-duck-64/lib/libc.a
+LIB_PREFIX := ../duck-binaries/duck64/lib/
+LIBC_PREFIX := $(LIB_PREFIX)musl/
+libstdcxx_files := $(LIB_PREFIX)libstdc++.a
+libc_files := -L $(LIBC_PREFIX) -L $(LIB_PREFIX) -lc -lgcc -lgcc_eh -lc
+libc_crt_start := $(LIBC_PREFIX)crt1.o $(LIBC_PREFIX)crti.o
+libc_crt_end := $(LIBC_PREFIX)crtn.o
 
 include kern/Makefile
 include lib/Makefile
@@ -41,11 +50,18 @@ $(iso): $(kernel) $(grub_cfg)
 	@grub-mkrescue -o $(iso) build/isofiles -d /usr/lib/grub/i386-pc 2> /dev/null
 	@rm -r build/isofiles
 
-$(kernel): $(assembly_object_files) $(kern_object_files) $(lib_object_files) $(linker_script) $(libc_duck64)
+$(kernel): $(assembly_object_files) $(kern_object_files) $(lib_object_files) $(linker_script) $(libc_duck64) $(kern_asm_object_files)
 	@echo + ld $(kernel)
-	@ld -n -T $(linker_script) -o $(kernel) $(assembly_object_files) $(kern_object_files) $(lib_object_files) $(libc_duck64)
+	@ld -n -T $(linker_script) -o $(kernel) \
+		$(libc_crt_start) $(assembly_object_files) $(kern_asm_object_files) $(kern_object_files) \
+		$(lib_object_files) $(libstdcxx_files) $(libc_files) $(libc_crt_end)
 
 build/boot/%.o: boot/%.asm
 	@echo + nasm $@
 	@mkdir -p $(shell dirname $@)
 	@nasm -felf64 $< -o $@
+
+build/kern/%.o: kern/%.S
+	@echo + as $@
+	@mkdir -p $(shell dirname $@)
+	@as --64 $< -o $@

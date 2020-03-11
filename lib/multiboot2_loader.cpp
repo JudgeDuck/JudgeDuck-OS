@@ -3,6 +3,8 @@
 
 #include <stdio.h>
 
+unsigned __multiboot_addr;
+
 namespace multiboot2_loader {
 	static void load_mmap(struct multiboot_tag_mmap *mmap) {
 		printf("mmap size = %u\n", mmap->size);
@@ -17,7 +19,9 @@ namespace multiboot2_loader {
 		}
 	}
 	
-	void load(void *multiboot_addr) {
+	void load() {
+		void *multiboot_addr = (void *) (unsigned long) __multiboot_addr;
+		
 		struct multiboot_tag *tag = (struct multiboot_tag *) multiboot_addr + 1;
 		
 		while (tag->type != MULTIBOOT_TAG_TYPE_END) {

@@ -1,9 +1,11 @@
 #include <sys/syscall.h>
 #include <sys/uio.h>
 #include <sys/stat.h>
+#include <asm/prctl.h>
 #include <string.h>
 
 #include <inc/vga_buffer.h>
+#include <inc/tls.h>
 
 using vga_buffer::writer;
 
@@ -52,9 +54,36 @@ static int duck_fstat(int fd, struct stat *st) {
 	return -1;
 }
 
+// TODO more heap
+static char heap[1 << 20];
+static char *heap_brk = heap;
+
+static char * duck_brk(char *addr) {
+	if (!addr) {
+		return heap_brk;
+	}
+	if (addr > heap_brk) {
+		heap_brk = addr;
+	}
+	return heap_brk;
+}
+
+static int duck_arch_prctl(int code, unsigned long *addr) {
+	if (code == ARCH_SET_FS) {
+		TLS::set_fs(addr);
+		return 0;
+	}
+	
+	return -1;
+}
+
 extern "C"
-long __duck64__syscall(long n, long a1, long a2, long a3, long, long, long) {
+long __duck64__syscall_handler(long a1, long a2, long a3, long, long, long, long n) {
 	switch (n) {
+		case SYS_brk:
+			return (long) duck_brk((char *) a1);
+		case SYS_arch_prctl:
+			return (long) duck_arch_prctl((int) a1, (unsigned long *) a2);
 		case SYS_write:
 			return duck_write((int) a1, (const char *) a2, (size_t) a3);
 		case SYS_writev:

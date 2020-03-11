@@ -13,10 +13,11 @@ long_mode_start:
 
     call enable_sse
 
-    extern kern_main
-    call kern_main
+    extern __multiboot_addr
+    mov dword [__multiboot_addr], edi
 
-    hlt
+    extern kern_loader
+    jmp kern_loader   ; should never return
 
 enable_sse:
     ; clear the CR0.EM bit (bit 2)

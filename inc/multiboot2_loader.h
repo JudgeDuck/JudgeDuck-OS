@@ -2,8 +2,7 @@
 #define MULTIBOOT2_LOADER_H
 
 namespace multiboot2_loader {
-	
-	void load(void *multiboot_addr);
+	void load();
 }
 
 #endif
