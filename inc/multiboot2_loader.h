@@ -1,7 +1,7 @@
 #ifndef MULTIBOOT2_LOADER_H
 #define MULTIBOOT2_LOADER_H
 
-namespace multiboot2_loader {
+namespace Multiboot2_Loader {
 	void load();
 }
 

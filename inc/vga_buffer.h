@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
-namespace vga_buffer {
+namespace VGA_Buffer {
 	enum Color : uint8_t {
 		Black = 0, Blue, Green, Cyan,
 		Red, Magenta, Brown, LightGray,

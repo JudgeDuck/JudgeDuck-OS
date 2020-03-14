@@ -1,10 +1,10 @@
 #include <inc/vga_buffer.h>
 
-namespace vga_buffer {
+namespace VGA_Buffer {
 	Writer the_writer = (Writer) {
 		.column_position = 0,
 		.color_code = ColorCode::generate(Color::LightGreen, Color::Black),
-		.buffer = (vga_buffer::Buffer *) 0xb8000,
+		.buffer = (VGA_Buffer::Buffer *) 0xb8000,
 	};
 	Writer *writer = &the_writer;
 	

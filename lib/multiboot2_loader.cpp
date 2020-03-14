@@ -5,7 +5,7 @@
 
 unsigned __multiboot_addr;
 
-namespace multiboot2_loader {
+namespace Multiboot2_Loader {
 	static void load_mmap(struct multiboot_tag_mmap *mmap) {
 		printf("mmap size = %u\n", mmap->size);
 		printf("mmap entry_size = %u\n", mmap->entry_size);

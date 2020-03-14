@@ -7,7 +7,7 @@
 #include <inc/vga_buffer.h>
 #include <inc/tls.h>
 
-using vga_buffer::writer;
+using VGA_Buffer::writer;
 
 static size_t duck_write(int fd, const char *buf, size_t len) {
 	if (fd != 1) {
@@ -54,15 +54,15 @@ static int duck_fstat(int fd, struct stat *st) {
 	return -1;
 }
 
-// TODO more heap
-static char heap[1 << 20];
+const int KERNEL_HEAP_SIZE = 1 << 20;
+static char heap[KERNEL_HEAP_SIZE];
 static char *heap_brk = heap;
 
 static char * duck_brk(char *addr) {
 	if (!addr) {
 		return heap_brk;
 	}
-	if (addr > heap_brk) {
+	if (addr > heap_brk && addr <= heap + KERNEL_HEAP_SIZE) {
 		heap_brk = addr;
 	}
 	return heap_brk;

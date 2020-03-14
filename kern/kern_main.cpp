@@ -1,11 +1,8 @@
-#include <inc/multiboot2_loader.h>
 #include <stdio.h>
 #include <math.h>
-
-#include <algorithm>
-#include <vector>
-#include <exception>
 #include <iostream>
+
+#include <inc/multiboot2_loader.h>
 
 static void print_hello() {
 	printf("Hello world!\n");
@@ -18,25 +15,14 @@ static void print_hello() {
 	printf("e = %.15lf\n", e);
 	printf("pi = 2 * atan2(1, 0) = %.15lf\n", 2 * atan2(1, 0));
 	
-	std::vector<int> a = {3, 5, 2, 4, 1};
-	std::sort(a.begin(), a.end());
-	try {
-		int a[5] = {3, 5, 2, 4, 1};
-		std::sort(a, a + 5);
-		for (int i = 0; i < 5; i++) {
-			printf("%d%c", a[i], " \n" [i == 5 - 1]);
-		}
-	} catch (std::exception &e) {
-		
-	}
-	
 	std::cout << "std::cout works!" << std::endl;
 }
 
 int main() {
 	print_hello();
 	
-	multiboot2_loader::load();
+	Multiboot2_Loader::load();
 	
+	// TODO
 	while (1);
 }
