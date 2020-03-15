@@ -10,7 +10,7 @@
 using VGA_Buffer::writer;
 
 static size_t duck_write(int fd, const char *buf, size_t len) {
-	if (fd != 1) {
+	if (fd != 1 && fd != 2) {
 		return 0;
 	}
 	

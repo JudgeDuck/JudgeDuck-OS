@@ -3,6 +3,7 @@
 #include <iostream>
 
 #include <inc/multiboot2_loader.h>
+#include <inc/memory.h>
 
 static void print_hello() {
 	printf("Hello world!\n");
@@ -22,6 +23,8 @@ int main() {
 	print_hello();
 	
 	Multiboot2_Loader::load();
+	
+	Memory::init();
 	
 	// TODO
 	while (1);

@@ -1,25 +1,37 @@
+#include <stdio.h>
+#include <stdint.h>
+
 #include <inc/multiboot2_loader.h>
 #include <inc/multiboot2.h>
-
-#include <stdio.h>
+#include <inc/memory.h>
+#include <inc/utils.h>
 
 unsigned __multiboot_addr;
+extern uint64_t ebss;
 
 namespace Multiboot2_Loader {
 	static void load_mmap(struct multiboot_tag_mmap *mmap) {
-		printf("mmap size = %u\n", mmap->size);
-		printf("mmap entry_size = %u\n", mmap->entry_size);
-		
 		multiboot_memory_map_t *e = mmap->entries;
 		while ((unsigned long) e != (unsigned long) mmap + mmap->size) {
-			printf("base addr = %08llx (%.1lf MB), len = %08llx (%.1lf MB), type = %u\n",
+			printf("base addr = %08llx (%.1lf MiB), len = %08llx (%.1lf MiB), type = %u\n",
 				e->addr, e->addr / 1048576.0, e->len, e->len / 1048576.0, e->type);
+			
+			uint64_t start = Utils::round_up((uint64_t) e->addr, Memory::HUGE_PAGE_SIZE);
+			uint64_t end = Utils::round_down((uint64_t) e->addr + (uint64_t) e->len, Memory::HUGE_PAGE_SIZE);
+			if (start < (uint64_t) &ebss) {
+				start = Utils::round_up((uint64_t) &ebss, Memory::HUGE_PAGE_SIZE);
+			}
+			for (uint64_t va = start; va < end; va += Memory::HUGE_PAGE_SIZE) {
+				Memory::register_available_huge_page((void *) va);
+			}
 			
 			e = (multiboot_memory_map_t *) ((unsigned long) e + mmap->entry_size);
 		}
 	}
 	
 	void load() {
+		printf("Multiboot2_Loader::load()\n");
+		
 		void *multiboot_addr = (void *) (unsigned long) __multiboot_addr;
 		
 		struct multiboot_tag *tag = (struct multiboot_tag *) multiboot_addr + 1;

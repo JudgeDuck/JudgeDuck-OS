@@ -42,9 +42,6 @@ SECTIONS {
     }
     .tbss : {
         *(.tbss)
-        . = . + 0x1000;
-        PROVIDE(__duck64__tls_base = .);
-        . = . + 0x1000;  /* Some space maybe for canary ? */
     }
     
     .data : {
@@ -54,6 +51,8 @@ SECTIONS {
     .bss : {
         *(.bss .bss.*)
     }
+    
+    PROVIDE(ebss = .);
     
     /DISCARD/ : {
         *(.eh_frame .note.GNU-stack .comment)
