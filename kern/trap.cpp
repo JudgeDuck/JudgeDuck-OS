@@ -1,8 +1,8 @@
 #include <stdio.h>
 #include <stdint.h>
 
-#include <inc/trap.h>
-#include <inc/x86_64.h>
+#include <inc/trap.hpp>
+#include <inc/x86_64.hpp>
 
 extern void *__traps[256];
 extern void *kernel_stack_top;

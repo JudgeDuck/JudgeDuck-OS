@@ -4,8 +4,8 @@
 #include <asm/prctl.h>
 #include <string.h>
 
-#include <inc/vga_buffer.h>
-#include <inc/tls.h>
+#include <inc/vga_buffer.hpp>
+#include <inc/tls.hpp>
 
 using VGA_Buffer::writer;
 

@@ -2,10 +2,10 @@
 #include <math.h>
 #include <iostream>
 
-#include <inc/multiboot2_loader.h>
-#include <inc/memory.h>
-#include <inc/pic.h>
-#include <inc/trap.h>
+#include <inc/multiboot2_loader.hpp>
+#include <inc/memory.hpp>
+#include <inc/pic.hpp>
+#include <inc/trap.hpp>
 
 static void print_hello() {
 	printf("Hello world!\n");

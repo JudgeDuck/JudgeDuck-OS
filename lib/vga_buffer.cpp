@@ -1,4 +1,4 @@
-#include <inc/vga_buffer.h>
+#include <inc/vga_buffer.hpp>
 
 namespace VGA_Buffer {
 	Writer the_writer = (Writer) {

@@ -18,7 +18,7 @@ kern_asm_source_files := $(wildcard kern/*.S)
 kern_asm_object_files := $(patsubst kern/%.S, \
 		build/kern/%.o, $(kern_asm_source_files))
 
-header_files := $(wildcard inc/*.h)
+header_files := $(wildcard inc/*.h) $(wildcard inc/*.hpp)
 LIB_PREFIX := ../duck-binaries/duck64/lib/
 LIBC_PREFIX := $(LIB_PREFIX)musl/
 libstdcxx_files := $(LIB_PREFIX)libstdc++.a

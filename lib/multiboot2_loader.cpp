@@ -1,10 +1,10 @@
 #include <stdio.h>
 #include <stdint.h>
 
-#include <inc/multiboot2_loader.h>
+#include <inc/multiboot2_loader.hpp>
 #include <inc/multiboot2.h>
-#include <inc/memory.h>
-#include <inc/utils.h>
+#include <inc/memory.hpp>
+#include <inc/utils.hpp>
 
 unsigned __multiboot_addr;
 extern uint64_t ebss;

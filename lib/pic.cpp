@@ -1,8 +1,8 @@
 #include <stdio.h>
 #include <stdint.h>
 
-#include <inc/pic.h>
-#include <inc/x86_64.h>
+#include <inc/pic.hpp>
+#include <inc/x86_64.hpp>
 
 using x86_64::outb;
 

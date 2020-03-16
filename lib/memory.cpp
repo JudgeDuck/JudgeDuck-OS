@@ -2,7 +2,7 @@
 #include <stdint.h>
 #include <assert.h>
 
-#include <inc/memory.h>
+#include <inc/memory.hpp>
 
 namespace Memory {
 	const uint64_t MAX_MEMORY_SIZE = 511ull << 30;  // 511GiB
