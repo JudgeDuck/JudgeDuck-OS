@@ -64,4 +64,4 @@ build/boot/%.o: boot/%.asm
 build/kern/%.o: kern/%.S
 	@echo + as $@
 	@mkdir -p $(shell dirname $@)
-	@as --64 $< -o $@
+	@$(CXX) -c $< -o $@

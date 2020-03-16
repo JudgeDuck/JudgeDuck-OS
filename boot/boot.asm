@@ -4,7 +4,7 @@ extern long_mode_start
 section .text
 bits 32
 start:
-    mov esp, stack_top
+    mov esp, kernel_stack_top
     mov edi, ebx       ; Move Multiboot info pointer to edi
 
     call check_multiboot
@@ -164,6 +164,7 @@ p4_table:
 p3_table:
     resb 4096
 
-stack_bottom:
-    resb 4096 * 4
-stack_top:
+kernel_stack:
+    resb 4096 * 10  ; 40 KiB
+global kernel_stack_top
+kernel_stack_top:

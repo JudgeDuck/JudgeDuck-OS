@@ -4,6 +4,8 @@
 
 #include <inc/multiboot2_loader.h>
 #include <inc/memory.h>
+#include <inc/pic.h>
+#include <inc/trap.h>
 
 static void print_hello() {
 	printf("Hello world!\n");
@@ -26,6 +28,11 @@ int main() {
 	
 	Memory::init();
 	
+	PIC::init();
+	
+	Trap::init();
+	
 	// TODO
+	printf("Welcome to JudgeDuck-OS-64 !!!\n");
 	while (1);
 }
