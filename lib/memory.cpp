@@ -4,6 +4,8 @@
 
 #include <inc/memory.hpp>
 
+extern int ebss;
+
 namespace Memory {
 	const uint64_t MAX_MEMORY_SIZE = 511ull << 30;  // 511GiB
 	const uint32_t MAX_N_HUGE_PAGES = MAX_MEMORY_SIZE / HUGE_PAGE_SIZE;  // 261632
@@ -13,6 +15,7 @@ namespace Memory {
 	
 	void init() {
 		printf("Memory::init()\n");
+		printf("Kernel memory used: %.1lf MiB\n", (uint64_t) &ebss / 1048576.0);
 		printf("n_huge_pages = %d\n", n_huge_pages);
 	}
 	

@@ -47,6 +47,8 @@ namespace PIC {
 	}
 	
 	void init() {
+		printf("PIC::init()\n");
+		
 		did_init = 1;
 		
 		// mask all interrupts
