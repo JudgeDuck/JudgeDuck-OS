@@ -25,6 +25,14 @@ namespace x86_64 {
 	inline void ltr(uint16_t sel) {
 		__asm__ volatile ("ltr %0" : : "r" (sel));
 	}
+	
+	inline void sti() {
+		__asm__ volatile ("sti");
+	}
+	
+	inline void cli() {
+		__asm__ volatile ("cli");
+	}
 }
 
 #endif

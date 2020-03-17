@@ -4,6 +4,7 @@
 
 #include <inc/multiboot2_loader.hpp>
 #include <inc/smbios.hpp>
+#include <inc/lapic.hpp>
 #include <inc/memory.hpp>
 #include <inc/pic.hpp>
 #include <inc/trap.hpp>
@@ -28,14 +29,16 @@ int main() {
 	Multiboot2_Loader::load();
 	
 	SMBIOS::init();
+	PIC::init();
+	LAPIC::init();
 	
 	Memory::init();
 	
-	PIC::init();
-	
 	Trap::init();
+	Trap::enable();
 	
 	// TODO
 	printf("Welcome to JudgeDuck-OS-64 !!!\n");
+	LAPIC::timer_single_shot_ns((int) 1e9);
 	while (1);
 }

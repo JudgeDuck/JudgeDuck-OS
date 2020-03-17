@@ -3,6 +3,7 @@
 
 #include <inc/trap.hpp>
 #include <inc/x86_64.hpp>
+#include <inc/lapic.hpp>
 
 extern void *__traps[256];
 extern void *kernel_stack_top;
@@ -77,7 +78,12 @@ namespace Trap {
 	
 	extern "C"
 	void trap_handler(Trapframe *tf) {
-		printf("trap %d\n", (int) tf->tf_num);
+		int num = (int) tf->tf_num;
+		printf("trap %d\n", num);
+		if (num == 32) {
+			printf("LAPIC works!\n");
+			LAPIC::eoi();
+		}
 		trap_return(tf);
 	}
 	
