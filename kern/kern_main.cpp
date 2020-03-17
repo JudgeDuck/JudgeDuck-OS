@@ -3,6 +3,7 @@
 #include <iostream>
 
 #include <inc/multiboot2_loader.hpp>
+#include <inc/smbios.hpp>
 #include <inc/memory.hpp>
 #include <inc/pic.hpp>
 #include <inc/trap.hpp>
@@ -25,6 +26,8 @@ int main() {
 	print_hello();
 	
 	Multiboot2_Loader::load();
+	
+	SMBIOS::init();
 	
 	Memory::init();
 	
