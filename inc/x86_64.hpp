@@ -2,6 +2,7 @@
 #define DUCK_X86_64_H
 
 #include <stdint.h>
+#include <x86intrin.h>
 
 namespace x86_64 {
 	static inline void outb(int port, uint8_t data) {
@@ -35,9 +36,7 @@ namespace x86_64 {
 	}
 	
 	static inline uint64_t rdtsc() {
-		uint32_t eax, edx;
-		__asm__ volatile ("rdtsc" : "=a" (eax), "=d" (edx));
-		return ((uint64_t) edx << 32) | eax;
+		return __rdtsc();
 	}
 	
 	static inline void cpuid(uint32_t info,

@@ -6,9 +6,10 @@
 #include <inc/timer.hpp>
 #include <inc/x86_64.hpp>
 #include <inc/utils.hpp>
+#include <inc/logger.hpp>
 
 namespace Timer {
-	uint64_t tsc_freq;
+	uint64_t tsc_freq, tsc_epoch;
 	uint32_t ext_freq;
 	
 	static int get_tsc_clock_ratio(uint32_t *a, uint32_t *b) {
@@ -22,7 +23,7 @@ namespace Timer {
 			return 0;
 		}
 	}
-
+	
 	static uint32_t get_base_freq() {
 		uint32_t _a, _b, _c, _d;
 		x86_64::cpuid(0x16, &_a, &_b, &_c, &_d);
@@ -51,7 +52,7 @@ namespace Timer {
 	}
 	
 	void init() {
-		printf("Timer::init()\n");
+		LDEBUG_ENTER_RET();
 		
 		char brand[13] = { 0 };
 		x86_64::cpuid(0, NULL, (uint32_t *) brand, (uint32_t *) brand + 2, (uint32_t *) brand + 1);
@@ -62,6 +63,8 @@ namespace Timer {
 		} else {
 			detect_cpu_speed_others();
 		}
+		
+		tsc_epoch = get_tsc();
 		
 		printf("tsc_freq = %lu, ext_freq = %u\n", tsc_freq, ext_freq);
 	}

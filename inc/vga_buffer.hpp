@@ -42,8 +42,8 @@ namespace VGA_Buffer {
 		}
 	} __attribute__((packed));
 	
-	static const size_t BUFFER_HEIGHT = 25;
-	static const size_t BUFFER_WIDTH = 80;
+	const size_t BUFFER_HEIGHT = 25;
+	const size_t BUFFER_WIDTH = 80;
 	
 	struct Buffer {
 		volatile ScreenChar chars[BUFFER_HEIGHT][BUFFER_WIDTH];

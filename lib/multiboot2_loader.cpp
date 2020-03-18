@@ -5,6 +5,7 @@
 #include <inc/multiboot2.h>
 #include <inc/memory.hpp>
 #include <inc/utils.hpp>
+#include <inc/logger.hpp>
 
 unsigned __multiboot_addr;
 extern uint64_t ebss;
@@ -30,7 +31,7 @@ namespace Multiboot2_Loader {
 	}
 	
 	void load() {
-		printf("Multiboot2_Loader::load()\n");
+		LDEBUG_ENTER_RET();
 		
 		void *multiboot_addr = (void *) (unsigned long) __multiboot_addr;
 		
