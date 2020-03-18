@@ -7,8 +7,9 @@
 #include <inc/memory.hpp>
 #include <inc/pic.hpp>
 #include <inc/x86_64.hpp>
-#include <inc/smbios.hpp>
 #include <inc/logger.hpp>
+#include <inc/timer.hpp>
+#include <inc/utils.hpp>
 
 using x86_64::inb;
 using x86_64::outb;
@@ -53,36 +54,45 @@ using PIC::IRQ_TIMER;
 #define TCCR    (0x0390/4)   // Timer Current Count
 #define TDCR    (0x03E0/4)   // Timer Divide Configuration
 
-#define TIMER_EX 1
-#define TIMER_EX_T X1
+#define TIMER_EX 128
+#define TIMER_EX_T X128
 
 namespace LAPIC {
 	
-	struct MP {                         // floating pointer [MP 4.1]
-		uint8_t signature[4];           // "_MP_"
-		uint32_t physaddr;              // phys addr of MP config table
-		uint8_t length;                 // 1
-		uint8_t specrev;                // [14]
-		uint8_t checksum;               // all bytes must add up to 0
-		uint8_t type;                   // MP system config type
-		uint8_t imcrp;
+	struct ACPI_RDSP {
+		uint8_t signature[8];
+		uint8_t checksum;
+		uint8_t oem_id[6];
+		uint8_t revision;
+		uint32_t rsdt_addr_phys;
+		uint32_t length;
+		uint64_t xsdt_addr_phys;
+		uint8_t xchecksum;
 		uint8_t reserved[3];
 	} __attribute__((packed));
-	
-	struct MPConf {                     // configuration table header [MP 4.2]
-		uint8_t signature[4];           // "PCMP"
-		uint16_t length;                // total table length
-		uint8_t version;                // [14]
-		uint8_t checksum;               // all bytes must add up to 0
-		uint8_t product[20];            // product id
-		uint32_t oemtable;              // OEM table pointer
-		uint16_t oemlength;             // OEM table length
-		uint16_t entry;                 // entry count
-		uint32_t lapicaddr;             // address of local APIC
-		uint16_t xlength;               // extended table length
-		uint8_t xchecksum;              // extended table checksum
-		uint8_t reserved;
-		uint8_t entries[0];             // table entries
+
+	struct ACPI_desc_header {
+		uint8_t signature[4];
+		uint32_t length;
+		uint8_t revision;
+		uint8_t checksum;
+		uint8_t oem_id[6];
+		uint8_t oem_tableid[8];
+		uint32_t oem_revision;
+		uint8_t creator_id[4];
+		uint32_t creator_revision;
+	} __attribute__((packed));
+
+	struct ACPI_RSDT {
+		struct ACPI_desc_header header;
+		uint32_t entry[0];
+	} __attribute__((packed));
+
+	struct ACPI_MADT {
+		struct ACPI_desc_header header;
+		uint32_t lapic_addr_phys;
+		uint32_t flags;
+		uint8_t table[0];
 	} __attribute__((packed));
 	
 	static uint8_t sum(void *addr, int len) {
@@ -93,77 +103,23 @@ namespace LAPIC {
 		return sum;
 	}
 	
-	// Look for an MP structure in the len bytes at physical address addr.
-	static MP * mpsearch1(void *a, int len) {
-		MP *mp = (MP *) a, *end = (MP *) ((char *) a + len);
-		while (mp < end) {
-			if (memcmp(mp->signature, "_MP_", 4) == 0 && sum(mp, sizeof(*mp)) == 0) {
-				return mp;
+	static ACPI_RDSP * scan_rdsp(uint32_t base, uint32_t len) {
+		for (char *p = (char *) (uint64_t) base; len >= sizeof(ACPI_RDSP); len -= 4, p += 4) {
+			if (memcmp(p, "RSD PTR ", 8) == 0 && sum(p, 20) == 0) {
+				return (ACPI_RDSP *) p;
 			}
-			mp++;
 		}
-		return NULL;
+		return (ACPI_RDSP *) 0;  
 	}
 
-	// Search for the MP Floating Pointer Structure, which according to
-	// [MP 4] is in one of the following three locations:
-	// 1) in the first KB of the EBDA;
-	// 2) if there is no EBDA, in the last KB of system base memory;
-	// 3) in the BIOS ROM between 0xE0000 and 0xFFFFF.
-	static MP * mpsearch() {
-		// The BIOS data area lives in 16-bit segment 0x40.
-		uint8_t *bda = (uint8_t *) (uint64_t) (0x40 << 4);
-		uint32_t p;
-		MP *mp;
-		
-		// [MP 4] The 16-bit segment of the EBDA is in the two bytes
-		// starting at byte 0x0E of the BDA.  0 if not present.
-		if ((p = * (uint16_t *) (bda + 0x0E))) {
-			p <<= 4;	// Translate from segment to PA
-			if ((mp = mpsearch1((void *) (uint64_t) p, 1024))) {
-				return mp;
-			}
-		} else {
-			// The size of base memory, in KB is in the two bytes
-			// starting at 0x13 of the BDA.
-			p = * (uint16_t *) (bda + 0x13) * 1024;
-			if ((mp = mpsearch1((void *) (uint64_t) (p - 1024), 1024))) {
-				return mp;
-			}
+	static ACPI_RDSP * find_rdsp() {
+		ACPI_RDSP *rdsp;
+		uint32_t pa;
+		pa = * ((uint16_t *) (uint64_t) 0x40e) << 4;
+		if (pa && (rdsp = scan_rdsp(pa, 1024))) {
+			return rdsp;
 		}
-		return mpsearch1((void *) (uint64_t) 0xF0000, 0x10000);
-	}
-
-	// Search for an MP configuration table.  For now, don't accept the
-	// default configurations (physaddr == 0).
-	// Check for the correct signature, checksum, and version.
-	static MPConf * mpconfig(MP **pmp) {
-		MPConf *conf;
-		MP *mp;
-		if ((mp = mpsearch()) == 0) return NULL;
-		if (mp->physaddr == 0 || mp->type != 0) {
-			printf("SMP: Default configurations not implemented\n");
-			return NULL;
-		}
-		conf = (MPConf *) (uint64_t) mp->physaddr;
-		if (memcmp(conf, "PCMP", 4) != 0) {
-			printf("SMP: Incorrect MP configuration table signature\n");
-			return NULL;
-		}
-		if (sum(conf, conf->length) != 0) {
-			printf("SMP: Bad MP configuration checksum\n");
-			return NULL;
-		}
-		if (conf->version != 1 && conf->version != 4) {
-			printf("SMP: Unsupported MP version %d\n", conf->version);
-			return NULL;
-		}
-		if ((sum((uint8_t *) conf + conf->length, conf->xlength) + conf->xchecksum) & 0xff) {
-			printf("SMP: Bad MP configuration extended checksum\n");
-			return NULL;
-		}
-		*pmp = mp;
-		return conf;
+		return scan_rdsp(0xe0000, 0x20000);
 	}
 	
 	static volatile uint32_t *lapic;
@@ -178,7 +134,7 @@ namespace LAPIC {
 	}
 	
 	void timer_single_shot_ns(uint64_t ns) {
-		uint64_t to_set = ns * SMBIOS::ext_clock_freq / TIMER_EX / 1000;
+		uint64_t to_set = (__uint128_t) ns * Timer::ext_freq / ((uint64_t) TIMER_EX * 1000000000);
 		assert(to_set < (uint64_t) 4000000000);
 		lapicw(TICR, to_set);
 	}
@@ -187,14 +143,28 @@ namespace LAPIC {
 		lapicw(EOI, 0);
 	}
 	
+	static void detect_ext_freq() {
+		// TODO: Detect ext freq from tsc freq
+		unimplemented();
+	}
+	
 	void init() {
 		LINFO_ENTER();
 		
-		MP *mp;
-		MPConf *conf = mpconfig(&mp);
-		assert(conf != NULL);
+		ACPI_RDSP *rdsp = find_rdsp();
+		ACPI_RSDT *rsdt = (ACPI_RSDT *) (uint64_t) (rdsp->rsdt_addr_phys);
+		ACPI_MADT *madt = 0;
+		int count = (rsdt->header.length - sizeof(ACPI_RSDT)) / 4;
+		for (int i = 0; i < count; i++) {
+			ACPI_desc_header *hdr = (ACPI_desc_header *) (uint64_t) rsdt->entry[i];
+			if (memcmp(hdr->signature, "APIC", 4) == 0) {
+				madt = (ACPI_MADT *) hdr;
+				break;
+			}
+		}
+		assert(madt != NULL);
 		
-		lapic = Memory::remap((volatile uint32_t *) (uint64_t) conf->lapicaddr);
+		lapic = Memory::remap((volatile uint32_t *) (uint64_t) madt->lapic_addr_phys);
 		printf("remapped lapic = %p\n", lapic);
 		
 		// Enable local APIC; mask spurious interrupt vector.
@@ -242,5 +212,9 @@ namespace LAPIC {
 
 		// Enable interrupts on the APIC (but not on the processor).
 		lapicw(TPR, 0);
+		
+		if (Timer::ext_freq == 0) {
+			detect_ext_freq();
+		}
 	}
 }

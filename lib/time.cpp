@@ -1,6 +1,5 @@
 #include <inc/time.hpp>
 #include <inc/x86_64.hpp>
-#include <inc/smbios.hpp>
 #include <inc/logger.hpp>
 
 using x86_64::rdtsc;

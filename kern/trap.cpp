@@ -5,6 +5,7 @@
 #include <inc/x86_64.hpp>
 #include <inc/lapic.hpp>
 #include <inc/logger.hpp>
+#include <inc/timer.hpp>
 
 extern void *__traps[256];
 extern void *kernel_stack_top;
