@@ -3,11 +3,11 @@
 #include <iostream>
 
 #include <inc/multiboot2_loader.hpp>
-#include <inc/smbios.hpp>
 #include <inc/lapic.hpp>
 #include <inc/memory.hpp>
 #include <inc/pic.hpp>
 #include <inc/trap.hpp>
+#include <inc/timer.hpp>
 
 static void print_hello() {
 	printf("Hello world!\n");
@@ -28,8 +28,8 @@ int main() {
 	
 	Multiboot2_Loader::load();
 	
-	SMBIOS::init();
 	PIC::init();
+	Timer::init();
 	LAPIC::init();
 	
 	Memory::init();

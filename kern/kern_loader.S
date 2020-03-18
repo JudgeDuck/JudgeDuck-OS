@@ -1,5 +1,3 @@
-#include <sys/auxv.h>
-
 .global kern_loader
 kern_loader:
 	pushq $0  # auxv end
