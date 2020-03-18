@@ -23,7 +23,7 @@ namespace Timer {
 			return 0;
 		}
 	}
-
+	
 	static uint32_t get_base_freq() {
 		uint32_t _a, _b, _c, _d;
 		x86_64::cpuid(0x16, &_a, &_b, &_c, &_d);
@@ -63,7 +63,7 @@ namespace Timer {
 		} else {
 			detect_cpu_speed_others();
 		}
-
+		
 		tsc_epoch = get_tsc();
 		
 		printf("tsc_freq = %lu, ext_freq = %u\n", tsc_freq, ext_freq);

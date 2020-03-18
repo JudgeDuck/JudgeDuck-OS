@@ -34,7 +34,7 @@ namespace x86_64 {
 	static inline void cli() {
 		__asm__ volatile ("cli");
 	}
-
+	
 	static inline uint64_t rdtsc() {
 		return __rdtsc();
 	}

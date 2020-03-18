@@ -70,7 +70,7 @@ namespace LAPIC {
 		uint8_t xchecksum;
 		uint8_t reserved[3];
 	} __attribute__((packed));
-
+	
 	struct ACPI_desc_header {
 		uint8_t signature[4];
 		uint32_t length;
@@ -82,12 +82,12 @@ namespace LAPIC {
 		uint8_t creator_id[4];
 		uint32_t creator_revision;
 	} __attribute__((packed));
-
+	
 	struct ACPI_RSDT {
 		struct ACPI_desc_header header;
 		uint32_t entry[0];
 	} __attribute__((packed));
-
+	
 	struct ACPI_MADT {
 		struct ACPI_desc_header header;
 		uint32_t lapic_addr_phys;
@@ -111,7 +111,7 @@ namespace LAPIC {
 		}
 		return (ACPI_RDSP *) 0;  
 	}
-
+	
 	static ACPI_RDSP * find_rdsp() {
 		ACPI_RDSP *rdsp;
 		uint32_t pa;
@@ -201,15 +201,15 @@ namespace LAPIC {
 		// Clear error status register (requires back-to-back writes).
 		lapicw(ESR, 0);
 		lapicw(ESR, 0);
-
+		
 		// Ack any outstanding interrupts.
 		lapicw(EOI, 0);
-
+		
 		// Send an Init Level De-Assert to synchronize arbitration ID's.
 		lapicw(ICRHI, 0);
 		lapicw(ICRLO, BCAST | INIT | LEVEL);
 		while (lapic[ICRLO] & DELIVS);
-
+		
 		// Enable interrupts on the APIC (but not on the processor).
 		lapicw(TPR, 0);
 		

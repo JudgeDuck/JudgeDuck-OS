@@ -3,7 +3,7 @@
 namespace VGA_Buffer {
 	Writer the_writer = (Writer) {
 		.column_position = 0,
-		.color_code = ColorCode::generate(Color::LightGreen, Color::Black),
+		.color_code = ColorCode::generate(Color::LightGray, Color::Black),
 		.buffer = (VGA_Buffer::Buffer *) 0xb8000,
 	};
 	Writer *writer = &the_writer;

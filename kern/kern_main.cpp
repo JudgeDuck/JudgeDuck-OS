@@ -41,7 +41,7 @@ int main() {
 	Trap::enable();
 	
 	// TODO
-	LFATAL() << "Welcome to JudgeDuck-OS-64 !!!";
+	LINFO() << "Welcome to JudgeDuck-OS-64 !!!";
 
 	LAPIC::timer_single_shot_ns((int) 1e9);
 	while (1);
