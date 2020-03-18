@@ -3,7 +3,7 @@
 #include <assert.h>
 
 #include <inc/smbios.hpp>
-
+#include <inc/logger.hpp>
 namespace SMBIOS {
 	struct SMBIOSHeader {
 		uint8_t type;
@@ -61,7 +61,7 @@ namespace SMBIOS {
 	}
 	
 	void init() {
-		printf("SMBIOS::init()\n");
+		LINFO_ENTER();
 		
 		SMBIOSHeader *header = (SMBIOSHeader *) (uint64_t) find_sm_entry()->TableAddress;
 		while (header->type != 127u) {

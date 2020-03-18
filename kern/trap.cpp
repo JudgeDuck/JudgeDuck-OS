@@ -4,6 +4,7 @@
 #include <inc/trap.hpp>
 #include <inc/x86_64.hpp>
 #include <inc/lapic.hpp>
+#include <inc/logger.hpp>
 
 extern void *__traps[256];
 extern void *kernel_stack_top;
@@ -79,9 +80,9 @@ namespace Trap {
 	extern "C"
 	void trap_handler(Trapframe *tf) {
 		int num = (int) tf->tf_num;
-		printf("trap %d\n", num);
+		LINFO() << "trap " << num;
 		if (num == 32) {
-			printf("LAPIC works!\n");
+			LINFO() << "LAPIC works!";
 			LAPIC::eoi();
 		}
 		trap_return(tf);
@@ -101,7 +102,7 @@ namespace Trap {
 	}
 	
 	void init() {
-		printf("Trap::init()\n");
+		LINFO_ENTER();
 		
 		for (int i = 0; i < 256; i++) {
 			set_idt(i, __traps[i]);

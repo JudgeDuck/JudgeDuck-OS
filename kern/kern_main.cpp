@@ -8,6 +8,8 @@
 #include <inc/memory.hpp>
 #include <inc/pic.hpp>
 #include <inc/trap.hpp>
+#include <inc/time.hpp>
+#include <inc/logger.hpp>
 
 static void print_hello() {
 	printf("Hello world!\n");
@@ -25,12 +27,16 @@ static void print_hello() {
 
 int main() {
 	print_hello();
+
+	Logger::init();
 	
 	Multiboot2_Loader::load();
 	
 	SMBIOS::init();
 	PIC::init();
 	LAPIC::init();
+
+	Time::set_tsc_per_sec(2208000000u); // TODO: set correct value
 	
 	Memory::init();
 	
@@ -38,7 +44,9 @@ int main() {
 	Trap::enable();
 	
 	// TODO
-	printf("Welcome to JudgeDuck-OS-64 !!!\n");
+	LINFO() << "Welcome to JudgeDuck-OS-64 !!!";
+
+	std::cout << Time::timef() << std::endl;
 	LAPIC::timer_single_shot_ns((int) 1e9);
 	while (1);
 }

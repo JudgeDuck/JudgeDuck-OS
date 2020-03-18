@@ -3,6 +3,7 @@
 #include <assert.h>
 
 #include <inc/memory.hpp>
+#include <inc/logger.hpp>
 
 extern int ebss;
 
@@ -14,7 +15,7 @@ namespace Memory {
 	static int n_huge_pages = 0;
 	
 	void init() {
-		printf("Memory::init()\n");
+		LINFO_ENTER();
 		printf("Kernel memory used: %.1lf MiB\n", (uint64_t) &ebss / 1048576.0);
 		printf("n_huge_pages = %d\n", n_huge_pages);
 	}

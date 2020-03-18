@@ -2,6 +2,7 @@
 #define DUCK_X86_64_H
 
 #include <stdint.h>
+#include <x86intrin.h>
 
 namespace x86_64 {
 	inline void outb(int port, uint8_t data) {
@@ -32,6 +33,10 @@ namespace x86_64 {
 	
 	inline void cli() {
 		__asm__ volatile ("cli");
+	}
+
+	inline uint64_t rdtsc() {
+		return __rdtsc();
 	}
 }
 

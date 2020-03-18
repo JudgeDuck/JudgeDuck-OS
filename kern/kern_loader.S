@@ -1,4 +1,4 @@
-#include <sys/auxv.h>
+// #include <sys/auxv.h>
 
 .global kern_loader
 kern_loader:

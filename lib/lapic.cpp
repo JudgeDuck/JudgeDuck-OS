@@ -8,6 +8,7 @@
 #include <inc/pic.hpp>
 #include <inc/x86_64.hpp>
 #include <inc/smbios.hpp>
+#include <inc/logger.hpp>
 
 using x86_64::inb;
 using x86_64::outb;
@@ -187,7 +188,7 @@ namespace LAPIC {
 	}
 	
 	void init() {
-		printf("LAPIC::init()\n");
+		LINFO_ENTER();
 		
 		MP *mp;
 		MPConf *conf = mpconfig(&mp);

@@ -3,6 +3,7 @@
 
 #include <inc/pic.hpp>
 #include <inc/x86_64.hpp>
+#include <inc/logger.hpp>
 
 using x86_64::outb;
 
@@ -47,7 +48,7 @@ namespace PIC {
 	}
 	
 	void init() {
-		printf("PIC::init()\n");
+		LINFO_ENTER();
 		
 		did_init = 1;
 		
