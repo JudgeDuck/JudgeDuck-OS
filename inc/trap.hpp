@@ -6,11 +6,11 @@
 namespace Trap {
 	void init();
 	
-	inline void enable() {
+	static inline void enable() {
 		x86_64::sti();
 	}
 	
-	inline void disable() {
+	static inline void disable() {
 		x86_64::cli();
 	}
 }

@@ -10,7 +10,7 @@ namespace Memory {
 	void register_available_huge_page(void *addr);
 	
 	template <class T>
-	inline T remap(const T &addr) {
+	static inline T remap(const T &addr) {
 		return (T) ((uint64_t) addr - (512ull << 30));  // remap to -512 GiB
 	}
 }
