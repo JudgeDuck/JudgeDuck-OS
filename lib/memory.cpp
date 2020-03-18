@@ -15,7 +15,7 @@ namespace Memory {
 	static int n_huge_pages = 0;
 	
 	void init() {
-		LINFO_ENTER();
+		LDEBUG_ENTER_RET();
 		printf("Kernel memory used: %.1lf MiB\n", (uint64_t) &ebss / 1048576.0);
 		printf("n_huge_pages = %d\n", n_huge_pages);
 	}

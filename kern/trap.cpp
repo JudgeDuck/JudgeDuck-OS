@@ -81,7 +81,7 @@ namespace Trap {
 	extern "C"
 	void trap_handler(Trapframe *tf) {
 		int num = (int) tf->tf_num;
-		LINFO() << "trap " << num;
+		LDEBUG() << "trap " << num;
 		if (num == 32) {
 			LINFO() << "LAPIC works!";
 			LAPIC::eoi();
@@ -103,7 +103,7 @@ namespace Trap {
 	}
 	
 	void init() {
-		LINFO_ENTER();
+		LDEBUG_ENTER_RET();
 		
 		for (int i = 0; i < 256; i++) {
 			set_idt(i, __traps[i]);

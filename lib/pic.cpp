@@ -48,7 +48,7 @@ namespace PIC {
 	}
 	
 	void init() {
-		LINFO_ENTER();
+		LDEBUG_ENTER_RET();
 		
 		did_init = 1;
 		

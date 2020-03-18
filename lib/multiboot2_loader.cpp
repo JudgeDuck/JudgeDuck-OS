@@ -31,7 +31,7 @@ namespace Multiboot2_Loader {
 	}
 	
 	void load() {
-		LINFO_ENTER();
+		LDEBUG_ENTER_RET();
 		
 		void *multiboot_addr = (void *) (unsigned long) __multiboot_addr;
 		

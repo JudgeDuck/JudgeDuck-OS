@@ -35,15 +35,13 @@ int main() {
 	Timer::init();
 	LAPIC::init();
 
-	Time::set_tsc_per_sec(2208000000u); // TODO: set correct value
-	
 	Memory::init();
 	
 	Trap::init();
 	Trap::enable();
 	
 	// TODO
-	LINFO() << "Welcome to JudgeDuck-OS-64 !!!";
+	LFATAL() << "Welcome to JudgeDuck-OS-64 !!!";
 
 	LAPIC::timer_single_shot_ns((int) 1e9);
 	while (1);

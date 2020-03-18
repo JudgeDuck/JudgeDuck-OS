@@ -149,7 +149,7 @@ namespace LAPIC {
 	}
 	
 	void init() {
-		LINFO_ENTER();
+		LDEBUG_ENTER_RET();
 		
 		ACPI_RDSP *rdsp = find_rdsp();
 		ACPI_RSDT *rsdt = (ACPI_RSDT *) (uint64_t) (rdsp->rsdt_addr_phys);
