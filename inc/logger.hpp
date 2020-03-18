@@ -60,11 +60,16 @@ namespace Logger {
                             bool log_enter, bool log_ret)
                 : level(level), name(name), func(func), log_ret(log_ret)
         {
-            if (log_enter)
-                get_logger(level, name) << func << " start"; 
+            auto logger = get_logger(level, name);
+            if (log_enter) {
+                logger << func;
+                if (log_ret)
+                    logger << " start";
+            }
         }
         ~FunctionLoggerGuard() {
-            get_logger(level, name) << func << " done"; 
+            if (log_ret)
+                get_logger(level, name) << func << " done"; 
         }
         const LogLevel level;
         const char name;

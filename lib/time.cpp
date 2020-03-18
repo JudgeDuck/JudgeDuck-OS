@@ -1,6 +1,7 @@
 #include <inc/time.hpp>
 #include <inc/x86_64.hpp>
 #include <inc/smbios.hpp>
+#include <inc/logger.hpp>
 
 using x86_64::rdtsc;
 
@@ -11,6 +12,7 @@ namespace Time {
     void set_tsc_per_sec(uint64_t new_tsc_per_sec) {
         tsc_per_sec = new_tsc_per_sec;
         tsc_at_set_tsc_per_sec = rdtsc();
+        LINFO() << "set tsc per sec = " << new_tsc_per_sec;
     }
     clock_t clocks_per_sec() {
         return tsc_per_sec;

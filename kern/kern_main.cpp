@@ -8,7 +8,6 @@
 #include <inc/memory.hpp>
 #include <inc/pic.hpp>
 #include <inc/trap.hpp>
-#include <inc/time.hpp>
 #include <inc/logger.hpp>
 
 static void print_hello() {
@@ -46,7 +45,6 @@ int main() {
 	// TODO
 	LINFO() << "Welcome to JudgeDuck-OS-64 !!!";
 
-	std::cout << Time::timef() << std::endl;
 	LAPIC::timer_single_shot_ns((int) 1e9);
 	while (1);
 }
