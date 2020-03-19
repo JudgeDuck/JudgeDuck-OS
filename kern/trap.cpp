@@ -30,6 +30,7 @@ namespace Trap {
 	} __attribute__((packed));
 	
 	struct Trapframe {
+		uint64_t tf_fsbase;
 		PushRegs tf_regs;
 		uint64_t tf_num;
 		uint64_t tf_errorcode;
@@ -38,7 +39,7 @@ namespace Trap {
 		uint64_t tf_rflags;
 		uint64_t tf_rsp;
 		uint64_t tf_ss;
-	} __attribute__((packed));
+	} __attribute__((packed, aligned(16)));
 	
 	struct TaskState {
 		uint32_t reserved1;

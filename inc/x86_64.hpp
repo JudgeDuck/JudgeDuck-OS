@@ -56,6 +56,16 @@ namespace x86_64 {
 		__asm__ volatile ("pushfq; popq %0" : "=r" (rflags));
 		return rflags;
 	}
+	
+	static inline void set_fs(uint64_t p) {
+		__asm__ volatile ("wrfsbase %0" : : "r" (p));
+	}
+	
+	static inline uint64_t get_fs() {
+		uint64_t ret;
+		__asm__ volatile ("rdfsbase %0" : "=r" (ret));
+		return ret;
+	}
 }
 
 #endif

@@ -6,6 +6,8 @@
 trap_return:
 	movq %rdi, %rsp
 	popq %rax
+	wrfsbase %rax
+	popq %rax
 	popq %rcx
 	popq %rdx
 	popq %rbx
@@ -39,6 +41,8 @@ __trap_entry:
 	pushq %rbx
 	pushq %rdx
 	pushq %rcx
+	pushq %rax
+	rdfsbase %rax
 	pushq %rax
 	movq %rsp, %rdi
 	call trap_handler

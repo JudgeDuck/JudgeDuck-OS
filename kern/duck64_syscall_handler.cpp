@@ -5,7 +5,7 @@
 #include <string.h>
 
 #include <inc/vga_buffer.hpp>
-#include <inc/tls.hpp>
+#include <inc/x86_64.hpp>
 
 using VGA_Buffer::writer;
 
@@ -70,7 +70,7 @@ static char * duck_brk(char *addr) {
 
 static int duck_arch_prctl(int code, unsigned long *addr) {
 	if (code == ARCH_SET_FS) {
-		TLS::set_fs(addr);
+		x86_64::set_fs((uint64_t) addr);
 		return 0;
 	}
 	

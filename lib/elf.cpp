@@ -90,7 +90,5 @@ namespace ELF {
 		LDEBUG_ENTER_RET();
 		
 		Trap::run_user_64(app.entry, app.rsp);
-		
-		unimplemented();
 	}
 }
