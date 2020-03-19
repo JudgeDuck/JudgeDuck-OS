@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
+#include <iomanip>
 
 #include <inc/trap.hpp>
 #include <inc/x86_64.hpp>
@@ -31,6 +32,7 @@ namespace Trap {
 	
 	struct Trapframe {
 		uint64_t tf_fsbase;
+		uint64_t tf_tsc;
 		PushRegs tf_regs;
 		uint64_t tf_num;
 		uint64_t tf_errorcode;
@@ -89,21 +91,26 @@ namespace Trap {
 	void trap_return(Trapframe *tf);
 	
 	extern "C"
+	void trap_return_record_tsc(Trapframe *tf);
+	
+	extern "C"
 	void trap_handler(Trapframe *tf) {
 		int num = (int) tf->tf_num;
 		LDEBUG() << "trap " << num << ", CPL " << (tf->tf_cs & 3);
 		
 		if (tf->tf_cs & 3) {  // trap from user
 			tf_from_user = *tf;
-			*tf = tf_run_user;
+			tf = &tf_run_user;
 			tf->tf_regs.rax = num;
+			tf->tf_tsc = tf_from_user.tf_tsc - tf_to_user.tf_tsc;
 		} else {
 			if (num == TRAP_IRQ + PIC::IRQ_TIMER) {
 				LINFO() << "LAPIC works!";
 				LAPIC::eoi();
 			} else if (num == TRAP_RUN_USER) {
 				tf_run_user = *tf;
-				*tf = tf_to_user;
+				tf = &tf_to_user;
+				trap_return_record_tsc(tf);
 			}
 		}
 		
@@ -167,6 +174,12 @@ namespace Trap {
 		int trap_num = 0;
 		__asm__ volatile ("int %1" : "=a" (trap_num) : "i" (TRAP_RUN_USER) : "memory");
 		
-		LINFO() << "run ok, trap_num = " << trap_num;
+		LDEBUG()
+			<< "tsc1 = " << tf_from_user.tf_tsc
+			<< " tsc2 = " << tf_to_user.tf_tsc
+			<< " tscdiff = " << tf_run_user.tf_tsc;
+		LINFO() << "run ok, time = "
+			<< std::setprecision(6) << Timer::tsc_to_secf(tf_run_user.tf_tsc)
+			<< ", trap_num = " << trap_num;
 	}
 }

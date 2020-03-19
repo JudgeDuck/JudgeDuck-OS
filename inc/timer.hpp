@@ -19,6 +19,10 @@ namespace Timer {
 		return q * 1000000000ull + r * 1000000000ull / tsc_freq;
 	}
 	
+	static inline double tsc_to_secf(uint64_t tsc) {
+		return (double) tsc / tsc_freq;
+	}
+	
 	static inline uint64_t tsc_since_epoch() {
 		if (!tsc_epoch) return -1;
 		return get_tsc() - tsc_epoch;

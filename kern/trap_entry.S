@@ -2,11 +2,52 @@
 
 .text
 .align 8
+.globl trap_return_record_tsc
+trap_return_record_tsc:
+	movq %rdi, %rsp
+	
+	// tf_fsbase
+	popq %rax
+	wrfsbase %rax
+	
+	// rewrite tf_tsc
+	rdtsc
+	shl $32, %rdx
+	orq %rdx, %rax
+	movq %rax, (%rsp)
+	popq %rax
+	
+	popq %rax
+	popq %rcx
+	popq %rdx
+	popq %rbx
+	popq %rbp
+	popq %rsi
+	popq %rdi
+	popq %r8
+	popq %r9
+	popq %r10
+	popq %r11
+	popq %r12
+	popq %r13
+	popq %r14
+	popq %r15
+	addq $16, %rsp
+	iretq
+
+.text
+.align 8
 .globl trap_return
 trap_return:
 	movq %rdi, %rsp
+	
+	// tf_fsbase
 	popq %rax
 	wrfsbase %rax
+	
+	// skip tf_tsc
+	popq %rax
+	
 	popq %rax
 	popq %rcx
 	popq %rdx
@@ -42,8 +83,17 @@ __trap_entry:
 	pushq %rdx
 	pushq %rcx
 	pushq %rax
+	
+	// tf_tsc
+	rdtsc
+	shl $32, %rdx
+	orq %rdx, %rax
+	pushq %rax
+	
+	// tf_fsbase
 	rdfsbase %rax
 	pushq %rax
+	
 	movq %rsp, %rdi
 	call trap_handler
 
