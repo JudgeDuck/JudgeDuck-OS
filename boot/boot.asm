@@ -99,6 +99,7 @@ set_up_page_tables:
     ; [0, 512GiB) and [-512GiB, 0)
     mov eax, p3_table
     or eax, 0b11 ; present + writable
+    or eax, 0b100      ; user-accessible
     mov [p4_table], eax  ; first entry
     mov [p4_table + 4096 - 8], eax  ; last entry
 
@@ -110,6 +111,7 @@ set_up_page_tables:
     mov eax, 0x40000000  ; 1GiB
     mul ecx            ; start address of ecx-th page
     or eax, 0b10000011 ; present + writable + huge
+    or eax, 0b100      ; user-accessible
     mov [p3_table + ecx * 8], eax ; map ecx-th entry
 
     inc ecx            ; increase counter

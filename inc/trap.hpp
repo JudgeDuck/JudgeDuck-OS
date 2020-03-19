@@ -5,6 +5,7 @@
 
 namespace Trap {
 	void init();
+	void run_user_64(uint64_t entry, uint64_t rsp);
 	
 	static inline void enable() {
 		x86_64::sti();

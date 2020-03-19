@@ -39,11 +39,11 @@ namespace PIC {
 		outb(IO_PIC2, 0x20);
 	}
 	
-	void enable(int irq) {
+	void enable(uint8_t irq) {
 		set_mask_8259A(mask_8259A & ~(1 << irq));
 	}
 	
-	void disable(int irq) {
+	void disable(uint8_t irq) {
 		set_mask_8259A(mask_8259A | (1 << irq));
 	}
 	

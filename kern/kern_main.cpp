@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <math.h>
+#include <assert.h>
 #include <iostream>
 
 #include <inc/multiboot2_loader.hpp>
@@ -9,6 +10,7 @@
 #include <inc/trap.hpp>
 #include <inc/logger.hpp>
 #include <inc/timer.hpp>
+#include <inc/elf.hpp>
 
 static void print_hello() {
 	printf("Hello world!\n");
@@ -38,11 +40,20 @@ int main() {
 	Memory::init();
 	
 	Trap::init();
-	Trap::enable();
 	
 	// TODO
 	LINFO() << "Welcome to JudgeDuck-OS-64 !!!";
-
-	LAPIC::timer_single_shot_ns((int) 1e9);
+	
+	extern const char _binary_hello_elf_start[];
+	extern const char _binary_hello_elf_end[];
+	int len = _binary_hello_elf_end - _binary_hello_elf_start;
+	printf("start = %p, len = %d\n", _binary_hello_elf_start, len);
+	
+	ELF::App64 app;
+	assert(ELF::load(_binary_hello_elf_start, len, NULL, app));
+	// TODO: time limit
+	// TODO: return value
+	ELF::run(app);
+	
 	while (1);
 }

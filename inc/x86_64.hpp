@@ -50,6 +50,12 @@ namespace x86_64 {
 		if (ecxp) *ecxp = ecx;
 		if (edxp) *edxp = edx;
 	}
+	
+	static inline uint64_t read_rflags() {
+		uint64_t rflags;
+		__asm__ volatile ("pushfq; popq %0" : "=r" (rflags));
+		return rflags;
+	}
 }
 
 #endif
