@@ -5,7 +5,7 @@
 #include <stdlib.h>
 
 #define unimplemented() \
-	{ fprintf(stderr, "%s:%d: %s: Unimplemented!\n", __FILE__, __LINE__, __func__); abort(); }
+	{ LFATAL("%s:%d: %s: Unimplemented!", __FILE__, __LINE__, __func__); abort(); }
 
 namespace Utils {
 	template <class T1, class T2>

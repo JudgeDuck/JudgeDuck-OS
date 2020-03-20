@@ -64,6 +64,12 @@ namespace Logger {
 	TimedLogger LWARN();
 	TimedLogger LINFO();
 	TimedLogger LDEBUG();
+
+	void LFATAL(const char * fmt, ...);
+	void LERROR(const char * fmt, ...);
+	void LWARN(const char * fmt, ...);
+	void LINFO(const char * fmt, ...);
+	void LDEBUG(const char * fmt, ...);
 }
 
 using Logger::LFATAL;

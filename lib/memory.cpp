@@ -16,9 +16,9 @@ namespace Memory {
 	
 	void init() {
 		LDEBUG_ENTER_RET();
-		printf("Kernel memory used: %.1lf MiB\n", (uint64_t) &ebss / 1048576.0);
+		LINFO("Kernel memory used: %.1lf MiB", (uint64_t) &ebss / 1048576.0);
 		assert((uint64_t) &ebss <= 4u << 20);  // Check 4 MiB
-		printf("n_huge_pages = %d\n", n_huge_pages);
+		LINFO("n_huge_pages = %d", n_huge_pages);
 	}
 	
 	void register_available_huge_page(void *addr_ptr) {

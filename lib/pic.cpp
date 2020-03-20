@@ -22,11 +22,11 @@ namespace PIC {
 		if (!did_init) return;
 		outb(IO_PIC1 + 1, (char) mask);
 		outb(IO_PIC2 + 1, (char) (mask >> 8));
-		printf("Enabled Interrupts:");
+		auto log = LINFO();
+		log << "Enabled Interrupts:";
 		for (int i = 0; i < 16; i++) {
-			if (~mask & (1 << i)) printf(" %d", i);
+			if (~mask & (1 << i)) log << ' ' << i;
 		}
-		puts("");
 	}
 	
 	void eoi() {

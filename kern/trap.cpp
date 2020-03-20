@@ -169,7 +169,7 @@ namespace Trap {
 		LDEBUG_ENTER_RET();
 		
 		tf_to_user = make_trapframe(entry, rsp);
-		printf("tf %p   entry %lx   rsp %lx\n", &tf_to_user, entry, rsp);
+		LINFO("tf %p   entry %lx   rsp %lx", &tf_to_user, entry, rsp);
 		
 		int trap_num = 0;
 		__asm__ volatile ("int %1" : "=a" (trap_num) : "i" (TRAP_RUN_USER) : "memory");

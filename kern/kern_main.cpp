@@ -42,12 +42,12 @@ int main() {
 	Trap::init();
 	
 	// TODO
-	LINFO() << "Welcome to JudgeDuck-OS-64 !!!";
+	LINFO("Welcome to JudgeDuck-OS-64 !!!");
 	
 	extern const char _binary_hello_elf_start[];
 	extern const char _binary_hello_elf_end[];
 	int len = _binary_hello_elf_end - _binary_hello_elf_start;
-	printf("start = %p, len = %d\n", _binary_hello_elf_start, len);
+	LINFO("start = %p, len = %d", _binary_hello_elf_start, len);
 	
 	ELF::App64 app;
 	assert(ELF::load(_binary_hello_elf_start, len, NULL, app));

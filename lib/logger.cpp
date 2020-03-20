@@ -1,5 +1,6 @@
 #include <iostream>
 #include <iomanip>
+#include <cstdarg>
 
 #include <inc/logger.hpp>
 
@@ -89,5 +90,50 @@ namespace Logger {
 			VGA_Buffer::ColorCode::generate(VGA_Buffer::Color::DarkGray,
 				VGA_Buffer::Color::Black),
 			LL_DEBUG, 'D');
+	}
+
+	void LFATAL(const char * fmt, ...)
+	{
+		auto logger = LFATAL();
+		va_list args;
+		va_start(args, fmt);
+		vprintf(fmt, args);
+		va_end(args);
+	}
+
+	void LERROR(const char * fmt, ...)
+	{
+		auto logger = LERROR();
+		va_list args;
+		va_start(args, fmt);
+		vprintf(fmt, args);
+		va_end(args);
+	}
+
+	void LWARN(const char * fmt, ...)
+	{
+		auto logger = LWARN();
+		va_list args;
+		va_start(args, fmt);
+		vprintf(fmt, args);
+		va_end(args);
+	}
+
+	void LINFO(const char * fmt, ...)
+	{
+		auto logger = LINFO();
+		va_list args;
+		va_start(args, fmt);
+		vprintf(fmt, args);
+		va_end(args);
+	}
+
+	void LDEBUG(const char * fmt, ...)
+	{
+		auto logger = LDEBUG();
+		va_list args;
+		va_start(args, fmt);
+		vprintf(fmt, args);
+		va_end(args);
 	}
 }
