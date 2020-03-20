@@ -35,6 +35,10 @@ namespace x86_64 {
 		__asm__ volatile ("cli");
 	}
 	
+	static inline void hlt() {
+		__asm__ volatile ("hlt");
+	}
+	
 	static inline uint64_t rdtsc() {
 		return __rdtsc();
 	}

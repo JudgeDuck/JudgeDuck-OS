@@ -11,6 +11,7 @@
 #include <inc/logger.hpp>
 #include <inc/timer.hpp>
 #include <inc/elf.hpp>
+#include <inc/x86_64.hpp>
 
 static void print_hello() {
 	printf("Hello world!\n");
@@ -56,5 +57,5 @@ int main() {
 	// TODO: return value
 	ELF::run(app);
 	
-	while (1);
+	while (1) x86_64::hlt();
 }
