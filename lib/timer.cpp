@@ -56,7 +56,7 @@ namespace Timer {
 		
 		char brand[13] = { 0 };
 		x86_64::cpuid(0, NULL, (uint32_t *) brand, (uint32_t *) brand + 2, (uint32_t *) brand + 1);
-		LINFO("CPU brand string: [%s]", brand);
+		LDEBUG("CPU brand string: [%s]", brand);
 		
 		if (memcmp(brand, "GenuineIntel", 12) == 0) {
 			detect_cpu_speed_intel();
@@ -66,6 +66,6 @@ namespace Timer {
 		
 		tsc_epoch = get_tsc();
 		
-		LINFO("tsc_freq = %lu, ext_freq = %u", tsc_freq, ext_freq);
+		LDEBUG("tsc_freq = %lu, ext_freq = %u", tsc_freq, ext_freq);
 	}
 }

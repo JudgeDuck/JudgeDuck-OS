@@ -165,7 +165,7 @@ namespace LAPIC {
 		assert(madt != NULL);
 		
 		lapic = Memory::remap((volatile uint32_t *) (uint64_t) madt->lapic_addr_phys);
-		LINFO("remapped lapic = %p", lapic);
+		LDEBUG("remapped lapic = %p", lapic);
 		
 		// Enable local APIC; mask spurious interrupt vector.
 		lapicw(SVR, ENABLE | MASKED);

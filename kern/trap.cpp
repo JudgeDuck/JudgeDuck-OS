@@ -169,17 +169,14 @@ namespace Trap {
 		LDEBUG_ENTER_RET();
 		
 		tf_to_user = make_trapframe(entry, rsp);
-		LINFO("tf %p   entry %lx   rsp %lx", &tf_to_user, entry, rsp);
+		LDEBUG("tf %p   entry %lx   rsp %lx", &tf_to_user, entry, rsp);
 		
 		int trap_num = 0;
 		__asm__ volatile ("int %1" : "=a" (trap_num) : "i" (TRAP_RUN_USER) : "memory");
 		
-		LDEBUG()
-			<< "tsc1 = " << tf_from_user.tf_tsc
-			<< " tsc2 = " << tf_to_user.tf_tsc
-			<< " tscdiff = " << tf_run_user.tf_tsc;
-		LINFO() << "run ok, time = "
-			<< std::setprecision(6) << Timer::tsc_to_secf(tf_run_user.tf_tsc)
-			<< ", trap_num = " << trap_num;
+		LDEBUG("tsc1 = %lu tsc2 = %lu tscdiff = %lu",
+			tf_from_user.tf_tsc, tf_to_user.tf_tsc, tf_run_user.tf_tsc);
+		LINFO("run ok, time = %.6lf, trap_num = %d",
+			Timer::tsc_to_secf(tf_run_user.tf_tsc), trap_num);
 	}
 }
