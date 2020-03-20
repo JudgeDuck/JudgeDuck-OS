@@ -136,11 +136,8 @@ namespace Trap {
 		
 		for (uint32_t i = 0; i < 256; i++) {
 			set_idt(i, __traps[i]);
-			if (i < TRAP_IRQ) {
-				idt[i].options |= 3 << 5;  // user
-			}
 		}
-		idt[TRAP_IRQ + PIC::IRQ_TIMER].options |= 3 << 5;
+		idt[3].options |= 3 << 5;  // user can invoke int3
 		idt[TRAP_RUN_USER].ist = 7;  // 7-th stack
 		
 		x86_64::lidt(&idt_desc);
