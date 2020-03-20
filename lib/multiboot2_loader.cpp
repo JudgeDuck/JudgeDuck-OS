@@ -14,7 +14,7 @@ namespace Multiboot2_Loader {
 	static void load_mmap(struct multiboot_tag_mmap *mmap) {
 		multiboot_memory_map_t *e = mmap->entries;
 		while ((unsigned long) e != (unsigned long) mmap + mmap->size) {
-			printf("base addr = %08llx (%.1lf MiB), len = %08llx (%.1lf MiB), type = %u\n",
+			LDEBUG("base %08llx (%.1lf MiB), len %08llx (%.1lf MiB), type %u",
 				e->addr, e->addr / 1048576.0, e->len, e->len / 1048576.0, e->type);
 			
 			uint64_t start = Utils::round_up((uint64_t) e->addr, Memory::HUGE_PAGE_SIZE);
