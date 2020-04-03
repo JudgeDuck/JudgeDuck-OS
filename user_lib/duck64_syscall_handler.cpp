@@ -73,9 +73,19 @@ static int duck_arch_prctl(int code, unsigned long *addr) {
 	return -1;
 }
 
+static long duck_exit(int code) {
+	// NOTE: specified by JudgeDuck ABI
+	__asm__ volatile ("syscall" : : "a"(SYS_exit), "D"(code));
+	return 0;
+}
+
 extern "C"
 long __duck64__syscall_handler(long a1, long a2, long a3, long, long, long, long n) {
 	switch (n) {
+		case SYS_exit:
+			return duck_exit((int) a1);
+		case SYS_exit_group:
+			return duck_exit((int) a1);
 		case SYS_brk:
 			return (long) duck_brk((char *) a1);
 		case SYS_arch_prctl:

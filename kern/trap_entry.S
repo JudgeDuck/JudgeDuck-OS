@@ -10,16 +10,7 @@ trap_return_record_tsc:
 	popq %rax
 	wrfsbase %rax
 	
-	// rewrite tf_tsc
-	rdtsc
-	shl $32, %rdx
-	orq %rdx, %rax
-	movq %rax, (%rsp)
-	popq %rax
-	
-	popq %rax
 	popq %rcx
-	popq %rdx
 	popq %rbx
 	popq %rbp
 	popq %rsi
@@ -32,6 +23,23 @@ trap_return_record_tsc:
 	popq %r13
 	popq %r14
 	popq %r15
+	
+	// clear all caches
+	wbinvd
+	movq %cr3, %rax
+	movq %rax, %cr3
+	mfence
+	
+	// rewrite tsc
+	rdtsc
+	shl $32, %rdx
+	orq %rdx, %rax
+	movq %rax, (%rsp)
+	popq %rax
+	
+	popq %rax
+	popq %rdx
+	
 	addq $16, %rsp
 	iretq
 
@@ -45,12 +53,7 @@ trap_return:
 	popq %rax
 	wrfsbase %rax
 	
-	// skip tf_tsc
-	popq %rax
-	
-	popq %rax
 	popq %rcx
-	popq %rdx
 	popq %rbx
 	popq %rbp
 	popq %rsi
@@ -63,11 +66,28 @@ trap_return:
 	popq %r13
 	popq %r14
 	popq %r15
+	
+	// skip tsc
+	popq %rax
+	
+	popq %rax
+	popq %rdx
+	
 	addq $16, %rsp
 	iretq
 
 .align 8
 __trap_entry:
+	pushq %rdx
+	pushq %rax
+	
+	// tsc
+	rdtsc
+	shl $32, %rdx
+	orq %rdx, %rax
+	pushq %rax
+	mfence
+	
 	pushq %r15
 	pushq %r14
 	pushq %r13
@@ -80,15 +100,7 @@ __trap_entry:
 	pushq %rsi
 	pushq %rbp
 	pushq %rbx
-	pushq %rdx
 	pushq %rcx
-	pushq %rax
-	
-	// tf_tsc
-	rdtsc
-	shl $32, %rdx
-	orq %rdx, %rax
-	pushq %rax
 	
 	// tf_fsbase
 	rdfsbase %rax
@@ -96,6 +108,81 @@ __trap_entry:
 	
 	movq %rsp, %rdi
 	call trap_handler
+
+.text
+.align 8
+.globl __syscall_entry
+__syscall_entry:
+	// We clobber all registers this time
+	movq %rax, %r15  // save rax [syscall number]
+	rdtsc
+	shl $32, %rdx
+	orq %rdx, %rax
+	mfence
+	
+	movq __syscall_stack, %rsp
+	xorq %r11, %r11
+	pushq %r11  // fake tf_ss
+	pushq %r11  // fake tf_rsp
+	pushq %r11  // fake tf_rflags
+	pushq $3    // fake userspace tf_cs
+	pushq %r11  // fake tf_rip
+	pushq %r11  // fake tf_errorcode
+	pushq $255  // fake tf_num
+	pushq %r11  // fake rdx
+	pushq %r15  // saved rax [syscall number]
+	pushq %rax  // tsc
+	movq %rdi, -72(%rsp)  // rdi [first argument]
+	subq $112, %rsp  // skip other regs and fsbase
+	
+	movq %rsp, %rdi
+	call trap_handler
+
+.text
+.align 8
+.globl syscall_return_record_tsc
+syscall_return_record_tsc:
+	movq %rdi, %rsp
+	
+	// tf_fsbase
+	popq %rax
+	wrfsbase %rax
+	
+	popq %rcx
+	popq %rbx
+	popq %rbp
+	popq %rsi
+	popq %rdi
+	popq %r8
+	popq %r9
+	popq %r10
+	popq %r11
+	popq %r12
+	popq %r13
+	popq %r14
+	popq %r15
+	
+	// clear all caches
+	wbinvd
+	movq %cr3, %rax
+	movq %rax, %cr3
+	mfence
+	
+	// rewrite tsc
+	rdtsc
+	shl $32, %rdx
+	orq %rdx, %rax
+	movq %rax, (%rsp)
+	popq %rax
+	
+	popq %rax
+	popq %rdx
+	
+	movq 16(%rsp), %rcx  // tf_rip
+	movq 32(%rsp), %r11  // tf_rflags
+	movq 40(%rsp), %rsp  // tf_rsp
+	
+	sysretq
 
 #define TRAP_NOEC(name, id) \
 	.align 8; \

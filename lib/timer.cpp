@@ -38,7 +38,8 @@ namespace Timer {
 		if (base_freq == 0 || r != 0) {
 			// Maybe QEMU CPU ?
 			// TODO: Detect older Intel CPUs
-			tsc_freq = (uint64_t) 2600 * 1000000;
+			// 2020-04-03: Running QEMU on i3-8100 (3.6 GHz)
+			tsc_freq = (uint64_t) 3600 * 1000000;
 			ext_freq = 1000 * 1000000;
 		} else {
 			tsc_freq = (uint64_t) base_freq * 1000000;

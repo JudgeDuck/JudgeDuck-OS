@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <iomanip>
+#include <sys/syscall.h>
 
 #include <inc/trap.hpp>
 #include <inc/x86_64.hpp>
@@ -26,13 +27,14 @@ namespace Trap {
 	} __attribute__((packed, aligned(16)));
 	
 	struct PushRegs {
-		uint64_t rax, rcx, rdx, rbx, rbp, rsi, rdi;
+		uint64_t rcx, rbx, rbp, rsi, rdi;
 		uint64_t r8, r9, r10, r11, r12, r13, r14, r15;
+		uint64_t tsc;
+		uint64_t rax, rdx;
 	} __attribute__((packed));
 	
 	struct Trapframe {
 		uint64_t tf_fsbase;
-		uint64_t tf_tsc;
 		PushRegs tf_regs;
 		uint64_t tf_num;
 		uint64_t tf_errorcode;
@@ -54,15 +56,19 @@ namespace Trap {
 	
 	static TaskState task_state;
 	
-	const int GDT_KERNEL_CS = 8;
-	const int GDT_USER_CS = 16;
-	const int GDT_USER_SS = 24;
-	const int GDT_TSS = 32;
+	const uint16_t GDT_KERNEL_CS = 8;
+	const uint16_t GDT_KERNEL_SS = 16;
+	const uint16_t GDT_USER32_CS = 24;
+	const uint16_t GDT_USER_SS = 32;
+	const uint16_t GDT_USER_CS = 40;
+	const uint16_t GDT_TSS = 48;
 	static uint64_t gdt[] = {
 		0,
 		[GDT_KERNEL_CS >> 3] = (1ul << 43) | (1ul << 44) | (1ul << 47) | (1ul << 53),
-		[GDT_USER_CS >> 3] = (1ul << 43) | (1ul << 44) | (1ul << 47) | (1ul << 53) | (3ul << 45),
+		[GDT_KERNEL_SS >> 3] = (1ul << 44) | (1ul << 47) | (1ul << 41),
+		[GDT_USER32_CS >> 3] = 0,  // TODO: fill it
 		[GDT_USER_SS >> 3] = (1ul << 44) | (1ul << 47) | (1ul << 41) | (3ul << 45),
+		[GDT_USER_CS >> 3] = (1ul << 43) | (1ul << 44) | (1ul << 47) | (1ul << 53) | (3ul << 45),
 		[GDT_TSS >> 3] = (sizeof(TaskState) - 1) | (((uint64_t) &task_state & 0xffffff) << 16) | (9ul << 40) | (0ul << 45) | (1ul << 47) | (1ul << 53) | (((uint64_t) &task_state >> 24) << 56),
 		[(GDT_TSS >> 3) + 1] = ((uint64_t) &task_state) >> 32
 	};
@@ -84,14 +90,18 @@ namespace Trap {
 	
 	const uint8_t TRAP_IRQ = 32;
 	const uint8_t TRAP_RUN_USER = 233;
+	const uint8_t TRAP_INVALID_SYSCALL = 254;
+	const uint8_t TRAP_SYSCALL = 255;
 	
+	extern "C" { uint64_t __syscall_stack; }
 	static Trapframe tf_run_user, tf_from_user, tf_to_user;
+	static uint64_t user_time_limit_ns;
 	
 	extern "C"
 	void trap_return(Trapframe *tf);
 	
 	extern "C"
-	void trap_return_record_tsc(Trapframe *tf);
+	void syscall_return_record_tsc(Trapframe *tf);
 	
 	extern "C"
 	void trap_handler(Trapframe *tf) {
@@ -99,10 +109,12 @@ namespace Trap {
 		LDEBUG() << "trap " << num << ", CPL " << (tf->tf_cs & 3);
 		
 		if (tf->tf_cs & 3) {  // trap from user
+			LAPIC::eoi();
+			LAPIC::timer_disable();
 			tf_from_user = *tf;
 			tf = &tf_run_user;
 			tf->tf_regs.rax = num;
-			tf->tf_tsc = tf_from_user.tf_tsc - tf_to_user.tf_tsc;
+			tf->tf_regs.tsc = tf_from_user.tf_regs.tsc - tf_to_user.tf_regs.tsc;
 		} else {
 			if (num == TRAP_IRQ + PIC::IRQ_TIMER) {
 				LINFO() << "LAPIC works!";
@@ -110,7 +122,13 @@ namespace Trap {
 			} else if (num == TRAP_RUN_USER) {
 				tf_run_user = *tf;
 				tf = &tf_to_user;
-				trap_return_record_tsc(tf);
+				
+				if (user_time_limit_ns != 0) {
+					// add 10ms to provide a hard limit
+					LAPIC::timer_single_shot_ns(user_time_limit_ns + 10000000);
+				}
+				
+				syscall_return_record_tsc(tf);
 			}
 		}
 		
@@ -131,6 +149,8 @@ namespace Trap {
 		};
 	}
 	
+	extern "C" void __syscall_entry();
+	
 	void init() {
 		LDEBUG_ENTER_RET();
 		
@@ -149,6 +169,15 @@ namespace Trap {
 		task_state.IOPB_offset = sizeof(TaskState);
 		x86_64::lgdt(&gdt_desc);
 		x86_64::ltr(GDT_TSS);
+		
+		// set up syscall [only used as exit]
+		using x86_64::rdmsr;
+		using x86_64::wrmsr;
+		wrmsr(x86_64::Efer, rdmsr(x86_64::Efer) | 1);  // enable syscall
+		wrmsr(x86_64::LStar, (uint64_t) &__syscall_entry);
+		wrmsr(x86_64::Star, ((uint64_t) GDT_KERNEL_CS << 32) | ((uint64_t) GDT_USER32_CS << 48));
+		wrmsr(x86_64::SFMask, 0x200);  // mask interrupt
+		__syscall_stack = task_state.rsp[0];  // used by syscall_entry
 	}
 	
 	static Trapframe make_trapframe(uint64_t rip, uint64_t rsp) {
@@ -156,24 +185,39 @@ namespace Trap {
 		memset(&tf, 0, sizeof(tf));
 		tf.tf_rip = rip;
 		tf.tf_cs = GDT_USER_CS | 3;
-		tf.tf_rflags = x86_64::read_rflags() | 0x3000;
+		tf.tf_rflags = x86_64::read_rflags() | 0x3000 | 0x200;  // user | interrupt
 		tf.tf_rsp = rsp;
 		tf.tf_ss = GDT_USER_SS | 3;
 		return tf;
 	}
 	
-	void run_user_64(uint64_t entry, uint64_t rsp) {
+	void run_user_64(uint64_t entry, uint64_t rsp, uint64_t time_limit_ns,
+		uint64_t &tsc, uint8_t &trap_num, int32_t &return_code) {
 		LDEBUG_ENTER_RET();
 		
+		user_time_limit_ns = time_limit_ns;
 		tf_to_user = make_trapframe(entry, rsp);
 		LDEBUG("tf %p   entry %lx   rsp %lx", &tf_to_user, entry, rsp);
 		
-		int trap_num = 0;
 		__asm__ volatile ("int %1" : "=a" (trap_num) : "i" (TRAP_RUN_USER) : "memory");
 		
 		LDEBUG("tsc1 = %lu tsc2 = %lu tscdiff = %lu",
-			tf_from_user.tf_tsc, tf_to_user.tf_tsc, tf_run_user.tf_tsc);
-		LINFO("run ok, time = %.6lf, trap_num = %d",
-			Timer::tsc_to_secf(tf_run_user.tf_tsc), trap_num);
+			tf_from_user.tf_regs.tsc, tf_to_user.tf_regs.tsc, tf_run_user.tf_regs.tsc);
+		
+		// export tsc
+		tsc = tf_run_user.tf_regs.tsc;
+		
+		// export return-code
+		if (trap_num == TRAP_SYSCALL) {
+			int syscall_num = (int) tf_from_user.tf_regs.rax;
+			if (syscall_num != SYS_exit) {
+				trap_num = TRAP_INVALID_SYSCALL;
+				return_code = 0;
+			} else {
+				return_code = (int32_t) tf_from_user.tf_regs.rdi;
+			}
+		} else {
+			return_code = 0;
+		}
 	}
 }

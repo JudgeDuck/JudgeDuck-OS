@@ -5,7 +5,7 @@ user_elf_files := $(patsubst user/%.cpp, \
 user_obj_files := $(patsubst user/%.cpp, \
 		build/user/%.obj, $(user_source_files))
 
-USER_CXX := g++ -std=c++14 -static -nostdlib -fPIC -Wl,-z,max-page-size=2097152
+USER_CXX := g++ -O2 -std=c++14 -static -nostdlib -U_FORTIFY_SOURCE -fPIC -Wl,-z,max-page-size=2097152
 
 build/user/%.elf: user/%.cpp $(user_header_files) build/user_lib/libduck.a
 	@echo + cxx[USER] $@

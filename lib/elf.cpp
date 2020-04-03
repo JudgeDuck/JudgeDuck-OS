@@ -7,6 +7,7 @@
 #include <inc/utils.hpp>
 #include <inc/memory.hpp>
 #include <inc/trap.hpp>
+#include <inc/lapic.hpp>
 
 namespace ELF {
 	bool load(const char *buf, uint32_t len, void *dst, App64 &app) {
@@ -86,9 +87,14 @@ namespace ELF {
 		return true;
 	}
 	
-	void run(const App64 &app) {
+	RunResult run(const App64 &app, uint64_t time_limit_ns) {
 		LDEBUG_ENTER_RET();
 		
-		Trap::run_user_64(app.entry, app.rsp);
+		RunResult res;
+		Trap::run_user_64(app.entry, app.rsp, time_limit_ns,
+			res.time_tsc, res.trap_num, res.return_code);
+		res.time_ns = Timer::tsc_to_ns(res.time_tsc);
+		
+		return res;
 	}
 }

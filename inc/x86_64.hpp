@@ -70,6 +70,22 @@ namespace x86_64 {
 		__asm__ volatile ("rdfsbase %0" : "=r" (ret));
 		return ret;
 	}
+	
+	static inline uint64_t rdmsr(uint32_t msr) {
+		uint32_t hi, lo;
+		__asm__ volatile ("rdmsr" : "=a" (lo), "=d" (hi) : "c" (msr));
+		return ((uint64_t) hi << 32) | lo;
+	}
+	
+	static inline void wrmsr(uint32_t msr, uint64_t val) {
+		uint32_t hi = val >> 32, lo = val;
+		__asm__ volatile ("wrmsr" : : "a" (lo), "d" (hi), "c" (msr));
+	}
+	
+	const uint32_t Efer = 0xC0000080;
+	const uint32_t Star = 0xC0000081;
+	const uint32_t LStar = 0xC0000082;
+	const uint32_t SFMask = 0xC0000084;
 }
 
 #endif

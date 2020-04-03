@@ -51,11 +51,13 @@ int main() {
 	int len = _binary_hello_elf_end - _binary_hello_elf_start;
 	LDEBUG("start = %p, len = %d", _binary_hello_elf_start, len);
 	
+	Logger::set_log_level(Logger::LL_INFO);
+	// TODO: memory limit
 	ELF::App64 app;
 	assert(ELF::load(_binary_hello_elf_start, len, NULL, app));
-	// TODO: time limit
-	// TODO: return value
-	ELF::run(app);
+	auto res = ELF::run(app, 5e9);
+	LINFO("time %.6lf ms, tsc %lu, trap %u, retcode %d",
+		res.time_ns / 1e6, res.time_tsc, res.trap_num, res.return_code);
 	
 	while (1) x86_64::hlt();
 }
