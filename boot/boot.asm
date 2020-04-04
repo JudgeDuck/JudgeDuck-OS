@@ -95,13 +95,13 @@ check_long_mode:
 
 
 set_up_page_tables:
-    ; map first and last P4 entry to P3 table
-    ; [0, 512GiB) and [-512GiB, 0)
+    ; map first and the second last P4 entry to P3 table
+    ; [0, 512GiB) and [-1024GiB, -512GiB)
     mov eax, p3_table
     or eax, 0b11 ; present + writable
     or eax, 0b100      ; user-accessible
     mov [p4_table], eax  ; first entry
-    mov [p4_table + 4096 - 8], eax  ; last entry
+    mov [p4_table + 4096 - 16], eax  ; the second last entry
 
     ; map each P2 entry to a huge 2MiB page
     mov ecx, 0         ; counter variable

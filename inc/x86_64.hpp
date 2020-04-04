@@ -27,6 +27,11 @@ namespace x86_64 {
 		__asm__ volatile ("ltr %0" : : "r" (sel));
 	}
 	
+	template <typename T>
+	static inline void lcr3(T p) {
+		__asm__ volatile ("movq %0, %%cr3" : : "r" ((uint64_t) p));
+	}
+	
 	static inline void sti() {
 		__asm__ volatile ("sti");
 	}

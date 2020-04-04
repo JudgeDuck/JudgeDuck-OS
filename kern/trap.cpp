@@ -129,6 +129,9 @@ namespace Trap {
 				}
 				
 				syscall_return_record_tsc(tf);
+			} else {
+				LERROR("Unhandled kernel trap %d", num);
+				unimplemented();
 			}
 		}
 		
