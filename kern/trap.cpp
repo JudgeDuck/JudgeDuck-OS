@@ -34,6 +34,7 @@ namespace Trap {
 	} __attribute__((packed));
 	
 	struct Trapframe {
+		char fxstate[512];
 		uint64_t tf_fsbase;
 		PushRegs tf_regs;
 		uint64_t tf_num;

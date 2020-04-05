@@ -2,52 +2,12 @@
 
 .text
 .align 8
-.globl trap_return_record_tsc
-trap_return_record_tsc:
-	movq %rdi, %rsp
-	
-	// tf_fsbase
-	popq %rax
-	wrfsbase %rax
-	
-	popq %rcx
-	popq %rbx
-	popq %rbp
-	popq %rsi
-	popq %rdi
-	popq %r8
-	popq %r9
-	popq %r10
-	popq %r11
-	popq %r12
-	popq %r13
-	popq %r14
-	popq %r15
-	
-	// clear all caches
-	wbinvd
-	movq %cr3, %rax
-	movq %rax, %cr3
-	mfence
-	
-	// rewrite tsc
-	rdtsc
-	shl $32, %rdx
-	orq %rdx, %rax
-	movq %rax, (%rsp)
-	popq %rax
-	
-	popq %rax
-	popq %rdx
-	
-	addq $16, %rsp
-	iretq
-
-.text
-.align 8
 .globl trap_return
 trap_return:
 	movq %rdi, %rsp
+	
+	fxrstor (%rsp)
+	addq $512, %rsp
 	
 	// tf_fsbase
 	popq %rax
@@ -106,6 +66,9 @@ __trap_entry:
 	rdfsbase %rax
 	pushq %rax
 	
+	subq $512, %rsp
+	fxsave (%rsp)
+	
 	movq %rsp, %rdi
 	call trap_handler
 
@@ -135,6 +98,9 @@ __syscall_entry:
 	movq %rdi, -72(%rsp)  // rdi [first argument]
 	subq $112, %rsp  // skip other regs and fsbase
 	
+	subq $512, %rsp
+	fxsave (%rsp)
+	
 	movq %rsp, %rdi
 	call trap_handler
 
@@ -143,6 +109,9 @@ __syscall_entry:
 .globl syscall_return_record_tsc
 syscall_return_record_tsc:
 	movq %rdi, %rsp
+	
+	fxrstor (%rsp)
+	addq $512, %rsp
 	
 	// tf_fsbase
 	popq %rax
