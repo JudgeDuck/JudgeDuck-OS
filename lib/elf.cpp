@@ -142,13 +142,16 @@ namespace ELF {
 		if (special_region_break < special_region_vaddr) return false;
 		if (special_region_break > Memory::get_vaddr_break()) return false;
 		
-		// Clear memory and prepare to load
-		memset((void *) load_vaddr_start, 0, special_region_break - load_vaddr_start);
-		
 		// Set up page flags
 		Memory::set_page_flags_kernel(Memory::get_kernel_break(), load_vaddr_start);
 		Memory::set_page_flags_user_writable(load_vaddr_start, special_region_break);
 		Memory::set_page_flags_kernel(special_region_break, Memory::get_vaddr_break());
+		
+		// Ensure everything writable by reloading cr3
+		x86_64::lcr3(x86_64::rcr3());
+		
+		// Clear memory and prepare to load
+		memset((void *) load_vaddr_start, 0, special_region_break - load_vaddr_start);
 		
 		// Do actual loading
 		for (uint64_t i = 0; i < e_phnum; i++) {
@@ -166,9 +169,6 @@ namespace ELF {
 			memset(addr, 0, p_memsz);
 			memcpy(addr, src, p_filesz);
 		}
-		
-		// Ensure stdin region writable by reloading cr3
-		x86_64::lcr3(x86_64::rcr3());
 		
 		// Load stdin
 		memcpy((void *) stdin_load_vaddr, config.stdin_ptr, config.stdin_size);

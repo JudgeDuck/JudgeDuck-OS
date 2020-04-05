@@ -12,10 +12,10 @@ extern int ebss;
 
 namespace Memory {
 	const uint64_t MAX_MEMORY_SIZE = 511ull << 30;  // 511GiB
-	const uint32_t MAX_N_HUGE_PAGES = MAX_MEMORY_SIZE / HUGE_PAGE_SIZE;  // 261632
+	const uint64_t MAX_N_HUGE_PAGES = MAX_MEMORY_SIZE / HUGE_PAGE_SIZE;  // 261632
 	
 	static bool huge_page_map[MAX_N_HUGE_PAGES];
-	static uint32_t n_huge_pages = 0;
+	static uint64_t n_huge_pages = 0;
 	
 	const uint64_t kernel_break = 4 << 20;  // 4 MiB
 	
@@ -29,6 +29,10 @@ namespace Memory {
 	const uint64_t PTE_HUGE = 1 << 7;
 	const uint64_t PTE_GLOBAL = 1 << 8;
 	const uint64_t PTE_NO_EXECUTE = 1ull << 63;
+	
+	static inline uint64_t clear_page_flags(uint64_t a) {
+		return ((a << 1) >> 13) << 12;
+	}
 	
 	// For the page table allocator
 	static uint64_t next_page_table_address = kernel_break;
@@ -167,9 +171,9 @@ namespace Memory {
 			uint64_t paddr = i * HUGE_PAGE_SIZE;
 			
 			uint64_t flags = PTE_PRESENT | PTE_WRITABLE | PTE_USER | PTE_ACCESSED | PTE_DIRTY;
-			uint64_t P3 = PTE_create(P4, P4_index(vaddr), flags) & -PAGE_SIZE;
-			uint64_t P2 = PTE_create(P3, P3_index(vaddr), flags) & -PAGE_SIZE;
-			uint64_t P1 = PTE_create(P2, P2_index(vaddr), flags) & -PAGE_SIZE;  // 4K pages
+			uint64_t P3 = clear_page_flags(PTE_create(P4, P4_index(vaddr), flags));
+			uint64_t P2 = clear_page_flags(PTE_create(P3, P3_index(vaddr), flags));
+			uint64_t P1 = clear_page_flags(PTE_create(P2, P2_index(vaddr), flags));  // 4K pages
 			
 			for (uint64_t j = 0; j < PAGE_SIZE / 8; j++) {
 				PTE(P1, j) = (paddr + j * PAGE_SIZE) | flags;
@@ -229,7 +233,8 @@ namespace Memory {
 		
 		while (start != end) {
 			uint64_t &P1 = get_P1(start);
-			P1 = (P1 & -PAGE_SIZE) | PTE_PRESENT | PTE_USER | PTE_WRITABLE | PTE_NO_EXECUTE;
+			P1 = clear_page_flags(P1)
+				| PTE_PRESENT | PTE_USER | PTE_WRITABLE | PTE_NO_EXECUTE;
 			
 			start += PAGE_SIZE;
 		}
@@ -242,7 +247,7 @@ namespace Memory {
 		
 		while (start != end) {
 			uint64_t &P1 = get_P1(start);
-			P1 = (P1 & -PAGE_SIZE) | PTE_PRESENT | PTE_USER | PTE_NO_EXECUTE;
+			P1 = clear_page_flags(P1) | PTE_PRESENT | PTE_USER | PTE_NO_EXECUTE;
 			
 			start += PAGE_SIZE;
 		}
@@ -255,7 +260,7 @@ namespace Memory {
 		
 		while (start != end) {
 			uint64_t &P1 = get_P1(start);
-			P1 = (P1 & -PAGE_SIZE) | PTE_PRESENT | PTE_USER;
+			P1 = clear_page_flags(P1) | PTE_PRESENT | PTE_USER;
 			
 			start += PAGE_SIZE;
 		}
@@ -268,7 +273,7 @@ namespace Memory {
 		
 		while (start != end) {
 			uint64_t &P1 = get_P1(start);
-			P1 = (P1 & -PAGE_SIZE) | PTE_PRESENT;
+			P1 = clear_page_flags(P1) | PTE_PRESENT | PTE_WRITABLE;
 			
 			start += PAGE_SIZE;
 		}
