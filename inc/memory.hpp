@@ -22,6 +22,7 @@ namespace Memory {
 	uint64_t get_vaddr_break();
 	
 	void set_page_flags_user_writable(uint64_t start, uint64_t end);
+	void set_page_flags_user_readonly(uint64_t start, uint64_t end);
 	void set_page_flags_user_executable(uint64_t start, uint64_t end);
 	void set_page_flags_kernel(uint64_t start, uint64_t end);
 	

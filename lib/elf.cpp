@@ -8,9 +8,16 @@
 #include <inc/memory.hpp>
 #include <inc/trap.hpp>
 #include <inc/lapic.hpp>
+#include <inc/x86_64.hpp>
 
 using Memory::HUGE_PAGE_SIZE;
 using Memory::PAGE_SIZE;
+
+// [JudgeDuck-ABI, "Running"]
+#define AT_DUCK 0x6b637564  // "duck"
+
+using Utils::round_up;
+using Utils::round_down;
 
 namespace ELF {
 	static inline void pushq(uint64_t &rsp, uint64_t val) {
@@ -18,8 +25,14 @@ namespace ELF {
 		* (uint64_t *) rsp = val;
 	}
 	
-	bool load(const char *buf, uint32_t len, void *dst,
-		uint64_t memory_hard_limit, App64 &app) {
+	template <class T>
+	static inline void push(uint64_t &rsp, const T &a) {
+		rsp -= sizeof(a);
+		* (T *) rsp = a;
+	}
+	
+	bool load(const char *buf, uint32_t len,
+		const App64Config &config, App64 &app) {
 		LDEBUG_ENTER_RET();
 		
 		// Read elf header
@@ -32,37 +45,33 @@ namespace ELF {
 		if (hdr->e_ident[EI_CLASS] != ELFCLASS64) return false;
 		if (hdr->e_ident[EI_DATA] != ELFDATA2LSB) return false;
 		if (hdr->e_ident[EI_VERSION] != EV_CURRENT) return false;
-		if (hdr->e_ident[EI_OSABI] != ELFOSABI_SYSV) return false;
+		if (hdr->e_ident[EI_OSABI] != ELFOSABI_SYSV &&
+			hdr->e_ident[EI_OSABI] != ELFOSABI_LINUX) return false;
 		if (hdr->e_type != ET_EXEC) return false;
 		if (hdr->e_machine != EM_X86_64) return false;
 		if (hdr->e_version != EV_CURRENT) return false;
-		uint64_t e_entry = (uint64_t) hdr->e_entry;
-		uint64_t e_phoff = (uint64_t) hdr->e_phoff;
-		uint64_t e_phentsize = (uint64_t) hdr->e_phentsize;
-		uint64_t e_phnum = (uint64_t) hdr->e_phnum;
+		const uint64_t e_entry = (uint64_t) hdr->e_entry;
+		const uint64_t e_phoff = (uint64_t) hdr->e_phoff;
+		const uint64_t e_phentsize = (uint64_t) hdr->e_phentsize;
+		const uint64_t e_phnum = (uint64_t) hdr->e_phnum;
 		LDEBUG() << "ELF Entry = 0x" << std::hex << e_entry << std::dec;
 		if (e_phoff >= len) return false;
 		if (e_phentsize >= len) return false;
 		if (e_phnum >= len) return false;
 		
-		if (dst != NULL) {
-			// TODO load to specific address
-			unimplemented();
-		}
-		
 		uint64_t min_vaddr = -1;
 		uint64_t max_vaddr = 0;
 		
 		for (uint64_t i = 0; i < e_phnum; i++) {
-			uint64_t off = e_phoff + i * e_phentsize;
+			const uint64_t off = e_phoff + i * e_phentsize;
 			if (off + sizeof(Elf64_Phdr) > len) return false;
 			const Elf64_Phdr *phdr = (const Elf64_Phdr *) ((uint64_t) buf + off);
 			if (phdr->p_type != PT_LOAD) continue;
-			uint64_t p_offset = (uint64_t) phdr->p_offset;
-			uint64_t p_vaddr = (uint64_t) phdr->p_vaddr;
-			uint64_t p_filesz = (uint64_t) phdr->p_filesz;
-			uint64_t p_memsz = (uint64_t) phdr->p_memsz;
-			uint64_t p_align = (uint64_t) phdr->p_align;
+			const uint64_t p_offset = (uint64_t) phdr->p_offset;
+			const uint64_t p_vaddr = (uint64_t) phdr->p_vaddr;
+			const uint64_t p_filesz = (uint64_t) phdr->p_filesz;
+			const uint64_t p_memsz = (uint64_t) phdr->p_memsz;
+			const uint64_t p_align = (uint64_t) phdr->p_align;
 			
 			// Check in-file offset and size
 			if (p_offset > len || p_offset + p_filesz > len) return false;
@@ -80,33 +89,65 @@ namespace ELF {
 		}
 		
 		// TODO: Support huge page
-		min_vaddr = Utils::round_down(min_vaddr, PAGE_SIZE);
-		max_vaddr = Utils::round_up(max_vaddr, PAGE_SIZE);
+		min_vaddr = round_down(min_vaddr, PAGE_SIZE);
+		max_vaddr = round_up(max_vaddr, PAGE_SIZE);
 		if (min_vaddr < Memory::get_kernel_break()) return false;
 		if (max_vaddr <= min_vaddr || max_vaddr > Memory::get_vaddr_break()) return false;
 		
-		uint64_t memory_limit = memory_hard_limit;
-		memory_limit = Utils::round_up(memory_limit, PAGE_SIZE);
+		const uint64_t memory_limit = round_up(config.memory_hard_limit, PAGE_SIZE);
 		if (max_vaddr - min_vaddr > memory_limit) return false;
 		
-		uint64_t load_vaddr_start = 0x400000;  // [JudgeDuck-ABI, "Loading into Memory"]
+		// [JudgeDuck-ABI, "Loading into Memory"]
+		const uint64_t load_vaddr_start = 0x400000;
 		// TODO: Support PIC programs with vaddr other than default value
 		if (min_vaddr != load_vaddr_start) {
 			LWARN("Programs with load address other than 0x400000 are not supported yet");
 			return false;
 		}
-		uint64_t load_vaddr_break = load_vaddr_start + memory_limit;
+		const uint64_t load_vaddr_break = load_vaddr_start + memory_limit;
 		if (load_vaddr_break < load_vaddr_start) return false;
 		if (load_vaddr_break > Memory::get_vaddr_break()) return false;
-		// TODO: Support file I/O
+		
+		// Special region for stdin, stdout, stderr
+		const uint64_t special_region_vaddr = load_vaddr_break;
+		uint64_t special_region_break_curr = special_region_vaddr;
+		
+		// Allocate stdin
+		const uint64_t stdin_alloc_size = round_up(config.stdin_size, PAGE_SIZE);
+		if (stdin_alloc_size < config.stdin_size) return false;  // overflow?
+		const uint64_t stdin_load_vaddr = special_region_break_curr;
+		const uint64_t stdin_load_break = stdin_load_vaddr + stdin_alloc_size;
+		if (stdin_load_break < stdin_load_vaddr) return false;  // overflow?
+		special_region_break_curr = stdin_load_break;
+		
+		// Allocate stdout
+		const uint64_t stdout_alloc_size = round_up(config.stdout_max_size, PAGE_SIZE);
+		if (stdout_alloc_size < config.stdout_max_size) return false;  // overflow?
+		const uint64_t stdout_load_vaddr = special_region_break_curr;
+		const uint64_t stdout_load_break = stdout_load_vaddr + stdout_alloc_size;
+		if (stdout_load_break < stdout_load_vaddr) return false;  // overflow?
+		special_region_break_curr = stdout_load_break;
+		
+		// Allocate stderr
+		const uint64_t stderr_alloc_size = round_up(config.stderr_max_size, PAGE_SIZE);
+		if (stderr_alloc_size < config.stderr_max_size) return false;  // overflow?
+		const uint64_t stderr_load_vaddr = special_region_break_curr;
+		const uint64_t stderr_load_break = stderr_load_vaddr + stderr_alloc_size;
+		if (stderr_load_break < stderr_load_vaddr) return false;  // overflow?
+		special_region_break_curr = stderr_load_break;
+		
+		// End of special region
+		const uint64_t special_region_break = special_region_break_curr;
+		if (special_region_break < special_region_vaddr) return false;
+		if (special_region_break > Memory::get_vaddr_break()) return false;
 		
 		// Clear memory and prepare to load
-		memset((void *) load_vaddr_start, 0, load_vaddr_break - load_vaddr_start);
+		memset((void *) load_vaddr_start, 0, special_region_break - load_vaddr_start);
 		
 		// Set up page flags
 		Memory::set_page_flags_kernel(Memory::get_kernel_break(), load_vaddr_start);
-		Memory::set_page_flags_user_writable(load_vaddr_start, load_vaddr_break);
-		Memory::set_page_flags_kernel(load_vaddr_break, Memory::get_vaddr_break());
+		Memory::set_page_flags_user_writable(load_vaddr_start, special_region_break);
+		Memory::set_page_flags_kernel(special_region_break, Memory::get_vaddr_break());
 		
 		// Do actual loading
 		for (uint64_t i = 0; i < e_phnum; i++) {
@@ -125,12 +166,42 @@ namespace ELF {
 			memcpy(addr, src, p_filesz);
 		}
 		
+		// Ensure stdin region writable by reloading cr3
+		x86_64::lcr3(x86_64::rcr3());
+		
+		// Load stdin
+		memcpy((void *) stdin_load_vaddr, config.stdin_ptr, config.stdin_size);
+		Memory::set_page_flags_user_readonly(stdin_load_vaddr, stdin_load_break);
+		
+		static DuckInfo_t duckinfo;
+		duckinfo = (DuckInfo_t) {
+			.abi_version = 21,  // 0.02a
+			.stdin_ptr = (const char *) stdin_load_vaddr,
+			.stdin_size = config.stdin_size,
+			.stdout_ptr = (char *) stdout_load_vaddr,
+			.stdout_size = config.stdout_max_size,
+			.stderr_ptr = (char *) stderr_load_vaddr,
+			.stderr_size = config.stderr_max_size,
+		};
+		
 		// Set up environment variables [JudgeDuck-ABI, "Running"]
 		uint64_t rsp = load_vaddr_break;
+		push(rsp, duckinfo);
+		const uint64_t duckinfo_ptr = rsp;
+		const uint64_t rsp_auxv_end = rsp;
 		pushq(rsp, 0);  // The end of the auxiliary vector
+		pushq(rsp, duckinfo_ptr);  // duckinfo pointer
+		pushq(rsp, AT_DUCK);  // The duck entry
 		pushq(rsp, 0);  // The end of the environment strings
 		pushq(rsp, 0);  // The end of the argument strings
 		pushq(rsp, 0);  // The argument count
+		
+		// AMD64 ABI said rsp should be 16-bytes aligned
+		if (rsp % 16 != 0) {
+			uint64_t new_rsp = round_down(rsp, 16);
+			memmove((void *) new_rsp, (void *) rsp, rsp_auxv_end - rsp);
+			rsp = new_rsp;
+		}
 		
 		// Check execution flags
 		for (uint64_t i = 0; i < e_phnum; i++) {
@@ -142,8 +213,8 @@ namespace ELF {
 			
 			if (phdr->p_flags & PF_X) {
 				Memory::set_page_flags_user_executable(
-					Utils::round_down(p_vaddr, PAGE_SIZE),
-					Utils::round_up(p_vaddr + p_memsz, PAGE_SIZE));
+					round_down(p_vaddr, PAGE_SIZE),
+					round_up(p_vaddr + p_memsz, PAGE_SIZE));
 			}
 		}
 		
@@ -156,6 +227,10 @@ namespace ELF {
 		app.rsp = rsp;
 		app.start_addr = load_vaddr_start;
 		app.break_addr = load_vaddr_break;
+		app.special_region_start_addr = special_region_vaddr;
+		app.special_region_break_addr = special_region_break;
+		app.duckinfo_orig = duckinfo;
+		app.duckinfo_ptr = (DuckInfo_t *) duckinfo_ptr;
 		return true;
 	}
 	
@@ -169,6 +244,16 @@ namespace ELF {
 		res.memory_bytes = PAGE_SIZE *
 			Memory::count_dirty_pages(app.start_addr, app.break_addr);
 		res.memory_kb = res.memory_bytes / 1024;
+		
+		// stdout
+		res.stdout_ptr = app.duckinfo_orig.stdout_ptr;
+		res.stdout_size = std::min(app.duckinfo_orig.stdout_size,
+			app.duckinfo_ptr->stdout_size);
+		
+		// stderr
+		res.stderr_ptr = app.duckinfo_orig.stderr_ptr;
+		res.stderr_size = std::min(app.duckinfo_orig.stderr_size,
+			app.duckinfo_ptr->stderr_size);
 		
 		return res;
 	}

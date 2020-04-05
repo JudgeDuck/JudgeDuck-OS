@@ -149,7 +149,7 @@ namespace Memory {
 		assert(kernel_break % HUGE_PAGE_SIZE == 0);
 		for (uint64_t i = 0; i < kernel_break / HUGE_PAGE_SIZE; i++) {
 			PTE(P2_low, i) = (i * HUGE_PAGE_SIZE)
-				| PTE_PRESENT | PTE_WRITABLE | PTE_DIRTY | PTE_ACCESSED | PTE_USER | PTE_HUGE;
+				| PTE_PRESENT | PTE_WRITABLE | PTE_DIRTY | PTE_ACCESSED | PTE_HUGE;
 		}
 		
 		return P4;
@@ -230,6 +230,19 @@ namespace Memory {
 		while (start != end) {
 			uint64_t &P1 = get_P1(start);
 			P1 = (P1 & -PAGE_SIZE) | PTE_PRESENT | PTE_USER | PTE_WRITABLE | PTE_NO_EXECUTE;
+			
+			start += PAGE_SIZE;
+		}
+	}
+	
+	// TODO: Support huge paging
+	void set_page_flags_user_readonly(uint64_t start, uint64_t end) {
+		assert(start % PAGE_SIZE == 0);
+		assert(end % PAGE_SIZE == 0);
+		
+		while (start != end) {
+			uint64_t &P1 = get_P1(start);
+			P1 = (P1 & -PAGE_SIZE) | PTE_PRESENT | PTE_USER | PTE_NO_EXECUTE;
 			
 			start += PAGE_SIZE;
 		}

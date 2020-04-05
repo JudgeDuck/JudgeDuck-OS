@@ -32,6 +32,12 @@ namespace x86_64 {
 		__asm__ volatile ("movq %0, %%cr3" : : "r" ((uint64_t) p));
 	}
 	
+	static inline uint64_t rcr3() {
+		uint64_t ret;
+		__asm__ volatile ("movq %%cr3, %0" : "=r" (ret));
+		return ret;
+	}
+	
 	static inline void sti() {
 		__asm__ volatile ("sti");
 	}

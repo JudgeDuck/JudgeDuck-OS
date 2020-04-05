@@ -2,6 +2,7 @@
 #include <math.h>
 #include <assert.h>
 #include <iostream>
+#include <algorithm>
 
 #include <inc/multiboot2_loader.hpp>
 #include <inc/lapic.hpp>
@@ -43,8 +44,8 @@ int main() {
 	
 	Trap::init();
 	
-	// TODO
 	LINFO("Welcome to JudgeDuck-OS-64 !!!");
+	LINFO("ABI Version 0.02a");
 	
 	extern const char _binary_hello_elf_start[];
 	extern const char _binary_hello_elf_end[];
@@ -53,13 +54,29 @@ int main() {
 	
 	Logger::set_log_level(Logger::LL_INFO);
 	ELF::App64 app;
-	const uint64_t memory_hard_limit = 100 << 20;
-	assert(ELF::load(_binary_hello_elf_start, len, NULL, memory_hard_limit, app));
+	auto config = (ELF::App64Config) {
+		.memory_hard_limit = 100 << 20,
+		.stdin_ptr = "100 233\n",
+		.stdin_size = 8,
+		.stdout_max_size = 10240,
+		.stderr_max_size = 10240,
+	};
+	assert(ELF::load(_binary_hello_elf_start, len, config, app));
 	auto res = ELF::run(app, 5e9);
 	LINFO("time %.6lf ms, memory %d KiB (%.1lf MiB)",
 		res.time_ns / 1e6, res.memory_kb, res.memory_kb / 1024.0);
 	LINFO("tsc %lu, trap %u, retcode %d",
 		res.time_tsc, res.trap_num, res.return_code);
+	LINFO("stdout size %lu, stderr size %lu",
+		res.stdout_size, res.stderr_size);
+	LINFO(">>> stdout content (first 256 bytes) <<<");
+	fwrite(res.stdout_ptr, 1, std::min(256ul, res.stdout_size), stdout);
+	putchar('\n');
+	LINFO("========== stdout content end ==========");
+	LINFO(">>> stderr content (first 256 bytes) <<<");
+	fwrite(res.stderr_ptr, 1, std::min(256ul, res.stderr_size), stderr);
+	putchar('\n');
+	LINFO("========== stderr content end ==========");
 	
 	while (1) x86_64::hlt();
 }

@@ -12,7 +12,7 @@ build/user/%.elf: user/%.cpp $(user_header_files) build/user_lib/libduck.a
 	@mkdir -p $(shell dirname $@)
 	@$(USER_CXX) -o $@ \
 		$(libc_crt_start) $< \
-		$(libstdcxx_files) $(libc_files) build/user_lib/libduck.a $(libc_crt_end)
+		$(libstdcxx_files) $(libc_files) build/user_lib/libduck.a $(libc_files) $(libc_crt_end)
 
 build/user/%.obj: build/user/%.elf
 	@echo + ld-binary $@
