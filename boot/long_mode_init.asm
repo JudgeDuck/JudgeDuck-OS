@@ -15,6 +15,9 @@ long_mode_start:
 
     extern __multiboot_addr
     mov dword [__multiboot_addr], edi
+    
+    ; save fx state
+    fxsave [__init_fx_state]
 
     extern kern_loader
     jmp kern_loader   ; should never return
@@ -55,3 +58,10 @@ enable_sse:
     pop rax
 
     ret
+
+section .bss
+
+align 512
+global __init_fx_state
+__init_fx_state:
+    resb 512

@@ -110,7 +110,7 @@ __syscall_entry:
 syscall_return_record_tsc:
 	movq %rdi, %rsp
 	
-	fxrstor (%rsp)
+	fxrstor __init_fx_state
 	addq $512, %rsp
 	
 	// tf_fsbase
