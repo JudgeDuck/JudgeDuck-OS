@@ -38,6 +38,10 @@ static uint64_t stdout_max_size;
 static uint64_t stderr_max_size;
 static uint64_t stdin_curr_pos;
 
+// WARN: undefined behaviour when the heap hits the stack
+extern int _end;
+static char *heap_brk;
+
 static void init() {
 	inited = true;
 	
@@ -54,6 +58,12 @@ static void init() {
 	// Set up stderr
 	stderr_max_size = duckinfo->stderr_size;
 	duckinfo->stderr_size = 0;
+	
+	// Set up heap
+	const uint64_t temp = (uint64_t) &_end;
+	const uint64_t page_size = getauxval(AT_PAGESZ);
+	// Round up to page size
+	heap_brk = (char *) ((temp + page_size - 1) / page_size * page_size);
 }
 
 static size_t duck_read(int fd, char *buf, size_t len) {
@@ -144,16 +154,11 @@ static int duck_fstat(int fd, struct stat *st) {
 	return -1;
 }
 
-// TODO: real heap
-const int HEAP_SIZE = 1 << 20;
-static char heap[HEAP_SIZE];
-static char *heap_brk = heap;
-
 static char * duck_brk(char *addr) {
 	if (!addr) {
 		return heap_brk;
 	}
-	if (addr > heap_brk && addr <= heap + HEAP_SIZE) {
+	if (addr > heap_brk) {
 		heap_brk = addr;
 	}
 	return heap_brk;

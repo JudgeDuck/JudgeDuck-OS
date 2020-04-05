@@ -1,5 +1,6 @@
 #include <elf.h>
 #include <string.h>
+#include <sys/auxv.h>
 #include <algorithm>
 
 #include <inc/elf.hpp>
@@ -175,7 +176,7 @@ namespace ELF {
 		
 		static DuckInfo_t duckinfo;
 		duckinfo = (DuckInfo_t) {
-			.abi_version = 21,  // 0.02a
+			.abi_version = 22,  // 0.02b
 			.stdin_ptr = (const char *) stdin_load_vaddr,
 			.stdin_size = config.stdin_size,
 			.stdout_ptr = (char *) stdout_load_vaddr,
@@ -190,6 +191,8 @@ namespace ELF {
 		const uint64_t duckinfo_ptr = rsp;
 		const uint64_t rsp_auxv_end = rsp;
 		pushq(rsp, 0);  // The end of the auxiliary vector
+		pushq(rsp, PAGE_SIZE);  // page size
+		pushq(rsp, AT_PAGESZ);  // The page size entry
 		pushq(rsp, duckinfo_ptr);  // duckinfo pointer
 		pushq(rsp, AT_DUCK);  // The duck entry
 		pushq(rsp, 0);  // The end of the environment strings

@@ -45,7 +45,7 @@ int main() {
 	Trap::init();
 	
 	LINFO("Welcome to JudgeDuck-OS-64 !!!");
-	LINFO("ABI Version 0.02a");
+	LINFO("ABI Version 0.02b");
 	
 	extern const char _binary_hello_elf_start[];
 	extern const char _binary_hello_elf_end[];
@@ -56,7 +56,7 @@ int main() {
 	ELF::App64 app;
 	auto config = (ELF::App64Config) {
 		.memory_hard_limit = 100 << 20,
-		.stdin_ptr = "100 233\n",
+		.stdin_ptr = "100 987\n",
 		.stdin_size = 8,
 		.stdout_max_size = 10240,
 		.stderr_max_size = 10240,

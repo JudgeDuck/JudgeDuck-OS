@@ -36,7 +36,7 @@ int main() {
 	scanf("%d%d", &a, &b);
 	printf("a + b = %d (read from stdin)\n", a + b);
 	
-	const int SIZE = 800 << 10;
+	const int SIZE = 50 << 20;
 	char *p = new char[SIZE];
 	memset(p, 0, SIZE);
 	delete[] p;
