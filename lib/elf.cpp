@@ -9,8 +9,17 @@
 #include <inc/trap.hpp>
 #include <inc/lapic.hpp>
 
+using Memory::HUGE_PAGE_SIZE;
+using Memory::PAGE_SIZE;
+
 namespace ELF {
-	bool load(const char *buf, uint32_t len, void *dst, App64 &app) {
+	static inline void pushq(uint64_t &rsp, uint64_t val) {
+		rsp -= 8;
+		* (uint64_t *) rsp = val;
+	}
+	
+	bool load(const char *buf, uint32_t len, void *dst,
+		uint64_t memory_hard_limit, App64 &app) {
 		LDEBUG_ENTER_RET();
 		
 		// Read elf header
@@ -55,35 +64,98 @@ namespace ELF {
 			uint64_t p_memsz = (uint64_t) phdr->p_memsz;
 			uint64_t p_align = (uint64_t) phdr->p_align;
 			
+			// Check in-file offset and size
 			if (p_offset > len || p_offset + p_filesz > len) return false;
-			if (p_align != Memory::HUGE_PAGE_SIZE) return false;
-			// TODO: more checks
 			
+			// Check virtual address alignment [JudgeDuck-ABI, "Compilation and Linkage"]
+			if (p_align != HUGE_PAGE_SIZE) return false;
+			
+			// Check virtual address and size
+			if (p_memsz < p_filesz) return false;
+			if (p_vaddr + p_memsz < p_vaddr) return false;  // overflow?
+			
+			// Update min and max
 			min_vaddr = std::min(min_vaddr, p_vaddr);
 			max_vaddr = std::max(max_vaddr, p_vaddr + p_memsz);
+		}
+		
+		// TODO: Support huge page
+		min_vaddr = Utils::round_down(min_vaddr, PAGE_SIZE);
+		max_vaddr = Utils::round_up(max_vaddr, PAGE_SIZE);
+		if (min_vaddr < Memory::get_kernel_break()) return false;
+		if (max_vaddr <= min_vaddr || max_vaddr > Memory::get_vaddr_break()) return false;
+		
+		uint64_t memory_limit = memory_hard_limit;
+		memory_limit = Utils::round_up(memory_limit, PAGE_SIZE);
+		if (max_vaddr - min_vaddr > memory_limit) return false;
+		
+		uint64_t load_vaddr_start = 0x400000;  // [JudgeDuck-ABI, "Loading into Memory"]
+		// TODO: Support PIC programs with vaddr other than default value
+		if (min_vaddr != load_vaddr_start) {
+			LWARN("Programs with load address other than 0x400000 are not supported yet");
+			return false;
+		}
+		uint64_t load_vaddr_break = load_vaddr_start + memory_limit;
+		if (load_vaddr_break < load_vaddr_start) return false;
+		if (load_vaddr_break > Memory::get_vaddr_break()) return false;
+		// TODO: Support file I/O
+		
+		// Clear memory and prepare to load
+		memset((void *) load_vaddr_start, 0, load_vaddr_break - load_vaddr_start);
+		
+		// Set up page flags
+		Memory::set_page_flags_kernel(Memory::get_kernel_break(), load_vaddr_start);
+		Memory::set_page_flags_user_writable(load_vaddr_start, load_vaddr_break);
+		Memory::set_page_flags_kernel(load_vaddr_break, Memory::get_vaddr_break());
+		
+		// Do actual loading
+		for (uint64_t i = 0; i < e_phnum; i++) {
+			uint64_t off = e_phoff + i * e_phentsize;
+			const Elf64_Phdr *phdr = (const Elf64_Phdr *) ((uint64_t) buf + off);
+			if (phdr->p_type != PT_LOAD) continue;
+			uint64_t p_offset = (uint64_t) phdr->p_offset;
+			uint64_t p_vaddr = (uint64_t) phdr->p_vaddr;
+			uint64_t p_filesz = (uint64_t) phdr->p_filesz;
+			uint64_t p_memsz = (uint64_t) phdr->p_memsz;
 			
+			// Copy from ELF file
 			char *addr = (char *) p_vaddr;
 			const char *src = buf + p_offset;
 			memset(addr, 0, p_memsz);
 			memcpy(addr, src, p_filesz);
-			// TODO: clear garbage before loading
 		}
 		
-		min_vaddr = Utils::round_down(min_vaddr, Memory::HUGE_PAGE_SIZE);
-		max_vaddr = Utils::round_up(max_vaddr, Memory::HUGE_PAGE_SIZE);
-		// TODO: check addresses
+		// Set up environment variables [JudgeDuck-ABI, "Running"]
+		uint64_t rsp = load_vaddr_break;
+		pushq(rsp, 0);  // The end of the auxiliary vector
+		pushq(rsp, 0);  // The end of the environment strings
+		pushq(rsp, 0);  // The end of the argument strings
+		pushq(rsp, 0);  // The argument count
 		
-		// TODO: configurable memory limit
-		const uint64_t memory_limit = 100 << 20;
-		uint64_t stack_addr = min_vaddr + memory_limit;
-		// One more page for arguments
-		memset((void *) max_vaddr, 0, stack_addr - max_vaddr + Memory::HUGE_PAGE_SIZE);
-		// TODO: set up page table
+		// Check execution flags
+		for (uint64_t i = 0; i < e_phnum; i++) {
+			uint64_t off = e_phoff + i * e_phentsize;
+			const Elf64_Phdr *phdr = (const Elf64_Phdr *) ((uint64_t) buf + off);
+			if (phdr->p_type != PT_LOAD) continue;
+			uint64_t p_vaddr = (uint64_t) phdr->p_vaddr;
+			uint64_t p_memsz = (uint64_t) phdr->p_memsz;
+			
+			if (phdr->p_flags & PF_X) {
+				Memory::set_page_flags_user_executable(
+					Utils::round_down(p_vaddr, PAGE_SIZE),
+					Utils::round_up(p_vaddr + p_memsz, PAGE_SIZE));
+			}
+		}
+		
+		// Clear access and dirty flags for measuring
+		Memory::clear_access_and_dirty_flags(load_vaddr_start, load_vaddr_break);
 		
 		LDEBUG() << "Load ELF ok!";
 		
 		app.entry = e_entry;
-		app.rsp = stack_addr;
+		app.rsp = rsp;
+		app.start_addr = load_vaddr_start;
+		app.break_addr = load_vaddr_break;
 		return true;
 	}
 	
@@ -94,6 +166,9 @@ namespace ELF {
 		Trap::run_user_64(app.entry, app.rsp, time_limit_ns,
 			res.time_tsc, res.trap_num, res.return_code);
 		res.time_ns = Timer::tsc_to_ns(res.time_tsc);
+		res.memory_bytes = PAGE_SIZE *
+			Memory::count_dirty_pages(app.start_addr, app.break_addr);
+		res.memory_kb = res.memory_bytes / 1024;
 		
 		return res;
 	}

@@ -141,6 +141,12 @@ enable_paging:
     rdmsr
     or eax, 1 << 8
     wrmsr
+    
+    ; set the NXE (No-Execute Enable) bit in EFER
+    mov ecx, 0xC0000080
+    rdmsr
+    or eax, 1 << 11
+    wrmsr
 
     ; enable paging in the cr0 register
     mov eax, cr0

@@ -82,6 +82,26 @@ namespace Memory {
 		return (vaddr >> 12) & (PAGE_SIZE / 8 - 1);
 	}
 	
+	// Get recursively mapped first level PTE
+	static inline uint64_t & get_P1(uint64_t vaddr) {
+		return * (uint64_t *) (((vaddr >> 9) & -8) | -(1ull << 39));
+	}
+	
+	// Get recursively mapped second level PTE
+	static inline uint64_t & get_P2(uint64_t vaddr) {
+		return * (uint64_t *) (((vaddr >> 18) & -8) | -(1ull << 30));
+	}
+	
+	// Get recursively mapped third level PTE
+	static inline uint64_t & get_P3(uint64_t vaddr) {
+		return * (uint64_t *) (((vaddr >> 27) & -8) | -(1ull << 21));
+	}
+	
+	// Get recursively mapped fourth level PTE
+	static inline uint64_t & get_P4(uint64_t vaddr) {
+		return * (uint64_t *) (((vaddr >> 36) & -8) | -(1ull << 12));
+	}
+	
 	static void init_page_table_break() {
 		LDEBUG_ENTER_RET();
 		
@@ -114,20 +134,22 @@ namespace Memory {
 		uint64_t P2_low = page_table_alloc_zeroed();  // 2M pages in positive address
 		
 		// Set up recursive mapping [-512 GiB, 0)
-		PTE(P4, 511) = P4 | PTE_PRESENT | PTE_WRITABLE;
+		PTE(P4, 511) = P4 | PTE_PRESENT | PTE_WRITABLE | PTE_DIRTY | PTE_ACCESSED;
 		
 		// Set up physcial memory remap [-1024 GiB, -512 GiB)
-		PTE(P4, 510) = P3_high | PTE_PRESENT | PTE_WRITABLE;
+		PTE(P4, 510) = P3_high | PTE_PRESENT | PTE_WRITABLE | PTE_DIRTY | PTE_ACCESSED;
 		for (uint64_t i = 0; i < PAGE_SIZE / 8; i++) {
-			PTE(P3_high, i) = (i * P3_PAGE_SIZE) | PTE_PRESENT | PTE_WRITABLE | PTE_HUGE;
+			PTE(P3_high, i) = (i * P3_PAGE_SIZE)
+				| PTE_PRESENT | PTE_WRITABLE | PTE_DIRTY | PTE_ACCESSED | PTE_HUGE;
 		}
 		
 		// Set up kernel mapping [0, 4 MiB)
-		PTE(P4, 0) = P3_low | PTE_PRESENT | PTE_WRITABLE | PTE_USER;
-		PTE(P3_low, 0) = P2_low | PTE_PRESENT | PTE_WRITABLE | PTE_USER;
+		PTE(P4, 0) = P3_low | PTE_PRESENT | PTE_WRITABLE | PTE_DIRTY | PTE_ACCESSED | PTE_USER;
+		PTE(P3_low, 0) = P2_low | PTE_PRESENT | PTE_WRITABLE | PTE_DIRTY | PTE_ACCESSED | PTE_USER;
 		assert(kernel_break % HUGE_PAGE_SIZE == 0);
 		for (uint64_t i = 0; i < kernel_break / HUGE_PAGE_SIZE; i++) {
-			PTE(P2_low, i) = (i * HUGE_PAGE_SIZE) | PTE_PRESENT | PTE_WRITABLE | PTE_USER | PTE_HUGE;
+			PTE(P2_low, i) = (i * HUGE_PAGE_SIZE)
+				| PTE_PRESENT | PTE_WRITABLE | PTE_DIRTY | PTE_ACCESSED | PTE_USER | PTE_HUGE;
 		}
 		
 		return P4;
@@ -190,5 +212,80 @@ namespace Memory {
 			huge_page_map[page_num] = true;
 			++n_huge_pages;
 		}
+	}
+	
+	uint64_t get_kernel_break() {
+		return kernel_break;
+	}
+	
+	uint64_t get_vaddr_break() {
+		return vaddr_break;
+	}
+	
+	// TODO: Support huge paging
+	void set_page_flags_user_writable(uint64_t start, uint64_t end) {
+		assert(start % PAGE_SIZE == 0);
+		assert(end % PAGE_SIZE == 0);
+		
+		while (start != end) {
+			uint64_t &P1 = get_P1(start);
+			P1 = (P1 & -PAGE_SIZE) | PTE_PRESENT | PTE_USER | PTE_WRITABLE | PTE_NO_EXECUTE;
+			
+			start += PAGE_SIZE;
+		}
+	}
+	
+	// TODO: Support huge paging
+	void set_page_flags_user_executable(uint64_t start, uint64_t end) {
+		assert(start % PAGE_SIZE == 0);
+		assert(end % PAGE_SIZE == 0);
+		
+		while (start != end) {
+			uint64_t &P1 = get_P1(start);
+			P1 = (P1 & -PAGE_SIZE) | PTE_PRESENT | PTE_USER;
+			
+			start += PAGE_SIZE;
+		}
+	}
+	
+	// TODO: Support huge paging
+	void set_page_flags_kernel(uint64_t start, uint64_t end) {
+		assert(start % PAGE_SIZE == 0);
+		assert(end % PAGE_SIZE == 0);
+		
+		while (start != end) {
+			uint64_t &P1 = get_P1(start);
+			P1 = (P1 & -PAGE_SIZE) | PTE_PRESENT;
+			
+			start += PAGE_SIZE;
+		}
+	}
+	
+	// TODO: Support huge paging
+	void clear_access_and_dirty_flags(uint64_t start, uint64_t end) {
+		assert(start % PAGE_SIZE == 0);
+		assert(end % PAGE_SIZE == 0);
+		
+		while (start != end) {
+			uint64_t &P1 = get_P1(start);
+			P1 &= ~(PTE_ACCESSED | PTE_DIRTY);
+			
+			start += PAGE_SIZE;
+		}
+	}
+	
+	// TODO: Support huge paging
+	uint64_t count_dirty_pages(uint64_t start, uint64_t end) {
+		assert(start % PAGE_SIZE == 0);
+		assert(end % PAGE_SIZE == 0);
+		
+		uint64_t ret = 0;
+		while (start != end) {
+			uint64_t &P1 = get_P1(start);
+			ret += (P1 & PTE_DIRTY) ? 1 : 0;
+			
+			start += PAGE_SIZE;
+		}
+		return ret;
 	}
 }

@@ -52,12 +52,14 @@ int main() {
 	LDEBUG("start = %p, len = %d", _binary_hello_elf_start, len);
 	
 	Logger::set_log_level(Logger::LL_INFO);
-	// TODO: memory limit
 	ELF::App64 app;
-	assert(ELF::load(_binary_hello_elf_start, len, NULL, app));
+	const uint64_t memory_hard_limit = 100 << 20;
+	assert(ELF::load(_binary_hello_elf_start, len, NULL, memory_hard_limit, app));
 	auto res = ELF::run(app, 5e9);
-	LINFO("time %.6lf ms, tsc %lu, trap %u, retcode %d",
-		res.time_ns / 1e6, res.time_tsc, res.trap_num, res.return_code);
+	LINFO("time %.6lf ms, memory %d KiB (%.1lf MiB)",
+		res.time_ns / 1e6, res.memory_kb, res.memory_kb / 1024.0);
+	LINFO("tsc %lu, trap %u, retcode %d",
+		res.time_tsc, res.trap_num, res.return_code);
 	
 	while (1) x86_64::hlt();
 }
