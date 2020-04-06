@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdint.h>
+#include <string.h>
 
 #include <inc/multiboot2_loader.hpp>
 #include <inc/multiboot2.h>
@@ -32,6 +33,11 @@ namespace Multiboot2_Loader {
 		}
 	}
 	
+	static const int MAX_LENGTH = 256;
+	
+	static char _command_line[MAX_LENGTH];
+	const char *command_line = _command_line;
+	
 	void load() {
 		LDEBUG_ENTER_RET();
 		
@@ -43,6 +49,11 @@ namespace Multiboot2_Loader {
 			switch (tag->type) {
 				case MULTIBOOT_TAG_TYPE_MMAP:
 					load_mmap((struct multiboot_tag_mmap *) tag);
+					break;
+				
+				case MULTIBOOT_TAG_TYPE_CMDLINE:
+					strncpy(_command_line, ((struct multiboot_tag_string *) tag)->string, MAX_LENGTH - 1);
+					LDEBUG("cmdline: %s", command_line);
 					break;
 			}
 			
