@@ -306,4 +306,10 @@ namespace Memory {
 		}
 		return ret;
 	}
+	
+	// Note: 4k-paged
+	void map_region_cache_disabled(uint64_t start, uint64_t end, uint64_t src_addr) {
+		LDEBUG("map cache disabled %lx %lx %lx", start, end, src_addr);
+		unimplemented();
+	}
 }

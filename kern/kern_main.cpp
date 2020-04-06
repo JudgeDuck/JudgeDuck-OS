@@ -11,6 +11,7 @@
 #include <inc/trap.hpp>
 #include <inc/logger.hpp>
 #include <inc/timer.hpp>
+#include <inc/pci.hpp>
 #include <inc/elf.hpp>
 #include <inc/x86_64.hpp>
 
@@ -43,6 +44,8 @@ int main() {
 	Memory::init();
 	
 	Trap::init();
+	
+	PCI::init();
 	
 	LINFO("Welcome to JudgeDuck-OS-64 !!!");
 	LINFO("ABI Version 0.02b");

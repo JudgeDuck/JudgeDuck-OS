@@ -28,6 +28,9 @@ namespace Memory {
 	
 	void clear_access_and_dirty_flags(uint64_t start, uint64_t end);
 	uint64_t count_dirty_pages(uint64_t start, uint64_t end);
+	
+	// Note: 4k-paged
+	void map_region_cache_disabled(uint64_t start, uint64_t end, uint64_t src_addr);
 }
 
 #endif
