@@ -6,6 +6,7 @@
 #include <inc/pcireg.h>
 #include <inc/logger.hpp>
 #include <inc/memory.hpp>
+#include <inc/utils.hpp>
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
 
@@ -300,11 +301,15 @@ namespace PCI {
 		
 		if (found) {
 			maxlen = std::min(reg_size, maxlen);
-			Memory::map_region_cache_disabled(base, maxlen, reg_base);
+			uint64_t end = base + Utils::round_up(maxlen, Memory::PAGE_SIZE);
+			Memory::map_region_cache_disabled(base, end, reg_base);
+			
+			// reload page table
+			x86_64::lcr3(x86_64::rcr3());
 			
 			return maxlen;
 		} else {
-			return -1;
+			return -1ull;
 		}
 	}
 	

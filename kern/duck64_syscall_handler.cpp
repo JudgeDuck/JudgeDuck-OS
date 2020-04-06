@@ -54,7 +54,7 @@ static int duck_fstat(int fd, struct stat *st) {
 	return -1;
 }
 
-const int KERNEL_HEAP_SIZE = 512 << 10;
+const int KERNEL_HEAP_SIZE = 256 << 10;
 static char heap[KERNEL_HEAP_SIZE];
 static char *heap_brk = heap;
 

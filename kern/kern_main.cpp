@@ -12,6 +12,7 @@
 #include <inc/logger.hpp>
 #include <inc/timer.hpp>
 #include <inc/pci.hpp>
+#include <inc/network_driver.hpp>
 #include <inc/elf.hpp>
 #include <inc/x86_64.hpp>
 
@@ -46,6 +47,7 @@ int main() {
 	Trap::init();
 	
 	PCI::init();
+	NetworkDriver::init();
 	
 	LINFO("Welcome to JudgeDuck-OS-64 !!!");
 	LINFO("ABI Version 0.02b");
@@ -75,11 +77,10 @@ int main() {
 	LINFO(">>> stdout content (first 256 bytes) <<<");
 	fwrite(res.stdout_ptr, 1, std::min(256ul, res.stdout_size), stdout);
 	putchar('\n');
-	LINFO("========== stdout content end ==========");
 	LINFO(">>> stderr content (first 256 bytes) <<<");
 	fwrite(res.stderr_ptr, 1, std::min(256ul, res.stderr_size), stderr);
 	putchar('\n');
-	LINFO("========== stderr content end ==========");
+	LINFO("========================================");
 	
 	while (1) x86_64::hlt();
 }

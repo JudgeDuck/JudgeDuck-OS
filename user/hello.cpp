@@ -3,8 +3,6 @@
 #include <math.h>
 #include <assert.h>
 
-#include <iostream>
-
 static void print_hello() {
 	printf("Hello world!\n");
 	
@@ -13,10 +11,8 @@ static void print_hello() {
 		e += tmp;
 		tmp /= i;
 	}
-	printf("e = %.15lf\n", e);
+	printf("e = %.15lf, ", e);
 	printf("pi = 2 * atan2(1, 0) = %.15lf\n", 2 * atan2(1, 0));
-	
-	std::cout << "std::cout works!" << std::endl;
 }
 
 char A[3 << 20];

@@ -152,8 +152,14 @@ namespace Memory {
 		PTE(P3_low, 0) = P2_low | PTE_PRESENT | PTE_WRITABLE | PTE_DIRTY | PTE_ACCESSED | PTE_USER;
 		assert(kernel_break % HUGE_PAGE_SIZE == 0);
 		for (uint64_t i = 0; i < kernel_break / HUGE_PAGE_SIZE; i++) {
-			PTE(P2_low, i) = (i * HUGE_PAGE_SIZE)
-				| PTE_PRESENT | PTE_WRITABLE | PTE_DIRTY | PTE_ACCESSED | PTE_HUGE;
+			uint64_t P1 = page_table_alloc_zeroed();
+			PTE(P2_low, i) = P1 | PTE_PRESENT | PTE_WRITABLE | PTE_DIRTY | PTE_ACCESSED;
+			
+			// Set up 4 KiB pages in one huge page
+			for (uint64_t j = 0; j < PAGE_SIZE / 8; j++) {
+				PTE(P1, j) = (i * HUGE_PAGE_SIZE + j * PAGE_SIZE)
+					| PTE_PRESENT | PTE_WRITABLE | PTE_DIRTY | PTE_ACCESSED;
+			}
 		}
 		
 		return P4;
@@ -309,7 +315,17 @@ namespace Memory {
 	
 	// Note: 4k-paged
 	void map_region_cache_disabled(uint64_t start, uint64_t end, uint64_t src_addr) {
-		LDEBUG("map cache disabled %lx %lx %lx", start, end, src_addr);
-		unimplemented();
+		assert(start % PAGE_SIZE == 0);
+		assert(end % PAGE_SIZE == 0);
+		assert(src_addr % PAGE_SIZE == 0);
+		
+		while (start != end) {
+			uint64_t &P1 = get_P1(start);
+			P1 = src_addr | PTE_PRESENT | PTE_WRITABLE
+				| PTE_CACHE_DISABLE | PTE_WRITE_THROUGH;
+			
+			start += PAGE_SIZE;
+			src_addr += PAGE_SIZE;
+		}
 	}
 }
