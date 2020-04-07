@@ -15,6 +15,7 @@
 #include <inc/network_driver.hpp>
 #include <inc/elf.hpp>
 #include <inc/x86_64.hpp>
+#include <inc/duck_server.hpp>
 
 static void print_hello() {
 	printf("Hello world!\n");
@@ -30,27 +31,8 @@ static void print_hello() {
 	std::cout << "std::cout works!" << std::endl;
 }
 
-int main() {
-	print_hello();
-	
-	Logger::init();
-	// TODO: disable debug logging for production
-	
-	Multiboot2_Loader::load();
-	
-	PIC::init();
-	Timer::init();
-	LAPIC::init();
-	
-	Memory::init();
-	
-	Trap::init();
-	
-	PCI::init();
-	NetworkDriver::init();
-	
-	LINFO("Welcome to JudgeDuck-OS-64 !!!");
-	LINFO("ABI Version 0.02b");
+static void run_tests() {
+	LINFO("Running tests");
 	
 	extern const char _binary_hello_elf_start[];
 	extern const char _binary_hello_elf_end[];
@@ -81,6 +63,35 @@ int main() {
 	fwrite(res.stderr_ptr, 1, std::min(256ul, res.stderr_size), stderr);
 	putchar('\n');
 	LINFO("========================================");
+}
+
+int main() {
+	print_hello();
 	
-	while (1) x86_64::hlt();
+	Logger::init();
+	// TODO: disable debug logging for production
+	
+	Multiboot2_Loader::load();
+	
+	PIC::init();
+	Timer::init();
+	LAPIC::init();
+	
+	Memory::init();
+	
+	Trap::init();
+	
+	PCI::init();
+	NetworkDriver::init();
+	DuckServer::init();
+	
+	run_tests();
+	
+	LINFO("Welcome to JudgeDuck-OS-64 !!!");
+	LINFO("ABI Version 0.02b");
+	
+	DuckServer::run();
+	// Should not return
+	
+	x86_64::reboot();
 }

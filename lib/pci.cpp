@@ -285,8 +285,6 @@ namespace PCI {
 	// ==== For user mode PCI drivers ====
 	
 	uint64_t map_device(uint32_t key1, uint32_t key2, uint64_t base, uint64_t maxlen) {
-		LDEBUG_ENTER_RET();
-		
 		bool found = false;
 		uint64_t reg_base, reg_size;
 		for (int i = 0; i < n_stored_pci_devices; i++) {

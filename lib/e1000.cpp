@@ -47,7 +47,7 @@ namespace e1000 {
 	static char rq_pages[RQSIZE / 2][PAGE_SIZE] __attribute__((aligned(PAGE_SIZE)));
 	
 	static void *tq_addrs[TQSIZE];
-	static void *rq_vaddrs[RQSIZE];
+	static void *rq_addrs[RQSIZE];
 	
 	static int last_tq_page_id;
 	static uint64_t last_tq_page_offset;
@@ -88,12 +88,16 @@ namespace e1000 {
 			tq_addrs[i] = (void *) tq_pages[i];
 		}
 		for (uint64_t i = 0; i < RQSIZE; i++) {
-			rq_vaddrs[i] = (void *) ((uint64_t) rq_pages[i / 2] + (i % 2) * PAGE_SIZE / 2);
+			rq_addrs[i] = (void *) ((uint64_t) rq_pages[i / 2] + (i % 2) * PAGE_SIZE / 2);
+			rq[i].addr = (uint32_t) (uint64_t) rq_addrs[i];
 		}
 		
 		// For allocating fragments
 		last_tq_page_id = 0;
 		last_tq_page_offset = 0;
+		
+		*(volatile uint32_t *) (e1000 + 0x400) = 0;        // clear TCTL
+		*(volatile uint32_t *) (e1000 + 0x100) = 0;        // clear RCTL
 		
 		// try reset
 		*(volatile uint32_t *) (e1000 + 0xd8) = 0xffffffff;
@@ -108,8 +112,11 @@ namespace e1000 {
 		microdelay(10000);
 		*(volatile uint32_t *) (e1000 + 0x0) = ctrl;
 		
-		// CTRL: force 1Gbps duplex
-		*(volatile uint32_t *) (e1000 + 0x0) = (1u << 0) | (0u << 5) | (1u << 6) | (2u << 8) | (1u << 11) | (1u << 12);
+		// Init link
+		ctrl = *(volatile uint32_t *) (e1000 + 0x0);
+		ctrl &= ~((1u << 11) | (1u << 12));   // No forcing speed or full-duplex
+		ctrl |= 1u << 6;   // set link up
+		*(volatile uint32_t *) (e1000 + 0x0) = ctrl;
 		
 		LDEBUG("e1000: waiting for link ...");
 		while (1) {
@@ -159,6 +166,7 @@ namespace e1000 {
 		*(volatile uint32_t *) (e1000 + 0x2808) = sizeof(rq); // RDLEN
 		*(volatile uint32_t *) (e1000 + 0x2810) = 0;          // RDH
 		*(volatile uint32_t *) (e1000 + 0x2818) = RQSIZE - 1; // RDT
+		
 		e1000_rdh = 0;
 		e1000_rdt = RQSIZE - 1;
 		e1000_rdt_real = e1000_rdt;
@@ -251,7 +259,7 @@ namespace e1000 {
 		if (len > (int) PAGE_SIZE / 2) {
 			len = PAGE_SIZE / 2;
 		}
-		memcpy(bufpage, rq_vaddrs[idx], len);
+		memcpy(bufpage, rq_addrs[idx], len);
 		rd->status &= ~1;
 		e1000_rdt = idx;
 		if (e1000_rdt % RQ_FLUSH_COUNT == 0) {

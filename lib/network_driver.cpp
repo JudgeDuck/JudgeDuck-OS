@@ -26,6 +26,15 @@ namespace NetworkDriver {
 	
 	uint8_t ip[4], mac[6];
 	
+	// returns: # of bytes sent
+	int (*send)(const void *buf, int len);
+	
+	// returns: # of bytes received
+	int (*receive)(void *buf);
+	
+	// returns: zero
+	int (*flush)();
+	
 	void init() {
 		LDEBUG_ENTER_RET();
 		
@@ -38,6 +47,9 @@ namespace NetworkDriver {
 		}
 		
 		if (e1000::init(mac)) {
+			send = e1000::send;
+			receive = e1000::receive;
+			flush = e1000::flush;
 			LINFO("e1000 driver initialized");
 		} else {
 			LWARN("No network driver found. Running in standalone mode...");

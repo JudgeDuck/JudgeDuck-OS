@@ -107,6 +107,12 @@ namespace x86_64 {
 	const uint32_t Star = 0xC0000081;
 	const uint32_t LStar = 0xC0000082;
 	const uint32_t SFMask = 0xC0000084;
+	
+	static inline void reboot() {
+		uint64_t a[2] = { 0 };
+		lidt(a);
+		__asm__ volatile ("int3");
+	}
 }
 
 #endif
