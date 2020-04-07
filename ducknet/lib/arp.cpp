@@ -27,10 +27,17 @@ static struct {
 
 static int n_arp_queries;
 
+static ducknet_time_t last_idle_time;
+static ducknet_u64 idle_delay;
+
 int ducknet_arp_init(const DucknetARPConfig *conf) {
 	packet_handle = conf->packet_handle;
 	n_arp_entries = 0;
 	n_arp_queries = 0;
+	
+	last_idle_time = ducknet_currenttime;
+	idle_delay = ducknet_tsc_freq * 100 / 1000 / 1000;  // 0.1ms
+	
 	return 0;
 }
 
@@ -63,8 +70,11 @@ int ducknet_arp_send(DucknetMACAddress dst, ducknet_u16 op, const void *payload,
 
 int ducknet_arp_idle() {
 	static int cnt = 0;
-	if (++cnt % 128 != 0) return 0;
+	if (++cnt < 128 && ducknet_currenttime - last_idle_time <= idle_delay) {
+		return 0;
+	}
 	cnt = 0;
+	last_idle_time = ducknet_currenttime;
 	
 	int id;
 	

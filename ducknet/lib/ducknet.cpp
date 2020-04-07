@@ -45,13 +45,20 @@ int ducknet_mainloop() {
 }
 
 int ducknet_step() {
-	static char pkt[MAX_MTU + 64];
+	// ducknet idle
 	int r;
 	if ((r = ducknet_idle()) < 0) return r;
+	
+	// try receive packet
+	static char pkt[MAX_MTU + 64];
+	int len = ducknet_phy_recv(pkt);
+	if (len >= 0) {
+		ducknet_packet_handle(pkt, len);
+	}
+	
+	// user idle
 	if (idle && (r = idle()) < 0) return r;
-	int tmp = ducknet_phy_recv(pkt);
-	if (tmp < 0) return 0;
-	ducknet_packet_handle(pkt, tmp);
+	
 	return 0;
 }
 

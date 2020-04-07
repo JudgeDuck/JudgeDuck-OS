@@ -9,6 +9,7 @@ int ducknet_utils_init(const DucknetUtilsConfig *conf) {
 		return -1;
 	}
 	tsc_freq = conf->tsc_freq;
+	ducknet_tsc_freq = tsc_freq;
 	ducknet_currenttime = ducknet_gettime();
 	return 0;
 }

@@ -118,8 +118,11 @@ namespace Trap {
 			tf->tf_regs.tsc = tf_from_user.tf_regs.tsc - tf_to_user.tf_regs.tsc;
 		} else {
 			if (num == TRAP_IRQ + PIC::IRQ_TIMER) {
-				LERROR("Unhandled timer interrupt");
-				unimplemented();
+				// timer interrupt caused by scheduler
+				// just return with interrupts disabled
+				LAPIC::eoi();
+				LAPIC::timer_disable();
+				tf->tf_rflags &= ~0x200;  // disable interrupts
 			} else if (num == TRAP_RUN_USER) {
 				tf_run_user = *tf;
 				tf = &tf_to_user;

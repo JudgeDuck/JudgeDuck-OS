@@ -16,6 +16,7 @@
 #include <inc/elf.hpp>
 #include <inc/x86_64.hpp>
 #include <inc/duck_server.hpp>
+#include <inc/scheduler.hpp>
 
 static void print_hello() {
 	printf("Hello world!\n");
@@ -84,6 +85,7 @@ int main() {
 	PCI::init();
 	NetworkDriver::init();
 	DuckServer::init();
+	Scheduler::init();
 	
 	run_tests();
 	

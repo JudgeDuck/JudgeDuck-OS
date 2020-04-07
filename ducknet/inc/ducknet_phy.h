@@ -13,6 +13,7 @@ typedef struct {
 	int (*recv)(void *);
 	int (*flush)();
 	int (*packet_handle)(void *, int);
+	int (*send_packet_handle)(const void *, int);
 } DucknetPhyConfig;
 
 int ducknet_phy_init(const DucknetPhyConfig *);

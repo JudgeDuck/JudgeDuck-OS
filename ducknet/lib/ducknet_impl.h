@@ -23,6 +23,7 @@ extern DucknetIPv4Address ducknet_ip;
 // === time ===
 
 extern ducknet_time_t ducknet_currenttime;
+extern ducknet_u64 ducknet_tsc_freq;
 
 // === string operations ===
 

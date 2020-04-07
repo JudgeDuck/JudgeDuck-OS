@@ -24,6 +24,9 @@ static struct {
 
 static ducknet_u32 tosend_free[(TOSEND_TABLE_SIZE + 31) >> 5];
 
+static ducknet_time_t last_idle_time;
+static ducknet_u64 idle_delay;
+
 int ducknet_ipv4_init(const DucknetIPv4Config *conf) {
 	ducknet_ip = conf->ip;
 	packet_handle = conf->packet_handle;
@@ -32,6 +35,9 @@ int ducknet_ipv4_init(const DucknetIPv4Config *conf) {
 	for (int i = 0; i < TOSEND_TABLE_SIZE; i++) {
 		tosend_free[i >> 5] |= 1u << (i & 31);
 	}
+	
+	last_idle_time = ducknet_currenttime;
+	idle_delay = ducknet_tsc_freq * 100 / 1000 / 1000;  // 0.1ms
 	
 	return 0;
 }
@@ -129,8 +135,11 @@ int ducknet_ipv4_send(DucknetIPv4Address dst, ducknet_u8 protocol, const void *p
 
 int ducknet_ipv4_idle() {
 	static int cnt = 0;
-	if (++cnt % 1024 != 0) return 0;
+	if (++cnt < 1024 && ducknet_currenttime - last_idle_time <= idle_delay) {
+		return 0;
+	}
 	cnt = 0;
+	last_idle_time = ducknet_currenttime;
 	
 	for (int i = 0; i < TOSEND_TABLE_SIZE; i++) {
 		if (tosend_free[i >> 5] & (1u << (i & 31))) {

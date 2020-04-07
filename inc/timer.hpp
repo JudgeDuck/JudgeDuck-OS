@@ -33,10 +33,17 @@ namespace Timer {
 		return (double) tsc_since_epoch() / tsc_freq;
 	}
 	
-	inline static void microdelay(uint64_t us) {
+	static inline uint64_t ns_since_epoch() {
+		if (!tsc_epoch) return -1;
+		return tsc_to_ns(tsc_since_epoch());
+	}
+	
+	static inline void microdelay(uint64_t us) {
 		uint64_t tsc_target = get_tsc() + us * (tsc_freq / 1000000);
 		while ((long long) (get_tsc() - tsc_target) < 0ll);  // prevent overflow
 	}
+	
+	void powersave_sleep(uint64_t ns);
 }
 
 #endif

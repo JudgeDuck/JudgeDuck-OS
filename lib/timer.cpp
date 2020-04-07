@@ -7,6 +7,7 @@
 #include <inc/x86_64.hpp>
 #include <inc/utils.hpp>
 #include <inc/logger.hpp>
+#include <inc/lapic.hpp>
 
 namespace Timer {
 	uint64_t tsc_freq, tsc_epoch;
@@ -68,5 +69,11 @@ namespace Timer {
 		tsc_epoch = get_tsc();
 		
 		LDEBUG("tsc_freq = %lu, ext_freq = %u", tsc_freq, ext_freq);
+	}
+	
+	void powersave_sleep(uint64_t ns) {
+		LAPIC::timer_single_shot_ns(ns);
+		x86_64::sti();
+		x86_64::hlt();
 	}
 }

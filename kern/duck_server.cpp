@@ -6,6 +6,7 @@
 #include <inc/logger.hpp>
 #include <inc/utils.hpp>
 #include <inc/x86_64.hpp>
+#include <inc/scheduler.hpp>
 #include <ducknet.h>
 
 using NetworkDriver::mac;
@@ -39,6 +40,27 @@ namespace DuckServer {
 		return -1;
 	}
 	
+	static int phy_recv_packet_handle(void *, int) {
+		Scheduler::set_active();
+		return 0;
+	}
+	
+	static int phy_send_packet_handle(const void *, int) {
+		Scheduler::set_active();
+		return 0;
+	}
+	
+	static int idle() {
+		Scheduler::set_idle();
+		
+		if (Scheduler::can_sleep()) {
+			ducknet_flush();
+			Scheduler::sleep();
+		}
+		
+		return 0;
+	}
+	
 	void init() {
 		LDEBUG_ENTER_RET();
 		
@@ -57,7 +79,8 @@ namespace DuckServer {
 				.send = NetworkDriver::send,
 				.recv = NetworkDriver::receive,
 				.flush = NetworkDriver::flush,
-				.packet_handle = NULL,
+				.packet_handle = phy_recv_packet_handle,
+				.send_packet_handle = phy_send_packet_handle,
 			},
 			.ether = {
 				.mac = my_mac,
@@ -76,7 +99,7 @@ namespace DuckServer {
 			.udp = {
 				.packet_handle = udp_packet_handle,
 			},
-			.idle = NULL,
+			.idle = idle,
 		};
 		
 		if (ducknet_init(&conf) < 0) {
