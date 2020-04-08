@@ -1,6 +1,8 @@
 #ifndef DUCK_TIMER_H
 #define DUCK_TIMER_H
 
+#include <stdint.h>
+
 #include <inc/x86_64.hpp>
 
 namespace Timer {

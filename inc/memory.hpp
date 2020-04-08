@@ -1,6 +1,8 @@
 #ifndef DUCK_MEMORY_H
 #define DUCK_MEMORY_H
 
+#include <stdint.h>
+
 namespace Memory {
 	const uint64_t PAGE_SIZE = 4096;  // 4KiB
 	const uint64_t HUGE_PAGE_SIZE = 2097152;  // 2MiB

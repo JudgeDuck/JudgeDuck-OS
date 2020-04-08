@@ -1,6 +1,8 @@
 #ifndef DUCK_ELF_H
 #define DUCK_ELF_H
 
+#include <stdint.h>
+
 namespace ELF {
 	struct App64Config {
 		uint64_t memory_hard_limit;

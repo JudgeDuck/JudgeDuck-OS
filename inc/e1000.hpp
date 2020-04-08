@@ -1,6 +1,8 @@
 #ifndef DUCK_E1000_H
 #define DUCK_E1000_H
 
+#include <stdint.h>
+
 namespace e1000 {
 	bool init(uint8_t mac[6]);
 	
