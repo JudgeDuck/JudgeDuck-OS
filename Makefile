@@ -40,7 +40,7 @@ include ducknet/lib/Makefile
 clean:
 	@rm -r build/*
 
-QEMUOPTS ?= 
+QEMUOPTS ?= -m 512M
 
 run: $(iso)
 	@qemu-system-x86_64 -cdrom $(iso) -cpu Haswell $(QEMUOPTS)

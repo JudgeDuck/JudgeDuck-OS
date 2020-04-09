@@ -183,6 +183,7 @@ namespace Memory {
 			
 			for (uint64_t j = 0; j < PAGE_SIZE / 8; j++) {
 				PTE(P1, j) = (paddr + j * PAGE_SIZE) | flags;
+				PTE(P1, j) &= ~PTE_USER;
 			}
 			
 			vaddr += HUGE_PAGE_SIZE;
@@ -326,6 +327,17 @@ namespace Memory {
 			
 			start += PAGE_SIZE;
 			src_addr += PAGE_SIZE;
+		}
+	}
+	
+	char * allocate_virtual_memory(uint64_t size) {
+		size = Utils::round_up(size, HUGE_PAGE_SIZE);
+		
+		if (vaddr_break - kernel_break < size) {
+			return NULL;
+		} else {
+			vaddr_break -= size;
+			return (char *) vaddr_break;
 		}
 	}
 }

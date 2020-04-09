@@ -17,6 +17,7 @@
 #include <inc/x86_64.hpp>
 #include <inc/duck_server.hpp>
 #include <inc/scheduler.hpp>
+#include <inc/judger.hpp>
 
 static void print_hello() {
 	printf("Hello world!\n");
@@ -86,6 +87,7 @@ int main() {
 	NetworkDriver::init();
 	DuckServer::init();
 	Scheduler::init();
+	Judger::init();
 	
 	run_tests();
 	

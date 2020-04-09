@@ -33,6 +33,8 @@ namespace Memory {
 	
 	// Note: 4k-paged
 	void map_region_cache_disabled(uint64_t start, uint64_t end, uint64_t src_addr);
+	
+	char * allocate_virtual_memory(uint64_t size);
 }
 
 #endif

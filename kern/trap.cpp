@@ -134,8 +134,11 @@ namespace Trap {
 				
 				syscall_return_record_tsc(tf);
 			} else {
+				LERROR("tf_rip = %lx", tf->tf_rip);
 				LERROR("Unhandled kernel trap %d", num);
-				unimplemented();
+				LFATAL("GG, reboot");
+				Timer::microdelay((uint64_t) 10e6);  // 10s
+				x86_64::reboot();
 			}
 		}
 		

@@ -222,7 +222,7 @@ namespace ELF {
 		}
 		
 		// Clear access and dirty flags for measuring
-		Memory::clear_access_and_dirty_flags(load_vaddr_start, load_vaddr_break);
+		Memory::clear_access_and_dirty_flags(load_vaddr_start, special_region_break);
 		
 		LDEBUG() << "Load ELF ok!";
 		
@@ -245,7 +245,7 @@ namespace ELF {
 			res.time_tsc, res.trap_num, res.return_code);
 		res.time_ns = Timer::tsc_to_ns(res.time_tsc);
 		res.memory_bytes = PAGE_SIZE *
-			Memory::count_dirty_pages(app.start_addr, app.break_addr);
+			Memory::count_dirty_pages(app.start_addr, app.special_region_break_addr);
 		res.memory_kb = res.memory_bytes / 1024;
 		
 		// stdout
