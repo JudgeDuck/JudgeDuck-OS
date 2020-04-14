@@ -117,6 +117,10 @@ syscall_return_record_tsc:
 	popq %rax
 	wrfsbase %rax
 	
+	// clear gsbase
+	xorq %rax, %rax
+	wrgsbase %rax
+	
 	popq %rcx
 	popq %rbx
 	popq %rbp
