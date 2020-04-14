@@ -106,6 +106,10 @@ namespace Trap {
 	
 	extern "C"
 	void trap_handler(Trapframe *tf) {
+		// restore kernel tsc
+		tf->tf_regs.tsc -= x86_64::rdmsr(x86_64::TSC_ADJUST);
+		x86_64::wrmsr(x86_64::TSC_ADJUST, 0);
+		
 		int num = (int) tf->tf_num;
 		LDEBUG() << "trap " << num << ", CPL " << (tf->tf_cs & 3);
 		

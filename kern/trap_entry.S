@@ -148,6 +148,12 @@ syscall_return_record_tsc:
 	movq %rax, (%rsp)
 	popq %rax
 	
+	// reset tsc to zero: wrmsr IA32_TIME_STAMP_COUNTER
+	xorq %rax, %rax
+	xorq %rdx, %rdx
+	movq $16, %rcx
+	wrmsr
+	
 	popq %rax
 	popq %rdx
 	

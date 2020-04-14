@@ -103,6 +103,7 @@ namespace x86_64 {
 		__asm__ volatile ("wrmsr" : : "a" (lo), "d" (hi), "c" (msr));
 	}
 	
+	const uint32_t TSC_ADJUST = 0x3b;
 	const uint32_t Efer = 0xC0000080;
 	const uint32_t Star = 0xC0000081;
 	const uint32_t LStar = 0xC0000082;
