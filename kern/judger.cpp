@@ -120,8 +120,8 @@ namespace Judger {
 			return judge_result;
 		}
 		
-		ELF::App64 app;
-		auto elf_conf = (ELF::App64Config) {
+		ELF::App app;
+		auto elf_conf = (ELF::AppConfig) {
 			.memory_hard_limit = conf.memory_hard_limit_kb * 1024,
 			.stdin_ptr = stdin_content,
 			.stdin_size = stdin_size,

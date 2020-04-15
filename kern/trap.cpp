@@ -11,6 +11,8 @@
 #include <inc/timer.hpp>
 #include <inc/utils.hpp>
 #include <inc/pic.hpp>
+#include <inc/memory.hpp>
+#include <inc/abi.hpp>
 
 extern void *__traps[256];
 extern void *kernel_stack_top;
@@ -62,14 +64,18 @@ namespace Trap {
 	const uint16_t GDT_USER32_CS = 24;
 	const uint16_t GDT_USER_SS = 32;
 	const uint16_t GDT_USER_CS = 40;
-	const uint16_t GDT_TSS = 48;
+	const uint16_t GDT_USER32_SS = 48;
+	const uint16_t GDT_USER32_TLS = 56;
+	const uint16_t GDT_TSS = 64;
 	static uint64_t gdt[] = {
 		0,
 		[GDT_KERNEL_CS >> 3] = (1ul << 43) | (1ul << 44) | (1ul << 47) | (1ul << 53),
 		[GDT_KERNEL_SS >> 3] = (1ul << 44) | (1ul << 47) | (1ul << 41),
-		[GDT_USER32_CS >> 3] = 0,  // TODO: fill it
+		[GDT_USER32_CS >> 3] = 0x00cffa000000ffff,
 		[GDT_USER_SS >> 3] = (1ul << 44) | (1ul << 47) | (1ul << 41) | (3ul << 45),
 		[GDT_USER_CS >> 3] = (1ul << 43) | (1ul << 44) | (1ul << 47) | (1ul << 53) | (3ul << 45),
+		[GDT_USER32_SS >> 3] = 0x00cff2000000ffff,
+		[GDT_USER32_TLS >> 3] = 0,  // filled by set_thread_area
 		[GDT_TSS >> 3] = (sizeof(TaskState) - 1) | (((uint64_t) &task_state & 0xffffff) << 16) | (9ul << 40) | (0ul << 45) | (1ul << 47) | (1ul << 53) | (((uint64_t) &task_state >> 24) << 56),
 		[(GDT_TSS >> 3) + 1] = ((uint64_t) &task_state) >> 32
 	};
@@ -91,8 +97,10 @@ namespace Trap {
 	
 	const uint8_t TRAP_IRQ = 32;
 	const uint8_t TRAP_RUN_USER = 233;
+	const uint8_t TRAP_RUN_USER32 = 234;
 	const uint8_t TRAP_INVALID_SYSCALL = 254;
 	const uint8_t TRAP_SYSCALL = 255;
+	const uint8_t TRAP_SYSCALL32 = 128;
 	
 	extern "C" { uint64_t __syscall_stack; }
 	static Trapframe tf_run_user, tf_from_user, tf_to_user;
@@ -103,6 +111,40 @@ namespace Trap {
 	
 	extern "C"
 	void syscall_return_record_tsc(Trapframe *tf);
+	
+	extern "C"
+	void syscall_return_32_record_tsc(Trapframe *tf);
+	
+	extern "C" {
+		void __trap_0x80_entry();
+		void __trap_0x80_return(Trapframe *tf);
+	}
+	
+	static void set_idt(int id, void *addr) {
+		uint64_t a = (uint64_t) addr;
+		
+		idt[id] = (InterruptDescriptor) {
+			.ptr_low = (uint16_t) a,
+			.selector = GDT_KERNEL_CS,
+			.ist = 0,
+			.options = (14 << 0) | (1 << 7),  // must-be-one bits | present
+			.ptr_mid = (uint16_t) (a >> 16),
+			.ptr_high = (uint32_t) (a >> 32),
+			.reserved = 0
+		};
+	}
+	
+	struct user_desc {
+		uint32_t entry_number;
+		uint32_t base_addr;
+		uint32_t limit;
+		uint32_t seg_32bit:1;
+		uint32_t contents:2;
+		uint32_t read_exec_only:1;
+		uint32_t limit_in_pages:1;
+		uint32_t seg_not_present:1;
+		uint32_t useable:1;
+	} __attribute__((packed));
 	
 	extern "C"
 	void trap_handler(Trapframe *tf) {
@@ -119,7 +161,16 @@ namespace Trap {
 			tf_from_user = *tf;
 			tf = &tf_run_user;
 			tf->tf_regs.rax = num;
-			tf->tf_regs.tsc = tf_from_user.tf_regs.tsc - tf_to_user.tf_regs.tsc;
+			uint64_t tsc_subtract = tf_to_user.tf_regs.tsc;
+			tf->tf_regs.tsc = tf_from_user.tf_regs.tsc - tsc_subtract;
+			
+			uint64_t cr2;
+			__asm__ volatile ("movq %%cr2, %0" : "=r" (cr2));
+			LDEBUG("trap %d, rip %lx, cr2 %lx, ec %lu",
+				num, tf_from_user.tf_rip, cr2, tf_from_user.tf_errorcode);
+			LDEBUG("tf_cs %lu, tf_rflags %lx, tf_rsp %lx, tf_ss %lu",
+				tf_from_user.tf_cs, tf_from_user.tf_rflags,
+				tf_from_user.tf_rsp, tf_from_user.tf_ss);
 		} else {
 			if (num == TRAP_IRQ + PIC::IRQ_TIMER) {
 				// timer interrupt caused by scheduler
@@ -127,18 +178,60 @@ namespace Trap {
 				LAPIC::eoi();
 				LAPIC::timer_disable();
 				tf->tf_rflags &= ~0x200;  // disable interrupts
-			} else if (num == TRAP_RUN_USER) {
+			} else if (num == TRAP_RUN_USER || num == TRAP_RUN_USER32) {
 				tf_run_user = *tf;
-				tf = &tf_to_user;
+				
+				// clear gdt tls
+				gdt[GDT_USER32_TLS >> 3] = 0;
+				x86_64::lgdt(&gdt_desc);
+				
+				using x86_64::rdmsr;
+				using x86_64::wrmsr;
+				if (num == TRAP_RUN_USER32) {
+					// set up segment registers
+					__asm__ volatile ("mov %0, %%ax" : : "i" (GDT_USER32_SS | 3));
+					__asm__ volatile ("mov %ax, %ds");
+					__asm__ volatile ("mov %ax, %es");
+					__asm__ volatile ("mov %ax, %fs");
+					__asm__ volatile ("mov %ax, %gs");
+					__asm__ volatile ("" : : : "%ax");
+					
+					// enable int 0x80
+					set_idt(0x80, (void *) &__trap_0x80_entry);
+					idt[0x80].options |= 3 << 5;
+					x86_64::lidt(&idt_desc);
+				} else {  // TRAP_RUN_USER
+					// clear segment registers
+					__asm__ volatile ("mov $0, %ax");
+					__asm__ volatile ("mov %ax, %ds");
+					__asm__ volatile ("mov %ax, %es");
+					__asm__ volatile ("mov %ax, %fs");
+					__asm__ volatile ("mov %ax, %gs");
+					__asm__ volatile ("" : : : "%ax");
+					
+					// disable int 0x80
+					set_idt(0x80, __traps[0x80]);
+					x86_64::lidt(&idt_desc);
+				}
 				
 				if (user_time_limit_ns != 0) {
 					// add 10ms to provide a hard limit
 					LAPIC::timer_single_shot_ns(user_time_limit_ns + 10000000);
 				}
 				
-				syscall_return_record_tsc(tf);
+				if (num == TRAP_RUN_USER) {
+					syscall_return_record_tsc(&tf_to_user);
+				} else {  // TRAP_RUN_USER_32
+					syscall_return_32_record_tsc(&tf_to_user);
+				}
 			} else {
-				LERROR("tf_rip = %lx", tf->tf_rip);
+				uint64_t cr2;
+				__asm__ volatile ("movq %%cr2, %0" : "=r" (cr2));
+				LERROR("rip %lx, cr2 %lx, errorcode %lu",
+					num, tf->tf_rip, cr2, tf->tf_errorcode);
+				LERROR("tf_cs %lu, tf_rflags %lx, tf_rsp %lx, tf_ss %lu",
+					tf->tf_cs, tf->tf_rflags,
+					tf->tf_rsp, tf->tf_ss);
 				LERROR("Unhandled kernel trap %d", num);
 				LFATAL("GG, reboot");
 				Timer::microdelay((uint64_t) 10e6);  // 10s
@@ -149,18 +242,43 @@ namespace Trap {
 		trap_return(tf);
 	}
 	
-	static void set_idt(int id, void *addr) {
-		uint64_t a = (uint64_t) addr;
+	extern "C"
+	void trap_0x80_handler(Trapframe *tf) {
+		// must from 32-bit userspace
+		int syscall_num = (int) (uint32_t) tf->tf_regs.rax;
 		
-		idt[id] = (InterruptDescriptor) {
-			.ptr_low = (uint16_t) a,
-			.selector = GDT_KERNEL_CS,
-			.ist = 0,
-			.options = (14 << 0) | (1 << 7),  // must-be-one bits | present
-			.ptr_mid = (uint16_t) (a >> 16),
-			.ptr_high = (uint32_t) (a >> 32),
-			.reserved = 0
-		};
+		if (syscall_num == ABI::DUCK_sys_set_thread_area) {
+			uint64_t rbx = (uint64_t) (uint32_t) tf->tf_regs.rbx;
+			uint64_t ret = -EINVAL;
+			using Memory::user_writable_check;
+			if (!user_writable_check(rbx)) {
+				ret = -EFAULT;
+			} else if (!user_writable_check(rbx + sizeof(user_desc) - 1)) {
+				ret = -EFAULT;
+			} else {
+				user_desc *desc = (user_desc *) rbx;
+				if (desc->entry_number != -1u && desc->entry_number != GDT_USER32_TLS / 8) {
+					ret = -EINVAL;
+				} else {
+					uint64_t tmp = 0;
+					tmp = desc->limit & 0xffff;
+					tmp |= (((uint64_t) desc->base_addr) & 0xffffff) << 16;
+					tmp |= (uint64_t) (desc->base_addr >> 24) << 56;
+					// TODO FIXME: Check other flags in user_desc
+					tmp |= 0x00cff20000000000;  // 32-bit, writable, 4k-granularity
+					gdt[GDT_USER32_TLS >> 3] = tmp;
+					x86_64::lgdt(&gdt_desc);
+					
+					desc->entry_number = GDT_USER32_TLS >> 3;
+					ret = 0;
+				}
+			}
+			
+			tf->tf_regs.rax = ret;
+			__trap_0x80_return(tf);
+		} else {
+			trap_handler(tf);
+		}
 	}
 	
 	extern "C" void __syscall_entry();
@@ -189,6 +307,7 @@ namespace Trap {
 		using x86_64::wrmsr;
 		wrmsr(x86_64::Efer, rdmsr(x86_64::Efer) | 1);  // enable syscall
 		wrmsr(x86_64::LStar, (uint64_t) &__syscall_entry);
+		wrmsr(x86_64::CStar, (uint64_t) &__syscall_entry);  // for 32-bit
 		wrmsr(x86_64::Star, ((uint64_t) GDT_KERNEL_CS << 32) | ((uint64_t) GDT_USER32_CS << 48));
 		wrmsr(x86_64::SFMask, 0x200);  // mask interrupt
 		__syscall_stack = task_state.rsp[0];  // used by syscall_entry
@@ -199,9 +318,22 @@ namespace Trap {
 		memset(&tf, 0, sizeof(tf));
 		tf.tf_rip = rip;
 		tf.tf_cs = GDT_USER_CS | 3;
-		tf.tf_rflags = x86_64::read_rflags() | 0x3000 | 0x200;  // user | interrupt
+		tf.tf_rflags = x86_64::read_rflags() & ~0x8d5;  // clear all status bits
+		tf.tf_rflags |= 0x3000 | 0x200;  // user | interrupt
 		tf.tf_rsp = rsp;
 		tf.tf_ss = GDT_USER_SS | 3;
+		return tf;
+	}
+	
+	static Trapframe make_trapframe_32(uint64_t eip, uint64_t esp) {
+		Trapframe tf;
+		memset(&tf, 0, sizeof(tf));
+		tf.tf_rip = eip;
+		tf.tf_cs = GDT_USER32_CS | 3;
+		tf.tf_rflags = x86_64::read_rflags() & ~0x8d5;  // clear all status bits
+		tf.tf_rflags |= 0x3000 | 0x200;  // user | interrupt
+		tf.tf_rsp = esp;
+		tf.tf_ss = GDT_USER32_SS | 3;
 		return tf;
 	}
 	
@@ -224,12 +356,42 @@ namespace Trap {
 		// export return-code
 		if (trap_num == TRAP_SYSCALL) {
 			int syscall_num = (int) tf_from_user.tf_regs.rax;
-			if (syscall_num != SYS_exit) {
+			if (syscall_num != ABI::DUCK_sys_exit) {
 				trap_num = TRAP_INVALID_SYSCALL;
 				return_code = 0;
 			} else {
-				return_code = (int32_t) tf_from_user.tf_regs.rdi;
+				return_code = (int32_t) (uint32_t) tf_from_user.tf_regs.rdi;
 			}
+		} else {
+			return_code = 0;
+		}
+	}
+	
+	void run_user_32(uint64_t entry, uint64_t esp, uint64_t time_limit_ns,
+		uint64_t &tsc, uint8_t &trap_num, int32_t &return_code) {
+		LDEBUG_ENTER_RET();
+		
+		user_time_limit_ns = time_limit_ns;
+		tf_to_user = make_trapframe_32(entry, esp);
+		
+		__asm__ volatile ("int %1" : "=a" (trap_num) : "i" (TRAP_RUN_USER32) : "memory");
+		
+		// export tsc
+		tsc = tf_run_user.tf_regs.tsc;
+		
+		// export return-code
+		if (trap_num == TRAP_SYSCALL32) {
+			trap_num = TRAP_SYSCALL;   // for API compatibility
+			int syscall_num = (int) (uint32_t) tf_from_user.tf_regs.rax;
+			if (syscall_num != ABI::DUCK_sys_exit_32) {
+				trap_num = TRAP_INVALID_SYSCALL;
+				return_code = 0;
+			} else {
+				return_code = (int32_t) (uint32_t) tf_from_user.tf_regs.rbx;
+			}
+		} else if (trap_num == TRAP_SYSCALL) {
+			trap_num = TRAP_INVALID_SYSCALL;
+			return_code = 0;
 		} else {
 			return_code = 0;
 		}

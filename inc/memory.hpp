@@ -28,6 +28,9 @@ namespace Memory {
 	void set_page_flags_user_executable(uint64_t start, uint64_t end);
 	void set_page_flags_kernel(uint64_t start, uint64_t end);
 	
+	void add_page_flags_writable(uint64_t start, uint64_t end);
+	void add_page_flags_executable(uint64_t start, uint64_t end);
+	
 	void clear_access_and_dirty_flags(uint64_t start, uint64_t end);
 	uint64_t count_dirty_pages(uint64_t start, uint64_t end);
 	
@@ -35,6 +38,8 @@ namespace Memory {
 	void map_region_cache_disabled(uint64_t start, uint64_t end, uint64_t src_addr);
 	
 	char * allocate_virtual_memory(uint64_t size);
+	
+	bool user_writable_check(uint64_t addr);
 }
 
 #endif

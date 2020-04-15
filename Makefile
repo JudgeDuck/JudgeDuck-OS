@@ -33,6 +33,7 @@ include kern/Makefile
 include lib/Makefile
 include user_lib/Makefile
 include user/Makefile
+include user32/Makefile
 include ducknet/lib/Makefile
 
 .PHONY: all clean run iso
@@ -55,11 +56,12 @@ $(iso): $(kernel) $(grub_cfg)
 	@rm -r build/isofiles
 
 $(kernel): $(assembly_object_files) $(kern_object_files) $(lib_object_files) $(linker_script) \
-	$(libc_duck64) $(kern_asm_object_files) $(user_obj_files) $(libducknet)
+	$(libc_duck64) $(kern_asm_object_files) $(user_obj_files) $(user32_obj_files) $(libducknet)
 	@echo + ld $(kernel)
 	@ld -n -T $(linker_script) -o $(kernel) \
 		$(libc_crt_start) $(assembly_object_files) $(kern_asm_object_files) $(kern_object_files) \
-		$(lib_object_files) $(libducknet) $(libstdcxx_files) $(libc_files) $(libc_crt_end) $(user_obj_files)
+		$(lib_object_files) $(libducknet) $(libstdcxx_files) $(libc_files) $(libc_crt_end) \
+		$(user_obj_files) $(user32_obj_files)
 
 build/boot/%.o: boot/%.asm
 	@echo + nasm $@

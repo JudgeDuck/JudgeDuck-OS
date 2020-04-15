@@ -18,6 +18,7 @@
 #include <inc/duck_server.hpp>
 #include <inc/scheduler.hpp>
 #include <inc/judger.hpp>
+#include <inc/abi.hpp>
 
 static void print_hello() {
 	printf("Hello world!\n");
@@ -33,25 +34,21 @@ static void print_hello() {
 	std::cout << "std::cout works!" << std::endl;
 }
 
-static void run_tests() {
-	LINFO("Running tests");
-	
-	extern const char _binary_hello_elf_start[];
-	extern const char _binary_hello_elf_end[];
-	int len = _binary_hello_elf_end - _binary_hello_elf_start;
-	LDEBUG("start = %p, len = %d", _binary_hello_elf_start, len);
+static void run_test(const char *elf_start, const char *elf_end) {
+	int len = elf_end - elf_start;
+	LDEBUG("start = %p, len = %d", elf_start, len);
 	
 	Logger::set_log_level(Logger::LL_INFO);
-	ELF::App64 app;
-	auto config = (ELF::App64Config) {
+	ELF::App app;
+	auto config = (ELF::AppConfig) {
 		.memory_hard_limit = 100 << 20,
 		.stdin_ptr = "100 987\n",
 		.stdin_size = 8,
 		.stdout_max_size = 10240,
 		.stderr_max_size = 10240,
 	};
-	assert(ELF::load(_binary_hello_elf_start, len, config, app));
-	auto res = ELF::run(app, 5e9);
+	assert(ELF::load(elf_start, len, config, app));
+	auto res = ELF::run(app, 0);
 	LINFO("time %.6lf ms, memory %d KiB (%.1lf MiB)",
 		res.time_ns / 1e6, res.memory_kb, res.memory_kb / 1024.0);
 	LINFO("tsc %lu, trap %u, retcode %d",
@@ -65,6 +62,18 @@ static void run_tests() {
 	fwrite(res.stderr_ptr, 1, std::min(256ul, res.stderr_size), stderr);
 	putchar('\n');
 	LINFO("========================================");
+}
+
+static void run_tests() {
+	LINFO("Running tests");
+	
+	extern const char _binary_hello_elf_start[];
+	extern const char _binary_hello_elf_end[];
+	run_test(_binary_hello_elf_start, _binary_hello_elf_end);
+	
+	extern const char _binary_hello32_elf_start[];
+	extern const char _binary_hello32_elf_end[];
+	run_test(_binary_hello32_elf_start, _binary_hello32_elf_end);
 }
 
 int main() {
@@ -92,7 +101,7 @@ int main() {
 	run_tests();
 	
 	LINFO("Welcome to JudgeDuck-OS-64 !!!");
-	LINFO("ABI Version 0.02b");
+	LINFO("ABI Version %s", ABI::version_str);
 	
 	DuckServer::run();
 	// Should not return

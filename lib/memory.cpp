@@ -287,6 +287,32 @@ namespace Memory {
 	}
 	
 	// TODO: Support huge paging
+	void add_page_flags_writable(uint64_t start, uint64_t end) {
+		assert(start % PAGE_SIZE == 0);
+		assert(end % PAGE_SIZE == 0);
+		
+		while (start != end) {
+			uint64_t &P1 = get_P1(start);
+			P1 |= PTE_WRITABLE;
+			
+			start += PAGE_SIZE;
+		}
+	}
+	
+	// TODO: Support huge paging
+	void add_page_flags_executable(uint64_t start, uint64_t end) {
+		assert(start % PAGE_SIZE == 0);
+		assert(end % PAGE_SIZE == 0);
+		
+		while (start != end) {
+			uint64_t &P1 = get_P1(start);
+			P1 &= ~PTE_NO_EXECUTE;
+			
+			start += PAGE_SIZE;
+		}
+	}
+	
+	// TODO: Support huge paging
 	void clear_access_and_dirty_flags(uint64_t start, uint64_t end) {
 		assert(start % PAGE_SIZE == 0);
 		assert(end % PAGE_SIZE == 0);
@@ -338,6 +364,21 @@ namespace Memory {
 		} else {
 			vaddr_break -= size;
 			return (char *) vaddr_break;
+		}
+	}
+	
+	bool user_writable_check(uint64_t addr) {
+		if (addr < kernel_break) {
+			return false;
+		} else if (addr >= vaddr_break) {
+			return false;
+		}
+		
+		uint64_t flags = PTE_USER | PTE_WRITABLE;
+		if ((get_P1(addr) & flags) != flags) {
+			return false;
+		} else {
+			return true;
 		}
 	}
 }

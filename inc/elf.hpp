@@ -3,8 +3,10 @@
 
 #include <stdint.h>
 
+#include <inc/abi.hpp>
+
 namespace ELF {
-	struct App64Config {
+	struct AppConfig {
 		uint64_t memory_hard_limit;
 		const char *stdin_ptr;
 		uint64_t stdin_size;
@@ -12,31 +14,16 @@ namespace ELF {
 		uint64_t stderr_max_size;
 	};
 	
-	// [JudgeDuck-ABI, "Running"]
-	struct DuckInfo_t {
-		uint64_t abi_version;    // = 21 for version 0.02a
-		
-		const char *stdin_ptr;   // stdin pointer (read-only contents)
-		uint64_t stdin_size;     // stdin size
-		
-		char *stdout_ptr;        // stdout pointer
-		uint64_t stdout_size;    // [IN] stdout maximum size
-		                         // [OUT] stdout actual size
-		
-		char *stderr_ptr;        // stderr pointer
-		uint64_t stderr_size;    // [IN] stderr maximum size
-		                         // [OUT] stderr actual size
-	} __attribute__((packed));
-	
-	struct App64 {
+	struct App {
 		uint64_t entry;
 		uint64_t rsp;
 		uint64_t start_addr;
 		uint64_t break_addr;
 		uint64_t special_region_start_addr;
 		uint64_t special_region_break_addr;
-		DuckInfo_t duckinfo_orig;
-		DuckInfo_t *duckinfo_ptr;
+		ABI::DuckInfo_t duckinfo_orig;
+		ABI::DuckInfo_t *duckinfo_ptr;      // NULL if app is not 64-bit
+		ABI::DuckInfo32_t *duckinfo32_ptr;  // NULL if app is not 32-bit
 	};
 	
 	struct RunResult {
@@ -55,8 +42,8 @@ namespace ELF {
 	};
 	
 	bool load(const char *buf, uint32_t len,
-		const App64Config &config, App64 &app);
-	RunResult run(const App64 &app, uint64_t time_limit_ns = 0);
+		const AppConfig &config, App &app);
+	RunResult run(const App &app, uint64_t time_limit_ns = 0);
 }
 
 #endif

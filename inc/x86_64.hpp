@@ -107,6 +107,7 @@ namespace x86_64 {
 	const uint32_t Efer = 0xC0000080;
 	const uint32_t Star = 0xC0000081;
 	const uint32_t LStar = 0xC0000082;
+	const uint32_t CStar = 0xC0000083;
 	const uint32_t SFMask = 0xC0000084;
 	
 	static inline void reboot() {

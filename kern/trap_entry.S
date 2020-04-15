@@ -74,6 +74,63 @@ __trap_entry:
 
 .text
 .align 8
+.globl __trap_0x80_entry
+__trap_0x80_entry:
+	pushq $0
+	pushq $0x80
+	pushq %rdx
+	pushq %rax
+	
+	// tsc
+	rdtsc
+	shl $32, %rdx
+	orq %rdx, %rax
+	pushq %rax
+	mfence
+	
+	
+	subq $64, %rsp  // skip r8 ~ r15
+	pushq %rdi
+	pushq %rsi
+	pushq %rbp
+	pushq %rbx
+	pushq %rcx
+	
+	subq $8, %rsp  // skip fsbase
+	
+	subq $512, %rsp  // skip fxsave
+	
+	movq %rsp, %rdi
+	call trap_0x80_handler
+
+.text
+.align 8
+.globl __trap_0x80_return
+__trap_0x80_return:
+	movq %rdi, %rsp
+	
+	addq $512, %rsp  // skip fxrstor
+	
+	popq %rax  // skip fsbase
+	
+	popq %rcx
+	popq %rbx
+	popq %rbp
+	popq %rsi
+	popq %rdi
+	addq $64, %rsp  // skip r8 ~ r15
+	
+	// skip tsc
+	popq %rax
+	
+	popq %rax
+	popq %rdx
+	
+	addq $16, %rsp
+	iret
+
+.text
+.align 8
 .globl __syscall_entry
 __syscall_entry:
 	// We clobber all registers this time
@@ -99,7 +156,7 @@ __syscall_entry:
 	subq $112, %rsp  // skip other regs and fsbase
 	
 	subq $512, %rsp
-	fxsave (%rsp)
+	// No fxsave for better performance
 	
 	movq %rsp, %rdi
 	call trap_handler
@@ -108,6 +165,73 @@ __syscall_entry:
 .align 8
 .globl syscall_return_record_tsc
 syscall_return_record_tsc:
+	movq %rdi, %rsp
+	
+	fxrstor __init_fx_state
+	addq $512, %rsp
+	
+	// load 0 into all data segment registers
+	movw $0, %ax
+	movw %ax, %ss
+	movw %ax, %ds
+	movw %ax, %es
+	movw %ax, %fs
+	movw %ax, %gs
+	
+	// tf_fsbase
+	popq %rax
+	wrfsbase %rax
+	
+	// clear gsbase
+	xorq %rax, %rax
+	wrgsbase %rax
+	
+	popq %rcx
+	popq %rbx
+	popq %rbp
+	popq %rsi
+	popq %rdi
+	popq %r8
+	popq %r9
+	popq %r10
+	popq %r11
+	popq %r12
+	popq %r13
+	popq %r14
+	popq %r15
+	
+	// clear all caches
+	wbinvd
+	movq %cr3, %rax
+	movq %rax, %cr3
+	mfence
+	
+	// rewrite tsc
+	rdtsc
+	shl $32, %rdx
+	orq %rdx, %rax
+	movq %rax, (%rsp)
+	popq %rax
+	
+	// reset tsc to zero: wrmsr IA32_TIME_STAMP_COUNTER
+	xorq %rax, %rax
+	xorq %rdx, %rdx
+	movq $16, %rcx
+	wrmsr
+	
+	popq %rax
+	popq %rdx
+	
+	movq 16(%rsp), %rcx  // tf_rip
+	movq 32(%rsp), %r11  // tf_rflags
+	movq 40(%rsp), %rsp  // tf_rsp
+	
+	sysretq
+
+.text
+.align 8
+.globl syscall_return_32_record_tsc
+syscall_return_32_record_tsc:
 	movq %rdi, %rsp
 	
 	fxrstor __init_fx_state
@@ -161,7 +285,7 @@ syscall_return_record_tsc:
 	movq 32(%rsp), %r11  // tf_rflags
 	movq 40(%rsp), %rsp  // tf_rsp
 	
-	sysretq
+	sysret
 
 #define TRAP_NOEC(name, id) \
 	.align 8; \
