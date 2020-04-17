@@ -7,7 +7,7 @@ user_lib_object_files := $(patsubst user_lib/%.cpp, \
 user_lib_object_files += $(patsubst user_lib/%.S, \
 		build/user_lib/%.o, $(user_lib_asm_source_files))
 
-USER_LIB_CXX := $(CXX) -O2
+USER_LIB_CXX := $(CXX) -O2 -static -nostdlib -U_FORTIFY_SOURCE
 
 build/user_lib/%.o: user_lib/%.cpp $(user_lib_header_files)
 	@echo + cxx $@

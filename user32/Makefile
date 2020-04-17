@@ -7,11 +7,12 @@ user32_obj_files := $(patsubst user32/%.cpp, \
 
 USER32_CXX := g++ -m32 -O2 -std=c++14 -static -nostdlib -U_FORTIFY_SOURCE -fPIC
 
-build/user32/%.elf: user32/%.cpp $(user32_header_files)
+build/user32/%.elf: user32/%.cpp $(user32_header_files) build/user_lib32/libduck.a
 	@echo + cxx[USER] $@
 	@mkdir -p $(shell dirname $@)
 	@$(USER32_CXX) -o $@ \
-		$<
+		$(i386_libc_crt_start) $< \
+		$(i386_libstdcxx_files) $(i386_libc_files) build/user_lib32/libduck.a $(i386_libc_files) $(i386_libc_crt_end)
 
 build/user32/%.obj: build/user32/%.elf
 	@echo + ld-binary $@

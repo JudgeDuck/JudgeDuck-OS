@@ -66,7 +66,9 @@ namespace Trap {
 	const uint16_t GDT_USER_CS = 40;
 	const uint16_t GDT_USER32_SS = 48;
 	const uint16_t GDT_USER32_TLS = 56;
-	const uint16_t GDT_TSS = 64;
+	const uint16_t GDT_ESPFIX_SS = 64;
+	const uint16_t GDT_KERNEL32_CS = 72;
+	const uint16_t GDT_TSS = 80;
 	static uint64_t gdt[] = {
 		0,
 		[GDT_KERNEL_CS >> 3] = (1ul << 43) | (1ul << 44) | (1ul << 47) | (1ul << 53),
@@ -76,6 +78,8 @@ namespace Trap {
 		[GDT_USER_CS >> 3] = (1ul << 43) | (1ul << 44) | (1ul << 47) | (1ul << 53) | (3ul << 45),
 		[GDT_USER32_SS >> 3] = 0x00cff2000000ffff,
 		[GDT_USER32_TLS >> 3] = 0,  // filled by set_thread_area
+		[GDT_ESPFIX_SS >> 3] = 0,  // filled by prepare_espfix
+		[GDT_KERNEL32_CS >> 3] = 0x00cf9a000000ffff,
 		[GDT_TSS >> 3] = (sizeof(TaskState) - 1) | (((uint64_t) &task_state & 0xffffff) << 16) | (9ul << 40) | (0ul << 45) | (1ul << 47) | (1ul << 53) | (((uint64_t) &task_state >> 24) << 56),
 		[(GDT_TSS >> 3) + 1] = ((uint64_t) &task_state) >> 32
 	};
@@ -171,6 +175,12 @@ namespace Trap {
 			LDEBUG("tf_cs %lu, tf_rflags %lx, tf_rsp %lx, tf_ss %lu",
 				tf_from_user.tf_cs, tf_from_user.tf_rflags,
 				tf_from_user.tf_rsp, tf_from_user.tf_ss);
+			uint32_t ds, es, fs, gs;
+			__asm__ volatile ("mov %%ds, %0" : "=r" (ds));
+			__asm__ volatile ("mov %%es, %0" : "=r" (es));
+			__asm__ volatile ("mov %%fs, %0" : "=r" (fs));
+			__asm__ volatile ("mov %%gs, %0" : "=r" (gs));
+			LDEBUG("ds %u, es %u, fs %u, gs %u", ds, es, fs, gs);
 		} else {
 			if (num == TRAP_IRQ + PIC::IRQ_TIMER) {
 				// timer interrupt caused by scheduler
@@ -227,7 +237,7 @@ namespace Trap {
 			} else {
 				uint64_t cr2;
 				__asm__ volatile ("movq %%cr2, %0" : "=r" (cr2));
-				LERROR("rip %lx, cr2 %lx, errorcode %lu",
+				LERROR("trap %d, rip %lx, cr2 %lx, errorcode %lu",
 					num, tf->tf_rip, cr2, tf->tf_errorcode);
 				LERROR("tf_cs %lu, tf_rflags %lx, tf_rsp %lx, tf_ss %lu",
 					tf->tf_cs, tf->tf_rflags,
@@ -242,6 +252,23 @@ namespace Trap {
 		trap_return(tf);
 	}
 	
+	extern "C" {
+		uint64_t __espfix_new_kernel_rsp;
+	}
+	
+	// orig_rsp: rsp when iret
+	// new_rsp: tf_rsp
+	static void prepare_espfix(uint64_t orig_rsp, uint64_t new_rsp) {
+		uint64_t base_addr = ((orig_rsp >> 16) - (new_rsp >> 16)) << 16;
+		base_addr = (uint64_t) (uint32_t) base_addr;
+		uint64_t tmp = 0xffff;
+		tmp |= (base_addr & 0xffffff) << 16;
+		tmp |= (base_addr >> 24) << 56;
+		tmp |= 0x00cf920000000000;  // 32-bit, writable, 4k-granularity, kernel
+		gdt[GDT_ESPFIX_SS >> 3] = tmp;
+		__espfix_new_kernel_rsp = (uint32_t) (orig_rsp - base_addr);
+	}
+	
 	extern "C"
 	void trap_0x80_handler(Trapframe *tf) {
 		// must from 32-bit userspace
@@ -250,6 +277,10 @@ namespace Trap {
 		if (syscall_num == ABI::DUCK_sys_set_thread_area) {
 			uint64_t rbx = (uint64_t) (uint32_t) tf->tf_regs.rbx;
 			uint64_t ret = -EINVAL;
+			
+			// prepare espfix
+			prepare_espfix((uint64_t) &tf->tf_rip, tf->tf_rsp);
+			
 			using Memory::user_writable_check;
 			if (!user_writable_check(rbx)) {
 				ret = -EFAULT;
@@ -274,7 +305,17 @@ namespace Trap {
 				}
 			}
 			
+			if (ret != 0) {
+				// apply espfix
+				x86_64::lgdt(&gdt_desc);
+			}
+			
+			// return value
 			tf->tf_regs.rax = ret;
+			
+			// fix userspace ss since it could be invalid
+			tf->tf_ss = GDT_USER32_SS | 3;
+			
 			__trap_0x80_return(tf);
 		} else {
 			trap_handler(tf);

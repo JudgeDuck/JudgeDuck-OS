@@ -27,6 +27,13 @@ libc_files := -L $(LIBC_PREFIX) -L $(LIB_PREFIX) -lc -lgcc -lgcc_eh -lc
 libc_crt_start := $(LIBC_PREFIX)crt1.o $(LIBC_PREFIX)crti.o
 libc_crt_end := $(LIBC_PREFIX)crtn.o
 
+i386_LIB_PREFIX := ../duck-binaries/duck32/lib/
+i386_LIBC_PREFIX := $(i386_LIB_PREFIX)musl/
+i386_libstdcxx_files := $(i386_LIB_PREFIX)libstdc++.a
+i386_libc_files := -L $(i386_LIBC_PREFIX) -L $(i386_LIB_PREFIX) -lc -lgcc -lgcc_eh -lc
+i386_libc_crt_start := $(i386_LIBC_PREFIX)crt1.o $(i386_LIBC_PREFIX)crti.o
+i386_libc_crt_end := $(i386_LIBC_PREFIX)crtn.o
+
 all: $(kernel)
 
 include kern/Makefile
@@ -34,6 +41,7 @@ include lib/Makefile
 include user_lib/Makefile
 include user/Makefile
 include user32/Makefile
+include user_lib32/Makefile
 include ducknet/lib/Makefile
 
 .PHONY: all clean run iso
@@ -56,7 +64,7 @@ $(iso): $(kernel) $(grub_cfg)
 	@rm -r build/isofiles
 
 $(kernel): $(assembly_object_files) $(kern_object_files) $(lib_object_files) $(linker_script) \
-	$(libc_duck64) $(kern_asm_object_files) $(user_obj_files) $(user32_obj_files) $(libducknet)
+	$(libc_duck64) $(kern_asm_object_files) $(libducknet) $(user_obj_files) $(user32_obj_files) $(libducknet)
 	@echo + ld $(kernel)
 	@ld -n -T $(linker_script) -o $(kernel) \
 		$(libc_crt_start) $(assembly_object_files) $(kern_asm_object_files) $(kern_object_files) \

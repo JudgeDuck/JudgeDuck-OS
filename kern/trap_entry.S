@@ -123,10 +123,32 @@ __trap_0x80_return:
 	// skip tsc
 	popq %rax
 	
+	//                                   32   40  48      56   64
+	// stack layout: rax, rdx, num, ec | rip, cs, rflags, rsp, ss
+	// convert to:   rax, rdx, num, ec | eip, cs, eflags, esp, ss
+	//                                   32   36  40      44   48
+	movl 40(%rsp), %eax
+	movl %eax, 36(%rsp)
+	movl 48(%rsp), %eax
+	movl %eax, 40(%rsp)
+	movl 56(%rsp), %eax
+	movl %eax, 44(%rsp)
+	movl 64(%rsp), %eax
+	movl %eax, 48(%rsp)
+	
 	popq %rax
 	popq %rdx
 	
 	addq $16, %rsp
+	
+	// espfix
+	pushq $64   // GDT_ESPFIX_SS
+	pushq __espfix_new_kernel_rsp
+	pushfq
+	pushq $72   // GDT_KERNEL32_CS, to make SS effective
+	pushq $1f
+	iretq
+1:
 	iret
 
 .text

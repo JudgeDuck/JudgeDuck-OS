@@ -1,64 +1,45 @@
-#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
+#include <math.h>
+#include <assert.h>
+#include <x86intrin.h>
 
-// [JudgeDuck-ABI, "Running"]
-const uint32_t AT_DUCK = 0x6b637564;  // "duck"
-
-// [JudgeDuck-ABI, "Running"]
-// Note that 32-bit pointers can not be pointers in 64-bit kernel
-struct DuckInfo32_t {
-	uint32_t abi_version;
+static void print_hello() {
+	printf("Hello world from i386!  curr tsc = %llu\n", __rdtsc());
 	
-	uint32_t stdin_ptr;      // stdin pointer (read-only contents)
-	uint32_t stdin_size;     // stdin size
+	int a, b;
+	scanf("%d%d", &a, &b);
+	printf("a + b = %d (from stdin), ", a + b);
 	
-	uint32_t stdout_ptr;     // stdout pointer
-	uint32_t stdout_size;    // [IN] stdout maximum size
-	                         // [OUT] stdout actual size
-	
-	uint32_t stderr_ptr;     // stderr pointer
-	uint32_t stderr_size;    // [IN] stderr maximum size
-	                         // [OUT] stderr actual size
-} __attribute__((packed));
-
-static int my_strcpy(char *dst, const char *src) {
-	int ret = 0;
-	while (*src) {
-		*dst = *src;
-		dst++;
-		src++;
-		ret++;
+	double e = 0, tmp = 1;
+	for (int i = 1; i <= 50; i++) {
+		e += tmp;
+		tmp /= i;
 	}
-	return ret;
+	printf("e = %.15lf, ", e);
+	printf("pi = %.15lf", 2 * atan2(1, 0));
 }
 
-extern "C"
-void _start(int argc) {
-	__asm__ volatile ("pushl %esp");  // i386 ABI says argc is at 4(%esp)
+char A[3 << 20];
+int B[] = {2, 3, 4, 1, 5};
+const int C[] = {5, 4, 3, 2, 1};
+
+int main() {
+	print_hello();
 	
-	DuckInfo32_t *duckinfo = 0;
+	fprintf(stderr, "stderr working");
 	
-	int *tmp = &argc + 1;
-	while (*tmp) tmp++;
-	tmp += 1;
-	while (*tmp) tmp++;
-	tmp += 1;
-	for (uint32_t *auxv = (uint32_t *) tmp; auxv[0]; auxv += 2) {
-		if (auxv[0] == AT_DUCK) {
-			duckinfo = (DuckInfo32_t *) auxv[1];
-		}
+	memset(A, 0, sizeof(A));
+	
+	const int SIZE = 50 << 20;
+	char *p = new char[SIZE];
+	memset(p, 0, SIZE);
+	delete[] p;
+	fprintf(stderr, ", memset %.1lf MiB ok", SIZE / 1048576.0);
+	
+	for (int i = 0; i < 1000000000; i++) {
+		__asm__ volatile ("");
 	}
 	
-	if (!duckinfo) {
-		__asm__ volatile ("int3");
-	}
-	
-	char *duck_stdout = (char *) duckinfo->stdout_ptr;
-	int cnt = my_strcpy(duck_stdout, "stdout from 32-bit userspace!");
-	duckinfo->stdout_size = cnt;
-	
-	char *duck_stderr = (char *) duckinfo->stderr_ptr;
-	cnt = my_strcpy(duck_stderr, "stderr from 32-bit userspace!");
-	duckinfo->stderr_size = cnt;
-	
-	__asm__ volatile ("int $0x80" : : "a" (1), "b" (321));
+	return 321;
 }

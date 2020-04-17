@@ -5,15 +5,19 @@
 #include <x86intrin.h>
 
 static void print_hello() {
-	printf("Hello world!  curr tsc = %llu\n", __rdtsc());
+	printf("Hello world from x86-64!  curr tsc = %llu\n", __rdtsc());
+	
+	int a, b;
+	scanf("%d%d", &a, &b);
+	printf("a + b = %d (from stdin), ", a + b);
 	
 	double e = 0, tmp = 1;
-	for (int i = 1; i <= 20; i++) {
+	for (int i = 1; i <= 50; i++) {
 		e += tmp;
 		tmp /= i;
 	}
 	printf("e = %.15lf, ", e);
-	printf("pi = 2 * atan2(1, 0) = %.15lf\n", 2 * atan2(1, 0));
+	printf("pi = %.15lf", 2 * atan2(1, 0));
 }
 
 char A[3 << 20];
@@ -23,23 +27,19 @@ const int C[] = {5, 4, 3, 2, 1};
 int main() {
 	print_hello();
 	
-	memset(A, 0, sizeof(A));
+	fprintf(stderr, "stderr working");
 	
-	int a, b;
-	scanf("%d%d", &a, &b);
-	printf("a + b = %d (read from stdin)\n", a + b);
+	memset(A, 0, sizeof(A));
 	
 	const int SIZE = 50 << 20;
 	char *p = new char[SIZE];
 	memset(p, 0, SIZE);
 	delete[] p;
-	printf("memset %.1lf MiB ok\n", SIZE / 1048576.0);
+	fprintf(stderr, ", memset %.1lf MiB ok", SIZE / 1048576.0);
 	
 	for (int i = 0; i < 1000000000; i++) {
 		__asm__ volatile ("");
 	}
-	
-	fprintf(stderr, "stderr working\n");
 	
 	return 123;
 }
