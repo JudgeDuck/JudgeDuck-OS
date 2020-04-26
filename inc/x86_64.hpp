@@ -15,6 +15,16 @@ namespace x86_64 {
 		return data;
 	}
 	
+	static inline void outw(int port, uint16_t data) {
+		__asm__ volatile ("outw %0, %w1" : : "a" (data), "d" (port));
+	}
+	
+	static inline uint16_t inw(int port) {
+		uint16_t data;
+		__asm__ volatile ("inw %w1, %0" : "=a" (data) : "d" (port));
+		return data;
+	}
+	
 	static inline void outl(int port, uint32_t data) {
 		__asm__ volatile ("outl %0, %w1" : : "a" (data), "d" (port));
 	}
