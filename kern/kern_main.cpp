@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <math.h>
 #include <assert.h>
-#include <iostream>
 #include <algorithm>
 
 #include <inc/multiboot2_loader.hpp>
@@ -30,8 +29,6 @@ static void print_hello() {
 	}
 	printf("e = %.15lf\n", e);
 	printf("pi = 2 * atan2(1, 0) = %.15lf\n", 2 * atan2(1, 0));
-	
-	std::cout << "std::cout works!" << std::endl;
 }
 
 static void run_test(const char *elf_start, const char *elf_end) {

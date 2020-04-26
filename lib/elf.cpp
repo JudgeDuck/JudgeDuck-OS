@@ -11,6 +11,7 @@
 #include <inc/lapic.hpp>
 #include <inc/x86_64.hpp>
 #include <inc/abi.hpp>
+#include <inc/timer.hpp>
 
 using Memory::HUGE_PAGE_SIZE;
 using Memory::PAGE_SIZE;
@@ -61,7 +62,7 @@ namespace ELF {
 		const uint64_t e_phoff = (uint64_t) hdr->e_phoff;
 		const uint64_t e_phentsize = (uint64_t) hdr->e_phentsize;
 		const uint64_t e_phnum = (uint64_t) hdr->e_phnum;
-		LDEBUG() << "ELF Entry = 0x" << std::hex << e_entry << std::dec;
+		LDEBUG("ELF Entry = 0x%lx", e_entry);
 		if (e_phoff >= len) return false;
 		if (e_phentsize >= len) return false;
 		if (e_phnum >= len) return false;
@@ -243,7 +244,7 @@ namespace ELF {
 		// Clear access and dirty flags for measuring
 		Memory::clear_access_and_dirty_flags(load_vaddr_start, special_region_break);
 		
-		LDEBUG() << "Load ELF ok!";
+		LDEBUG("Load ELF ok!");
 		
 		memset(&app, 0, sizeof(app));
 		app.entry = e_entry;
@@ -280,7 +281,7 @@ namespace ELF {
 		const uint64_t e_phoff = (uint64_t) (uint32_t) hdr->e_phoff;
 		const uint64_t e_phentsize = (uint64_t) (uint32_t) hdr->e_phentsize;
 		const uint64_t e_phnum = (uint64_t) (uint32_t) hdr->e_phnum;
-		LDEBUG() << "ELF32 Entry = 0x" << std::hex << e_entry << std::dec;
+		LDEBUG("ELF32 Entry = 0x%lx", e_entry);
 		if (e_phoff >= len) return false;
 		if (e_phentsize >= len) return false;
 		if (e_phnum >= len) return false;
@@ -477,7 +478,7 @@ namespace ELF {
 		// Clear access and dirty flags for measuring
 		Memory::clear_access_and_dirty_flags(load_vaddr_start, special_region_break);
 		
-		LDEBUG() << "Load ELF32 ok!";
+		LDEBUG("Load ELF32 ok!");
 		
 		memset(&app, 0, sizeof(app));
 		app.entry = e_entry;

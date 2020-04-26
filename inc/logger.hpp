@@ -1,13 +1,9 @@
 #ifndef DUCK_LOGGER_H
 #define DUCK_LOGGER_H
 
-#include <iostream>
-
-#include <inc/timer.hpp>
-using Timer::secf_since_epoch;
-#include <inc/x86_64.hpp>
-using x86_64::rdtsc;
 #include <inc/vga_buffer.hpp>
+
+#include <stdio.h>
 
 namespace Logger {
 	enum LogLevel {
@@ -20,17 +16,12 @@ namespace Logger {
 	
 	struct TimedLogger {
 		TimedLogger(VGA_Buffer::ColorCode colorcode, char name, bool mute);
+		TimedLogger(const TimedLogger &logger);
 		~TimedLogger();
-		
-		template <typename T>
-		TimedLogger& operator << (const T& t) {
-			if (!mute) std::cout << t;
-			return *this;
-		}
 		
 		const char name;
 		const bool mute;
-		const VGA_Buffer::ColorCode saved_colorcode;
+		VGA_Buffer::ColorCode saved_colorcode;
 	};
 	
 	extern LogLevel log_level;
@@ -46,11 +37,21 @@ namespace Logger {
 		FunctionLoggerGuard(TimedLogger (*getlogger)(), char name,
 			const char* func, bool log_enter, bool log_ret)
 			: getlogger(getlogger), name(name), func(func), log_ret(log_ret) {
-			if (log_enter) getlogger() << func << (log_ret ? " start" : "");
+			if (log_enter) {
+				auto logger = getlogger();
+				if (!logger.mute) {
+					printf("%s%s", func, log_ret ? " start" : "");
+				}
+			}
 		}
 		
 		~FunctionLoggerGuard() {
-			if (log_ret) getlogger() << func << " done"; 
+			if (log_ret) {
+				auto logger = getlogger();
+				if (!logger.mute) {
+					printf("%s done", func);
+				}
+			}
 		}
 		
 		TimedLogger (*getlogger)();

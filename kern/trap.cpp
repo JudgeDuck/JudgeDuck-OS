@@ -157,7 +157,7 @@ namespace Trap {
 		x86_64::wrmsr(x86_64::TSC_ADJUST, 0);
 		
 		int num = (int) tf->tf_num;
-		LDEBUG() << "trap " << num << ", CPL " << (tf->tf_cs & 3);
+		LDEBUG("trap %d, CPL %d", (int) num, (int) (tf->tf_cs & 3));
 		
 		if (tf->tf_cs & 3) {  // trap from user
 			LAPIC::eoi();

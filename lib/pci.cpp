@@ -1,5 +1,6 @@
 #include <string.h>
 #include <assert.h>
+#include <algorithm>
 
 #include <inc/x86_64.hpp>
 #include <inc/pci.hpp>

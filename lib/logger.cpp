@@ -1,8 +1,11 @@
-#include <iostream>
-#include <iomanip>
 #include <cstdarg>
 
 #include <inc/logger.hpp>
+#include <inc/timer.hpp>
+#include <inc/x86_64.hpp>
+
+using Timer::secf_since_epoch;
+using x86_64::rdtsc;
 
 namespace Logger {
 	LogLevel log_level;
@@ -24,24 +27,45 @@ namespace Logger {
 		}
 	}
 	
+	static bool logger_in_use = false;
+	static VGA_Buffer::ColorCode logger_saved_colorcode;
+	
 	TimedLogger::TimedLogger(VGA_Buffer::ColorCode colorcode, char name, bool mute)
 		: name(name), mute(mute), saved_colorcode(VGA_Buffer::writer->color_code) {
 		if (mute) return;
 		
-		VGA_Buffer::writer->color_code = colorcode;
+		if (!logger_in_use) {
+			VGA_Buffer::writer->color_code = colorcode;
+			logger_saved_colorcode = saved_colorcode;
+			logger_in_use = true;
+		} else {
+			saved_colorcode = logger_saved_colorcode;
+		}
 		
 		double tm = secf_since_epoch();
-		*this << '[' << std::fixed << std::setprecision(6);
-		if (tm != -1) *this << tm;
-		else *this << "tsc " << rdtsc();
-		*this << "][" << get_prefix(name) << ']' << ' ';
+		if (tm != -1) {
+			printf("[%.6lf]", tm);
+		} else {
+			printf("[tsc %lu]", rdtsc());
+		}
+		
+		printf("[%s] ", get_prefix(name));
 	}
+	
+	TimedLogger::TimedLogger(const TimedLogger &logger)
+		: name(logger.name), mute(logger.mute), saved_colorcode(logger.saved_colorcode) {}
 	
 	TimedLogger::~TimedLogger() {
 		if (mute) return;
-		std::cout.flush();
-		VGA_Buffer::writer->color_code = saved_colorcode;
-		std::cout << std::endl;
+		
+		fflush(stdout);
+		
+		if (logger_in_use) {
+			VGA_Buffer::writer->color_code = saved_colorcode;
+			logger_in_use = false;
+		}
+		
+		putchar('\n');
 	}
 	
 	void set_log_level(LogLevel level) {
