@@ -14,6 +14,9 @@ namespace Judger {
 	
 	struct JudgeResult {
 		const char *error;
+		uint64_t count_inst;  // INST_RETIRED_ANY
+		uint64_t clk_thread;  // CPU_CLK_UNHALTED_THREAD
+		uint64_t clk_ref_tsc;  // CPU_CLK_UNHALTED_REF_TSC
 		uint64_t time_ns;
 		uint64_t time_tsc;
 		uint64_t memory_kb;

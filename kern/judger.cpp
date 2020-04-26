@@ -144,6 +144,9 @@ namespace Judger {
 		auto res = ELF::run(app, conf.time_limit_ns);
 		judge_result = (JudgeResult) {
 			.error = NULL,
+			.count_inst = res.count_inst,
+			.clk_thread = res.clk_thread,
+			.clk_ref_tsc = res.clk_ref_tsc,
 			.time_ns = res.time_ns,
 			.time_tsc = res.time_tsc,
 			.memory_kb = res.memory_kb,

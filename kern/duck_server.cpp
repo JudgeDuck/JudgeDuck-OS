@@ -78,6 +78,9 @@ namespace DuckServer {
 				res = res_str;
 				res_len = snprintf(res_str, sizeof(res_str),
 					"ok-judge\n"
+					"count-inst %lu\n"
+					"clk-thread %lu\n"
+					"clk-ref-tsc %lu\n"
 					"time-ns %lu\n"
 					"time-tsc %lu\n"
 					"memory-kb %lu\n"
@@ -85,6 +88,7 @@ namespace DuckServer {
 					"stderr-size %lu\n"
 					"return-code %d\n"
 					"status %s\n",
+					j_res.count_inst, j_res.clk_thread, j_res.clk_ref_tsc,
 					j_res.time_ns, j_res.time_tsc, j_res.memory_kb,
 					j_res.stdout_size, j_res.stderr_size, j_res.return_code,
 					j_res.is_RE ? RE_STR : j_res.is_TLE ? TLE_STR : FINISH_STR

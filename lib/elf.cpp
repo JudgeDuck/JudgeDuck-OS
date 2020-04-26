@@ -511,6 +511,9 @@ namespace ELF {
 		
 		RunResult res;
 		
+		// reset performance counters
+		Timer::reset_performance_counters();
+		
 		if (app.duckinfo_ptr) {
 			Trap::run_user_64(app.entry, app.rsp, time_limit_ns,
 				res.time_tsc, res.trap_num, res.return_code);
@@ -519,7 +522,12 @@ namespace ELF {
 				res.time_tsc, res.trap_num, res.return_code);
 		}
 		
-		res.time_ns = Timer::tsc_to_ns(res.time_tsc);
+		// read performance counters
+		Timer::read_performance_counters(res.count_inst, res.clk_thread, res.clk_ref_tsc);
+		
+		// use clk_thread for time measurement
+		res.time_ns = Timer::tsc_to_ns(res.clk_thread);
+		
 		res.memory_bytes = PAGE_SIZE *
 			Memory::count_dirty_pages(app.start_addr, app.special_region_break_addr);
 		res.memory_kb = res.memory_bytes / 1024;

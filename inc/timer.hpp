@@ -46,6 +46,10 @@ namespace Timer {
 	}
 	
 	void powersave_sleep(uint64_t ns);
+	
+	void reset_performance_counters();
+	void read_performance_counters(uint64_t &inst,
+		uint64_t &clk_thread, uint64_t &clk_ref_tsc);
 }
 
 #endif

@@ -103,6 +103,15 @@ namespace x86_64 {
 		__asm__ volatile ("wrmsr" : : "a" (lo), "d" (hi), "c" (msr));
 	}
 	
+	const uint32_t FIXED_CTR_CTRL = 909;
+	const uint32_t PERF_GLOBAL_CTRL = 911;
+	const uint32_t FIXED_CTR0 = 0x309;
+	const uint32_t FIXED_CTR1 = 0x30A;
+	const uint32_t FIXED_CTR2 = 0x30B;
+	const uint32_t INST_RETIRED_ANY = FIXED_CTR0;
+	const uint32_t CPU_CLK_UNHALTED_THREAD = FIXED_CTR1;
+	const uint32_t CPU_CLK_UNHALTED_REF_TSC = FIXED_CTR2;
+	
 	const uint32_t TSC_ADJUST = 0x3b;
 	const uint32_t Efer = 0xC0000080;
 	const uint32_t Star = 0xC0000081;

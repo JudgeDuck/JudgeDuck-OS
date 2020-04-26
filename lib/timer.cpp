@@ -53,6 +53,13 @@ namespace Timer {
 		unimplemented();
 	}
 	
+	static void enable_performance_counters() {
+		x86_64::wrmsr(x86_64::FIXED_CTR_CTRL, 2 * 0x111);  // userspace counters
+		x86_64::wrmsr(x86_64::PERF_GLOBAL_CTRL, 7ull << 32);
+		
+		LDEBUG("Userspace performance counters enabled");
+	}
+	
 	void init() {
 		LDEBUG_ENTER_RET();
 		
@@ -69,11 +76,26 @@ namespace Timer {
 		tsc_epoch = get_tsc();
 		
 		LDEBUG("tsc_freq = %lu, ext_freq = %u", tsc_freq, ext_freq);
+		
+		enable_performance_counters();
 	}
 	
 	void powersave_sleep(uint64_t ns) {
 		LAPIC::timer_single_shot_ns(ns);
 		x86_64::sti();
 		x86_64::hlt();
+	}
+	
+	void reset_performance_counters() {
+		x86_64::wrmsr(x86_64::INST_RETIRED_ANY, 0);
+		x86_64::wrmsr(x86_64::CPU_CLK_UNHALTED_THREAD, 0);
+		x86_64::wrmsr(x86_64::CPU_CLK_UNHALTED_REF_TSC, 0);
+	}
+	
+	void read_performance_counters(uint64_t &inst,
+		uint64_t &clk_thread, uint64_t &clk_ref_tsc) {
+		inst = x86_64::rdmsr(x86_64::INST_RETIRED_ANY);
+		clk_thread = x86_64::rdmsr(x86_64::CPU_CLK_UNHALTED_THREAD);
+		clk_ref_tsc = x86_64::rdmsr(x86_64::CPU_CLK_UNHALTED_REF_TSC);
 	}
 }
