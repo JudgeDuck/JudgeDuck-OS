@@ -4,8 +4,8 @@
 #include <stdint.h>
 
 namespace ABI {
-	const uint64_t version = 30;
-	const char * const version_str = "0.03";
+	const uint64_t version = 31;
+	const char * const version_str = "0.03a";
 	
 	// [JudgeDuck-ABI, "Running"]
 	const uint64_t AT_DUCK = 0x6b637564;  // "duck"

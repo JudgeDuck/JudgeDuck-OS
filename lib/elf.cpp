@@ -86,7 +86,7 @@ namespace ELF {
 			}
 			
 			// Check virtual address alignment [JudgeDuck-ABI, "Compilation and Linkage"]
-			if (p_align != HUGE_PAGE_SIZE) return false;
+			if (p_align != PAGE_SIZE && p_align != HUGE_PAGE_SIZE) return false;
 			
 			// Check virtual address and size
 			if (p_memsz < p_filesz) return false;
