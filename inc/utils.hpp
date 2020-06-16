@@ -17,6 +17,8 @@ namespace Utils {
 	static inline T1 round_down(T1 x, T2 r) {
 		return x / r * r;
 	}
+	
+	void GG_reboot();
 }
 
 #endif

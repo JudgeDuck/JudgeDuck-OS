@@ -21,17 +21,7 @@ namespace DuckServer {
 	static DucknetMACAddress my_mac;
 	static DucknetIPv4Address my_ip;
 	
-	const uint16_t DUCK_UDP_PORT = 9000;
-	
-	static void GG_reboot() {
-		LDEBUG("GG, reboot");
-		LINFO("GG, reboot");
-		LWARN("GG, reboot");
-		LERROR("GG, reboot");
-		LFATAL("GG, reboot");
-		Timer::microdelay((uint64_t) 3e6);  // 3s
-		x86_64::reboot();
-	}
+	const uint16_t DUCK_UDP_PORT = 9999;
 	
 	static inline bool starts_with(const char *s1, int len1, const char *s2) {
 		int len2 = strlen(s2);
@@ -43,30 +33,106 @@ namespace DuckServer {
 		return len1 == len2 && memcmp(s1, s2, len2) == 0;
 	}
 	
-	static bool process_judge_control(char *content, int len, char *&res, int &res_len) {
-		uint64_t in_size;
-		Judger::JudgeConfig conf;
-		
+	static bool process_controls(char *content, int len, char *&res, int &res_len) {
 		res = NULL;
 		res_len = -1;
 		content[len] = 0;
 		
-		if (1 == sscanf(content, "set-elf-size %lu", &in_size)) {
-			if (Judger::set_elf_size(in_size)) {
+		if (equals_to(content, len, "uptime")) {
+			uint64_t t = (uint64_t) Timer::secf_since_epoch();
+			res = content;
+			sprintf(res, "uptime %lu", t);
+		} else if (equals_to(content, len, "statistics")) {
+			auto stat = Judger::get_statistics();
+			res = content;
+			sprintf(res, "statistics %lu %lu", stat.n_judges, stat.total_time_ns);
+		} else {
+			return false;
+		}
+		
+		if (res && res_len == -1) {
+			res_len = strlen(res);
+		}
+		return true;
+	}
+	
+	static bool process_data(char *content, int len, char *&res, int &res_len) {
+		res = NULL;
+		res_len = -1;
+		content[len] = 0;
+		
+		uint64_t q_off, q_off2, q_len;
+		const uint64_t MAX_QUERY_LEN = 1400;
+		static char q_res[2048];
+		
+		if (equals_to(content, len, "query-buffer-size")) {
+			uint64_t buffer_size = Judger::query_buffer_size();
+			res = content;
+			sprintf(res, "ok-query-buffer-size %lu", buffer_size);
+		} else if (2 == sscanf(content, "clear-buffer %lu %lu", &q_off, &q_len)) {
+			if (Judger::clear_buffer(q_off, q_len)) {
 				res = content;
-				strcpy(res, "ok-set-elf-size");
+				sprintf(res, "ok-clear-buffer %lu %lu", q_off, q_len);
 			}
-		} else if (1 == sscanf(content, "set-stdin-size %lu", &in_size)) {
-			if (Judger::set_stdin_size(in_size)) {
+		} else if (2 == sscanf(content, "read-buffer %lu %lu", &q_off, &q_len)) {
+			if (q_len > MAX_QUERY_LEN) return true;
+			if (Judger::read_buffer(q_off, q_len, q_res)) {
 				res = content;
-				strcpy(res, "ok-set-stdin-size");
+				res_len = sprintf(res, "ok-read-buffer");
+				* (uint64_t *) (res + res_len) = q_off;
+				res_len += 8;
+				memcpy(res + res_len, q_res, q_len);
+				res_len += q_len;
 			}
-		} else if (5 == sscanf(content, "judge %lu %lu %lu %lu %lu",
-			&conf.time_limit_ns, &conf.memory_hard_limit_kb,
-			&conf.stdout_max_size, &conf.stderr_max_size, &conf.seq_num)) {
+		} else if (starts_with(content, len, "write-buffer")) {
+			uint64_t tmp_len = strlen("write-buffer");
+			char *data = content + tmp_len;
+			uint64_t data_len = (uint64_t) len - tmp_len;
+			if (data_len < 8) return true;
+			q_off = * (uint64_t *) data;
+			q_len = data_len - 8;
+			if (Judger::write_buffer(q_off, data + 8, q_len)) {
+				res = content;
+				sprintf(res, "ok-write-buffer %lu %lu", q_off, q_len);
+			}
+		} else if (3 == sscanf(content, "copy-buffer %lu %lu %lu", &q_off, &q_off2, &q_len)) {
+			if (Judger::copy_buffer(q_off, q_off2, q_len)) {
+				res = content;
+				sprintf(res, "ok-copy-buffer %lu %lu %lu", q_off, q_off2, q_len);
+			}
+		} else if (3 == sscanf(content, "compare-buffer %lu %lu %lu", &q_off, &q_off2, &q_len)) {
+			bool comp_result;
+			if (Judger::compare_buffer(q_off, q_off2, q_len, comp_result)) {
+				res = content;
+				sprintf(res, "ok-compare-buffer %lu %lu %lu %lu",
+					q_off, q_off2, q_len, (uint64_t) comp_result);
+			}
+		} else {
+			return false;
+		}
+		
+		if (res && res_len == -1) {
+			res_len = strlen(res);
+		}
+		return true;
+	}
+	
+	static bool process_judge(char *content, int len, char *&res, int &res_len) {
+		res = NULL;
+		res_len = -1;
+		content[len] = 0;
+		Judger::JudgeRequest req;
+		
+		if (11 == sscanf(content, "judge %lu %lu %lu "  // seq, tlns, mhlkb
+			"%lu %lu %lu %lu %lu %lu %lu %lu",  // ELF, I, O, E
+			&req.seq_num, &req.time_limit_ns, &req.memory_hard_limit_kb,
+			&req.ELF.off, &req.ELF.len,
+			&req.stdin.off, &req.stdin.len,
+			&req.stdout.off, &req.stdout.len,
+			&req.stderr.off, &req.stderr.len)) {
 			static char res_str[1024];
 			
-			auto j_res = Judger::judge(conf);
+			auto j_res = Judger::judge(req);
 			if (j_res.error) {
 				res = res_str;
 				res_len = snprintf(res_str, sizeof(res_str),
@@ -104,85 +170,19 @@ namespace DuckServer {
 		return true;
 	}
 	
-	static bool process_judge_data(char *content, int len, char *&res, int &res_len) {
-		uint64_t query_off, query_len;
-		static char query_res[2048];
-		const int MAX_QUERY_LEN = 1400;
-		
-		res = NULL;
-		res_len = -1;
-		content[len] = 0;
-		
-		if (starts_with(content, len, "put-elf-data")) {
-			uint64_t tmp_len = strlen("put-elf-data");
-			char *data = content + tmp_len;
-			uint64_t data_len = len - tmp_len;
-			if (data_len >= 8) {
-				query_off = * (uint64_t *) data;
-				query_len = data_len - 8;
-				if (Judger::put_elf_data(query_off, data + 8, query_len)) {
-					res = content;
-					sprintf(res, "ack-elf-data %lu", query_off);
-				}
-			}
-		} else if (starts_with(content, len, "put-stdin-data")) {
-			uint64_t tmp_len = strlen("put-stdin-data");
-			char *data = content + tmp_len;
-			uint64_t data_len = len - tmp_len;
-			if (data_len >= 8) {
-				query_off = * (uint64_t *) data;
-				query_len = data_len - 8;
-				if (Judger::put_stdin_data(query_off, data + 8, query_len)) {
-					res = content;
-					sprintf(res, "ack-stdin-data %lu", query_off);
-				}
-			}
-		} else if (2 == sscanf(content, "get-stdout-data %lu %lu", &query_off, &query_len)) {
-			if (query_len <= MAX_QUERY_LEN) {
-				int query_res_len;
-				if (Judger::get_stdout_data(query_off, query_len, query_res, query_res_len)) {
-					res = content;
-					int tmp_len = sprintf(res, "stdout-data");
-					* (uint64_t *) (res + tmp_len) = query_off;
-					memcpy(res + tmp_len + 8, query_res, query_res_len);
-					res_len = tmp_len + 8 + query_res_len;
-				}
-			}
-		} else if (2 == sscanf(content, "get-stderr-data %lu %lu", &query_off, &query_len)) {
-			if (query_len <= MAX_QUERY_LEN) {
-				int query_res_len;
-				if (Judger::get_stderr_data(query_off, query_len, query_res, query_res_len)) {
-					res = content;
-					int tmp_len = sprintf(res, "stderr-data");
-					* (uint64_t *) (res + tmp_len) = query_off;
-					memcpy(res + tmp_len + 8, query_res, query_res_len);
-					res_len = tmp_len + 8 + query_res_len;
-				}
-			}
-		} else {
-			return false;
-		}
-		
-		if (res && res_len == -1) {
-			res_len = strlen(res);
-		}
-		return true;
-	}
-	
 	static int duck_packet_handle(DucknetIPv4Address src,
 		uint16_t sport, char *content, int content_len) {
 		// TODO: handle seq-num
 		
 		if (equals_to(content, content_len, "reboot")) {
-			GG_reboot();
+			Utils::GG_reboot();
 		} else {
 			char *to_send = NULL;
 			int to_send_len = 0;
-			bool success = false;
-			success = process_judge_control(content, content_len, to_send, to_send_len);
-			if (!success) {
-				process_judge_data(content, content_len, to_send, to_send_len);
-			}
+			
+			#define args content, content_len, to_send, to_send_len
+			process_controls(args) || process_data(args) || process_judge(args);
+			#undef args
 			
 			if (to_send) {
 				ducknet_udp_send(src, sport, DUCK_UDP_PORT, to_send, to_send_len);

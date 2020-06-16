@@ -4,12 +4,23 @@
 #include <stdint.h>
 
 namespace Judger {
-	struct JudgeConfig {
+	struct JudgeStatistics {
+		uint64_t n_judges;
+		uint64_t total_time_ns;
+	};
+	
+	struct BufferDesc {
+		uint64_t off, len;
+	};
+	
+	struct JudgeRequest {
+		uint64_t seq_num;
 		uint64_t time_limit_ns;
 		uint64_t memory_hard_limit_kb;
-		uint64_t stdout_max_size;
-		uint64_t stderr_max_size;
-		uint64_t seq_num;
+		BufferDesc ELF;
+		BufferDesc stdin;  // copy from buffer
+		BufferDesc stdout, stderr;  // copy to buffer
+		// TODO: IB, OB
 	};
 	
 	struct JudgeResult {
@@ -29,17 +40,19 @@ namespace Judger {
 	
 	void init();
 	
-	bool set_elf_size(uint64_t size);
-	bool put_elf_data(uint64_t off, const char *data, uint64_t len);
+	// Stat
+	JudgeStatistics get_statistics();
 	
-	bool set_stdin_size(uint64_t size);
-	bool put_stdin_data(uint64_t off, const char *data, uint64_t len);
+	// Buffer (atomic operations)
+	uint64_t query_buffer_size();
+	bool clear_buffer(uint64_t off, uint64_t len);
+	bool read_buffer(uint64_t off, uint64_t len, char *data);
+	bool write_buffer(uint64_t off, const char *data, uint64_t len);
+	bool copy_buffer(uint64_t dst_off, uint64_t src_off, uint64_t len);  // no overlap
+	bool compare_buffer(uint64_t off1, uint64_t off2, uint64_t len, bool &result);
 	
-	JudgeResult judge(const JudgeConfig &conf);
-	
-	bool get_stdout_data(uint64_t off, uint64_t len, char *data, int &data_len);
-	
-	bool get_stderr_data(uint64_t off, uint64_t len, char *data, int &data_len);
+	// Judge
+	JudgeResult judge(const JudgeRequest &req);
 }
 
 #endif
