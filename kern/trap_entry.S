@@ -309,6 +309,35 @@ syscall_return_32_record_tsc:
 	
 	sysret
 
+// Timer cnt
+.section .bss
+.globl __lapic_timer_cnt
+.type __lapic_timer_cnt, @object
+.size __lapic_timer_cnt, 8
+.align 16
+__lapic_timer_cnt:
+.quad 0
+
+// Timer trap
+// TODO: 32-bit ok?
+.text
+.align 8
+__trap_32:
+	pushq %rax
+	movq __lapic_timer_cnt, %rax
+	decq %rax
+	jz 1f
+	movq %rax, __lapic_timer_cnt
+	movq _ZN5LAPIC5lapicE, %rax  // LAPIC::lapic
+	movl $0x0, 0xb0(%rax)  // send EOI
+	popq %rax
+	iretq
+1:
+	popq %rax
+	pushq $0
+	pushq $32
+	jmp __trap_entry
+
 #define TRAP_NOEC(name, id) \
 	.align 8; \
 	name: \
@@ -354,7 +383,7 @@ TRAP_NOEC(__trap_28, 28)
 TRAP_NOEC(__trap_29, 29)
 TRAP_NOEC(__trap_30, 30)
 TRAP_NOEC(__trap_31, 31)
-TRAP_NOEC(__trap_32, 32)
+// No trap 32
 TRAP_NOEC(__trap_33, 33)
 TRAP_NOEC(__trap_34, 34)
 TRAP_NOEC(__trap_35, 35)

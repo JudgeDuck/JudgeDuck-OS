@@ -225,8 +225,8 @@ namespace Trap {
 				}
 				
 				if (user_time_limit_ns != 0) {
-					// add 10ms to provide a hard limit
-					LAPIC::timer_single_shot_ns(user_time_limit_ns + 10000000);
+					// add 5ms to provide a hard limit
+					LAPIC::timer_periodic_ns(500000, user_time_limit_ns / 500000ul + 10);
 				}
 				
 				if (num == TRAP_RUN_USER) {

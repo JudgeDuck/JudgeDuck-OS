@@ -54,8 +54,8 @@ using PIC::IRQ_TIMER;
 #define TCCR    (0x0390/4)   // Timer Current Count
 #define TDCR    (0x03E0/4)   // Timer Divide Configuration
 
-#define TIMER_EX 128
-#define TIMER_EX_T X128
+#define TIMER_EX 1
+#define TIMER_EX_T X1
 
 namespace LAPIC {
 	
@@ -155,7 +155,7 @@ namespace LAPIC {
 		return scan_rdsp(0xe0000, 0x20000);
 	}
 	
-	static volatile uint32_t *lapic;
+	volatile uint32_t *lapic;
 	
 	static inline void lapicw(int index, int value) {
 		lapic[index] = value;
@@ -166,9 +166,23 @@ namespace LAPIC {
 		lapicw(TICR, -1);
 	}
 	
+	extern "C" {
+		extern uint64_t __lapic_timer_cnt;
+	}
+	
 	void timer_single_shot_ns(uint64_t ns) {
 		uint64_t to_set = (__uint128_t) ns * Timer::ext_freq / ((uint64_t) TIMER_EX * 1000000000);
 		assert(to_set < (uint64_t) 4000000000);
+		__lapic_timer_cnt = 1;
+		lapicw(TIMER, SINGLESHOT | (IRQ_OFFSET + IRQ_TIMER));
+		lapicw(TICR, to_set);
+	}
+	
+	void timer_periodic_ns(uint64_t ns, uint64_t cnt) {
+		uint64_t to_set = (__uint128_t) ns * Timer::ext_freq / ((uint64_t) TIMER_EX * 1000000000);
+		assert(to_set < (uint64_t) 4000000000);
+		__lapic_timer_cnt = cnt;
+		lapicw(TIMER, PERIODIC | (IRQ_OFFSET + IRQ_TIMER));
 		lapicw(TICR, to_set);
 	}
 	
