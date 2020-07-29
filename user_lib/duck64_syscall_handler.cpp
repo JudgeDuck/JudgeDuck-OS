@@ -5,6 +5,7 @@
 #include <asm/prctl.h>
 #include <string.h>
 #include <stdio.h>
+#include <time.h>
 
 // [JudgeDuck-ABI, "Running"]
 
@@ -37,6 +38,7 @@ static DuckInfo_t *duckinfo;
 static uint64_t stdout_max_size;
 static uint64_t stderr_max_size;
 static uint64_t stdin_curr_pos;
+static uint64_t tsc_frequency;
 
 // WARN: undefined behaviour when the heap hits the stack
 extern int _end;
@@ -64,6 +66,31 @@ static void init() {
 	const uint64_t page_size = getauxval(AT_PAGESZ);
 	// Round up to page size
 	heap_brk = (char *) ((temp + page_size - 1) / page_size * page_size);
+	
+	// Set up clock
+	// TODO: read freq from duckinfo
+	tsc_frequency = 3600000000ull;
+}
+
+static inline uint64_t rdtsc() {
+	uint32_t hi, lo;
+	__asm__ volatile ("rdtsc" : "=a" (lo), "=d" (hi) : : );
+	return (uint64_t) hi << 32 | lo;
+}
+
+static long duck_clock_get_time(clockid_t clk_id, struct timespec *tp) {
+	// TODO: other clocks
+	// TODO: return cpu time
+	if (clk_id == CLOCK_PROCESS_CPUTIME_ID) {
+		uint64_t t = rdtsc();
+		uint64_t sec = t / tsc_frequency;
+		uint64_t nsec = t % tsc_frequency * 1000000000ull / tsc_frequency;
+		tp->tv_sec = sec;
+		tp->tv_nsec = nsec;
+		return 0;
+	} else {
+		return -1;
+	}
 }
 
 static size_t duck_read(int fd, char *buf, size_t len) {
@@ -186,6 +213,8 @@ long __duck64__syscall_handler(long a1, long a2, long a3, long, long, long, long
 	switch (n) {
 		case SYS_brk:
 			return (long) duck_brk((char *) a1);
+		case SYS_clock_gettime:
+			return duck_clock_get_time((clockid_t) a1, (struct timespec *) a2);
 		case SYS_read:
 			return duck_read((int) a1, (char *) a2, (int) a3);
 		case SYS_readv:
