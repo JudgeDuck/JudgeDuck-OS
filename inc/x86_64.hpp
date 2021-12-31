@@ -113,6 +113,24 @@ namespace x86_64 {
 		__asm__ volatile ("wrmsr" : : "a" (lo), "d" (hi), "c" (msr));
 	}
 	
+	static inline uint32_t get_microcode_revision() {
+		uint32_t ret;
+		
+		__asm__ volatile (
+			"mov $0x8b, %%ecx\n"  // IA32_BIOS_SIGN_ID
+			"xor %%eax, %%eax\n"
+			"xor %%edx, %%edx\n"
+			"wrmsr\n"
+			"mov $1, %%eax\n"
+			"cpuid\n"
+			"mov $0x8b, %%ecx\n"
+			"rdmsr\n"
+			"mov %%edx, %0" : "=r"(ret) : : "%rax", "%rbx", "%rcx", "%rdx"
+		);
+
+		return ret;
+	}
+	
 	const uint32_t FIXED_CTR_CTRL = 909;
 	const uint32_t PERF_GLOBAL_CTRL = 911;
 	const uint32_t FIXED_CTR0 = 0x309;

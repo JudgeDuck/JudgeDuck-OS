@@ -43,11 +43,17 @@ static void run_test(const char *elf_start, const char *elf_end) {
 		.stdin_size = 8,
 		.stdout_max_size = 10240,
 		.stderr_max_size = 10240,
+		.IB_ptr = NULL,
+		.IB_size = 0,
+		.OB_ptr = NULL,
+		.OB_size = 0,
+		.OB_need_clear = false,
 	};
 	assert(ELF::load(elf_start, len, config, app));
 	auto res = ELF::run(app, 0);
-	LINFO("time %.6lf ms, memory %d KiB (%.1lf MiB)",
-		res.time_ns / 1e6, res.memory_kb, res.memory_kb / 1024.0);
+	LINFO("time %.6lf ms, memory %d KiB (%.1lf MiB) (A: %d KB)",
+		res.time_ns / 1e6, res.memory_kb, res.memory_kb / 1024.0,
+		res.memory_kb_accessed);
 	LINFO("tsc %lu, trap %u, retcode %d",
 		res.time_tsc, res.trap_num, res.return_code);
 	LINFO("stdout size %lu, stderr size %lu",

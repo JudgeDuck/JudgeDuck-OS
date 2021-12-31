@@ -23,8 +23,7 @@ namespace Scheduler {
 	const uint64_t idle_policy_ms[][2] = {
 		{ 0, 0 },
 		{ 1, 1 },
-		{ 10, 5 },
-		{ 100, 15 },
+		{ 30, 2 },
 	};
 	const int n_idle_policies =
 		sizeof(idle_policy_ms) / sizeof(idle_policy_ms[0]);

@@ -120,7 +120,7 @@ namespace ELF {
 		if (load_vaddr_break < load_vaddr_start) return false;
 		if (load_vaddr_break > Memory::get_vaddr_break()) return false;
 		
-		// Special region for stdin, stdout, stderr
+		// Special region for stdin, stdout, stderr and IB/OB
 		const uint64_t special_region_vaddr = load_vaddr_break;
 		uint64_t special_region_break_curr = special_region_vaddr;
 		
@@ -148,6 +148,36 @@ namespace ELF {
 		if (stderr_load_break < stderr_load_vaddr) return false;  // overflow?
 		special_region_break_curr = stderr_load_break;
 		
+		// Allocate IB (Input Buffer)
+		const uint64_t IB_alloc_size = round_up(config.IB_size, PAGE_SIZE);
+		if (IB_alloc_size < config.IB_size) return false;  // overflow?
+		const uint64_t IB_load_vaddr = special_region_break_curr;
+		const uint64_t IB_load_break = IB_load_vaddr + IB_alloc_size;
+		if (IB_load_break < IB_load_vaddr) return false;
+		special_region_break_curr = IB_load_break;
+		
+		// Allocate OB (Output Buffer)
+		const uint64_t OB_alloc_size = round_up(config.OB_size, PAGE_SIZE);
+		if (OB_alloc_size < config.OB_size) return false;  // overflow?
+		const uint64_t OB_load_vaddr = special_region_break_curr;
+		const uint64_t OB_load_break = OB_load_vaddr + OB_alloc_size;
+		if (OB_load_break < OB_load_vaddr) return false;
+		special_region_break_curr = OB_load_break;
+		
+		// [2020-11-18] Allocate ELF Header Image
+		const uint64_t ELF_image_alloc_size = Memory::PAGE_SIZE;
+		const uint64_t ELF_image_load_vaddr = special_region_break_curr;
+		const uint64_t ELF_image_load_break = ELF_image_load_vaddr + ELF_image_alloc_size;
+		if (ELF_image_load_break < ELF_image_load_vaddr) return false;
+		special_region_break_curr = ELF_image_load_break;
+		
+		// [2021-09-01] Allocate one page for random bytes (for AT_RANDOM)
+		const uint64_t random_bytes_alloc_size = Memory::PAGE_SIZE;
+		const uint64_t random_bytes_load_vaddr = special_region_break_curr;
+		const uint64_t random_bytes_load_break = random_bytes_load_vaddr + random_bytes_alloc_size;
+		if (random_bytes_load_break < random_bytes_load_vaddr) return false;
+		special_region_break_curr = random_bytes_load_break;
+		
 		// End of special region
 		const uint64_t special_region_break = special_region_break_curr;
 		if (special_region_break < special_region_vaddr) return false;
@@ -162,7 +192,8 @@ namespace ELF {
 		x86_64::lcr3(x86_64::rcr3());
 		
 		// Clear memory and prepare to load
-		memset((void *) load_vaddr_start, 0, special_region_break - load_vaddr_start);
+		// No slow memset
+		Memory::clear_duck_written_pages(load_vaddr_start, special_region_break);
 		
 		// Do actual loading
 		for (uint64_t i = 0; i < e_phnum; i++) {
@@ -172,20 +203,48 @@ namespace ELF {
 			uint64_t p_offset = (uint64_t) phdr->p_offset;
 			uint64_t p_vaddr = (uint64_t) phdr->p_vaddr;
 			uint64_t p_filesz = (uint64_t) phdr->p_filesz;
-			uint64_t p_memsz = (uint64_t) phdr->p_memsz;
 			
 			// Copy from ELF file
 			char *addr = (char *) p_vaddr;
 			const char *src = buf + p_offset;
-			memset(addr, 0, p_memsz);
 			if (p_filesz != 0) {
 				memcpy(addr, src, p_filesz);
+				Memory::set_duck_written(round_down(p_vaddr, PAGE_SIZE), round_up(p_vaddr + p_filesz, PAGE_SIZE));
 			}
 		}
 		
 		// Load stdin
 		memcpy((void *) stdin_load_vaddr, config.stdin_ptr, config.stdin_size);
+		Memory::set_duck_written(stdin_load_vaddr, stdin_load_break);
 		Memory::set_page_flags_user_readonly(stdin_load_vaddr, stdin_load_break);
+		
+		// Load IB
+		memcpy((void *) IB_load_vaddr, config.IB_ptr, config.IB_size);
+		Memory::set_duck_written(IB_load_vaddr, IB_load_break);
+		Memory::set_page_flags_user_readonly(IB_load_vaddr, IB_load_break);
+		
+		// Load OB
+		if (config.OB_need_clear) {
+			// No need to memset
+		} else {
+			Memory::set_duck_written(OB_load_vaddr, OB_load_vaddr + round_up(config.OB_size, PAGE_SIZE));
+			memcpy((void *) OB_load_vaddr, config.OB_ptr, config.OB_size);
+		}
+		
+		// [2020-11-18] Load ELF Image
+		memcpy((void *) ELF_image_load_vaddr, hdr, std::min((uint32_t) len, (uint32_t) Memory::PAGE_SIZE));
+		Memory::set_duck_written(ELF_image_load_vaddr, ELF_image_load_break);
+		Memory::set_page_flags_user_readonly(ELF_image_load_vaddr, ELF_image_load_break);
+		
+		// [2021-09-01] Load random bytes (for AT_RANDOM)
+		//   $ echo -n "JudgeDuck" | sha256sum
+		//   f44c01c822b64652cd78e881cb258690400fd7727dff45a365467023a10978d1  -
+		// [0]: f44c01c8
+		// [1]: 22b64652
+		((uint64_t *) random_bytes_load_vaddr)[0] = 0xf44c01c8;
+		((uint64_t *) random_bytes_load_vaddr)[1] = 0x22b64652;
+		Memory::set_duck_written(random_bytes_load_vaddr, random_bytes_load_break);
+		Memory::set_page_flags_user_readonly(random_bytes_load_vaddr, random_bytes_load_break);
 		
 		static DuckInfo_t duckinfo;
 		duckinfo = (DuckInfo_t) {
@@ -193,9 +252,16 @@ namespace ELF {
 			.stdin_ptr = (const char *) stdin_load_vaddr,
 			.stdin_size = config.stdin_size,
 			.stdout_ptr = (char *) stdout_load_vaddr,
-			.stdout_size = config.stdout_max_size,
+			.stdout_limit = config.stdout_max_size,
+			.stdout_size = 0,
 			.stderr_ptr = (char *) stderr_load_vaddr,
-			.stderr_size = config.stderr_max_size,
+			.stderr_limit = config.stderr_max_size,
+			.stderr_size = 0,
+			.IB_ptr = (const char *) IB_load_vaddr,
+			.IB_limit = config.IB_size,
+			.OB_ptr = (char *) OB_load_vaddr,
+			.OB_limit = config.OB_size,
+			.tsc_frequency = Timer::tsc_freq,
 		};
 		
 		// Set up environment variables [JudgeDuck-ABI, "Running"]
@@ -209,6 +275,36 @@ namespace ELF {
 		pushq(rsp, AT_PAGESZ);  // The page size entry
 		pushq(rsp, duckinfo_ptr);  // duckinfo pointer
 		pushq(rsp, ABI::AT_DUCK);  // The duck entry
+		// [2020-11-18] ==== BEGIN ELF HEADERS
+		pushq(rsp, ELF_image_load_vaddr);
+		pushq(rsp, AT_BASE);
+		pushq(rsp, ELF_image_load_vaddr + hdr->e_phoff);
+		pushq(rsp, AT_PHDR);
+		pushq(rsp, e_entry);
+		pushq(rsp, AT_ENTRY);
+		pushq(rsp, hdr->e_phentsize);
+		pushq(rsp, AT_PHENT);
+		pushq(rsp, hdr->e_phnum);
+		pushq(rsp, AT_PHNUM);
+		// [2020-11-18] ==== END ELF HEADERS
+		// [2021-09-01] ==== MORE AUXV
+		pushq(rsp, 0xbfebfbff);
+		pushq(rsp, AT_HWCAP);
+		pushq(rsp, 0x2);
+		pushq(rsp, AT_HWCAP);
+		pushq(rsp, 1000);
+		pushq(rsp, AT_UID);
+		pushq(rsp, 1000);
+		pushq(rsp, AT_EUID);
+		pushq(rsp, 1000);
+		pushq(rsp, AT_GID);
+		pushq(rsp, 1000);
+		pushq(rsp, AT_EGID);
+		pushq(rsp, 0);
+		pushq(rsp, AT_SECURE);
+		pushq(rsp, random_bytes_load_vaddr);
+		pushq(rsp, AT_RANDOM);
+		// [2021-09-01] ==== END MORE AUXV
 		pushq(rsp, 0);  // The end of the environment strings
 		pushq(rsp, 0);  // The end of the argument strings
 		pushq(rsp, 0);  // The argument count
@@ -219,6 +315,8 @@ namespace ELF {
 			memmove((void *) new_rsp, (void *) rsp, rsp_auxv_end - rsp);
 			rsp = new_rsp;
 		}
+		
+		Memory::set_duck_written(load_vaddr_break - PAGE_SIZE, load_vaddr_break);
 		
 		// Check program header flags
 		for (uint64_t i = 0; i < e_phnum; i++) {
@@ -253,6 +351,8 @@ namespace ELF {
 		app.break_addr = load_vaddr_break;
 		app.special_region_start_addr = special_region_vaddr;
 		app.special_region_break_addr = special_region_break;
+		app.stdin_start_addr = stdin_load_vaddr;
+		app.stdin_break_addr = stdin_load_break;
 		app.duckinfo_orig = duckinfo;
 		app.duckinfo_ptr = (DuckInfo_t *) duckinfo_ptr;
 		return true;
@@ -338,7 +438,7 @@ namespace ELF {
 		if (load_vaddr_break < load_vaddr_start) return false;
 		if (load_vaddr_break > Memory::get_vaddr_break()) return false;
 		
-		// Special region for stdin, stdout, stderr
+		// Special region for stdin, stdout, stderr and IB/OB
 		const uint64_t special_region_vaddr = load_vaddr_break;
 		uint64_t special_region_break_curr = special_region_vaddr;
 		
@@ -366,10 +466,33 @@ namespace ELF {
 		if (stderr_load_break < stderr_load_vaddr) return false;  // overflow?
 		special_region_break_curr = stderr_load_break;
 		
+		// Allocate IB (Input Buffer)
+		const uint64_t IB_alloc_size = round_up(config.IB_size, PAGE_SIZE);
+		if (IB_alloc_size < config.IB_size) return false;  // overflow?
+		const uint64_t IB_load_vaddr = special_region_break_curr;
+		const uint64_t IB_load_break = IB_load_vaddr + IB_alloc_size;
+		if (IB_load_break < IB_load_vaddr) return false;
+		special_region_break_curr = IB_load_break;
+		
+		// Allocate OB (Output Buffer)
+		const uint64_t OB_alloc_size = round_up(config.OB_size, PAGE_SIZE);
+		if (OB_alloc_size < config.OB_size) return false;  // overflow?
+		const uint64_t OB_load_vaddr = special_region_break_curr;
+		const uint64_t OB_load_break = OB_load_vaddr + OB_alloc_size;
+		if (OB_load_break < OB_load_vaddr) return false;
+		special_region_break_curr = OB_load_break;
+		
 		// End of special region
 		const uint64_t special_region_break = special_region_break_curr;
 		if (special_region_break < special_region_vaddr) return false;
 		if (special_region_break > Memory::get_vaddr_break()) return false;
+		
+		// [2020-11-18] Allocate ELF Header Image
+		const uint64_t ELF_image_alloc_size = Memory::PAGE_SIZE;
+		const uint64_t ELF_image_load_vaddr = special_region_break_curr;
+		const uint64_t ELF_image_load_break = ELF_image_load_vaddr + ELF_image_alloc_size;
+		if (ELF_image_load_break < ELF_image_load_vaddr) return false;
+		special_region_break_curr = ELF_image_load_break;
 		
 		// Ensure everything in 32-bit userspace
 		if (load_vaddr_start > 1ul << 32) return false;
@@ -384,7 +507,8 @@ namespace ELF {
 		x86_64::lcr3(x86_64::rcr3());
 		
 		// Clear memory and prepare to load
-		memset((void *) load_vaddr_start, 0, special_region_break - load_vaddr_start);
+		// No slow memset
+		Memory::clear_duck_written_pages(load_vaddr_start, special_region_break);
 		
 		// Do actual loading
 		for (uint64_t i = 0; i < e_phnum; i++) {
@@ -394,20 +518,38 @@ namespace ELF {
 			uint64_t p_offset = (uint64_t) (uint32_t) phdr->p_offset;
 			uint64_t p_vaddr = (uint64_t) (uint32_t) phdr->p_vaddr;
 			uint64_t p_filesz = (uint64_t) (uint32_t) phdr->p_filesz;
-			uint64_t p_memsz = (uint64_t) (uint32_t) phdr->p_memsz;
 			
 			// Copy from ELF file
 			char *addr = (char *) p_vaddr;
 			const char *src = buf + p_offset;
-			memset(addr, 0, p_memsz);
 			if (p_filesz != 0) {
 				memcpy(addr, src, p_filesz);
+				Memory::set_duck_written(round_down(p_vaddr, PAGE_SIZE), round_up(p_vaddr + p_filesz, PAGE_SIZE));
 			}
 		}
 		
 		// Load stdin
 		memcpy((void *) stdin_load_vaddr, config.stdin_ptr, config.stdin_size);
+		Memory::set_duck_written(stdin_load_vaddr, stdin_load_break);
 		Memory::set_page_flags_user_readonly(stdin_load_vaddr, stdin_load_break);
+		
+		// Load IB
+		memcpy((void *) IB_load_vaddr, config.IB_ptr, config.IB_size);
+		Memory::set_duck_written(IB_load_vaddr, IB_load_break);
+		Memory::set_page_flags_user_readonly(IB_load_vaddr, IB_load_break);
+		
+		// Load OB
+		if (config.OB_need_clear) {
+			// No need to memset
+		} else {
+			Memory::set_duck_written(OB_load_vaddr, OB_load_vaddr + round_up(config.OB_size, PAGE_SIZE));
+			memcpy((void *) OB_load_vaddr, config.OB_ptr, config.OB_size);
+		}
+		
+		// [2020-11-18] Load ELF Image
+		memcpy((void *) ELF_image_load_vaddr, hdr, std::min((uint32_t) len, (uint32_t) Memory::PAGE_SIZE));
+		Memory::set_duck_written(ELF_image_load_vaddr, ELF_image_load_break);
+		Memory::set_page_flags_user_readonly(ELF_image_load_vaddr, ELF_image_load_break);
 		
 		static DuckInfo_t duckinfo;
 		duckinfo = (DuckInfo_t) {
@@ -415,21 +557,35 @@ namespace ELF {
 			.stdin_ptr = (const char *) stdin_load_vaddr,
 			.stdin_size = config.stdin_size,
 			.stdout_ptr = (char *) stdout_load_vaddr,
-			.stdout_size = config.stdout_max_size,
+			.stdout_limit = config.stdout_max_size,
+			.stdout_size = 0,
 			.stderr_ptr = (char *) stderr_load_vaddr,
-			.stderr_size = config.stderr_max_size,
+			.stderr_limit = config.stderr_max_size,
+			.stderr_size = 0,
+			.IB_ptr = (const char *) IB_load_vaddr,
+			.IB_limit = config.IB_size,
+			.OB_ptr = (char *) OB_load_vaddr,
+			.OB_limit = config.OB_size,
+			.tsc_frequency = Timer::tsc_freq,
 		};
 		
-		// All fields are in 32-bit userspace, checked previously
+		// All size fields are in 32-bit userspace, checked previously
 		static DuckInfo32_t duckinfo32;
 		duckinfo32 = (DuckInfo32_t) {
 			.abi_version = ABI::version,
 			.stdin_ptr = (uint32_t) stdin_load_vaddr,
 			.stdin_size = (uint32_t) config.stdin_size,
 			.stdout_ptr = (uint32_t) stdout_load_vaddr,
-			.stdout_size = (uint32_t) config.stdout_max_size,
+			.stdout_limit = (uint32_t) config.stdout_max_size,
+			.stdout_size = 0,
 			.stderr_ptr = (uint32_t) stderr_load_vaddr,
-			.stderr_size = (uint32_t) config.stderr_max_size,
+			.stderr_limit = (uint32_t) config.stderr_max_size,
+			.stderr_size = 0,
+			.IB_ptr = (uint32_t) IB_load_vaddr,
+			.IB_limit = (uint32_t) config.IB_size,
+			.OB_ptr = (uint32_t) OB_load_vaddr,
+			.OB_limit = (uint32_t) config.OB_size,
+			.tsc_frequency = Timer::tsc_freq,
 		};
 		
 		// Set up environment variables [JudgeDuck-ABI, "Running"]
@@ -443,6 +599,18 @@ namespace ELF {
 		pushl(esp, AT_PAGESZ);  // The page size entry
 		pushl(esp, duckinfo32_ptr);  // duckinfo pointer
 		pushl(esp, ABI::AT_DUCK);  // The duck entry
+		// [2020-11-18] ==== BEGIN ELF HEADERS
+		pushq(esp, ELF_image_load_vaddr);
+		pushq(esp, AT_BASE);
+		pushq(esp, ELF_image_load_vaddr + hdr->e_phoff);
+		pushq(esp, AT_PHDR);
+		pushq(esp, e_entry);
+		pushq(esp, AT_ENTRY);
+		pushq(esp, hdr->e_phentsize);
+		pushq(esp, AT_PHENT);
+		pushq(esp, hdr->e_phnum);
+		pushq(esp, AT_PHNUM);
+		// [2020-11-18] ==== END ELF HEADERS
 		pushl(esp, 0);  // The end of the environment strings
 		pushl(esp, 0);  // The end of the argument strings
 		pushl(esp, 0);  // The argument count
@@ -453,6 +621,8 @@ namespace ELF {
 			memmove((void *) new_esp, (void *) esp, esp_auxv_end - esp);
 			esp = new_esp;
 		}
+		
+		Memory::set_duck_written(load_vaddr_break - PAGE_SIZE, load_vaddr_break);
 		
 		// Check program header flags
 		for (uint64_t i = 0; i < e_phnum; i++) {
@@ -487,6 +657,8 @@ namespace ELF {
 		app.break_addr = load_vaddr_break;
 		app.special_region_start_addr = special_region_vaddr;
 		app.special_region_break_addr = special_region_break;
+		app.stdin_start_addr = stdin_load_vaddr;
+		app.stdin_break_addr = stdin_load_break;
 		app.duckinfo_orig = duckinfo;
 		app.duckinfo32_ptr = (DuckInfo32_t *) duckinfo32_ptr;
 		return true;
@@ -505,6 +677,12 @@ namespace ELF {
 		} else {
 			return false;
 		}
+	}
+	
+	// For debug
+	extern "C" {
+		extern uint64_t __trap_epc;
+		extern uint64_t __trap_cr2;
 	}
 	
 	RunResult run(const App &app, uint64_t time_limit_ns) {
@@ -526,32 +704,53 @@ namespace ELF {
 		// read performance counters
 		Timer::read_performance_counters(res.count_inst, res.clk_thread, res.clk_ref_tsc);
 		
+		// trap epc and cr2
+		res.trap_epc = __trap_epc;
+		res.trap_cr2 = __trap_cr2;
+		
 		// use clk_thread for time measurement
-		res.time_ns = Timer::tsc_to_ns(res.clk_thread);
+		// note: clk freq may not equal to tsc freq
+		res.time_ns = Timer::clk_to_ns(res.clk_thread);
+		
+		// use clk_ref_tsc for (another) time measurement
+		res.time_ns_ref_tsc = Timer::tsc_to_ns(res.clk_ref_tsc);
+		
+		// use tsc for real_time measurement
+		res.time_ns_real = Timer::tsc_to_ns(res.time_tsc);
+		
+		// for fast memory clearing
+		Memory::set_duck_written_by_dirty(app.start_addr, app.special_region_break_addr);
 		
 		res.memory_bytes = PAGE_SIZE *
 			Memory::count_dirty_pages(app.start_addr, app.special_region_break_addr);
 		res.memory_kb = res.memory_bytes / 1024;
 		
+		uint64_t temp_pages = Memory::count_accessed_pages(app.start_addr, app.special_region_break_addr);
+		temp_pages -= Memory::count_accessed_pages(app.stdin_start_addr, app.stdin_break_addr);
+		res.memory_kb_accessed = PAGE_SIZE * temp_pages / 1024;
+		
 		// stdout
 		res.stdout_ptr = app.duckinfo_orig.stdout_ptr;
 		if (app.duckinfo_ptr) {
-			res.stdout_size = std::min(app.duckinfo_orig.stdout_size,
+			res.stdout_size = std::min(app.duckinfo_orig.stdout_limit,
 				app.duckinfo_ptr->stdout_size);
 		} else {
-			res.stdout_size = std::min(app.duckinfo_orig.stdout_size,
+			res.stdout_size = std::min(app.duckinfo_orig.stdout_limit,
 				(uint64_t) app.duckinfo32_ptr->stdout_size);
 		}
 		
 		// stderr
 		res.stderr_ptr = app.duckinfo_orig.stderr_ptr;
 		if (app.duckinfo_ptr) {
-			res.stderr_size = std::min(app.duckinfo_orig.stderr_size,
+			res.stderr_size = std::min(app.duckinfo_orig.stderr_limit,
 				app.duckinfo_ptr->stderr_size);
 		} else {
-			res.stderr_size = std::min(app.duckinfo_orig.stderr_size,
+			res.stderr_size = std::min(app.duckinfo_orig.stderr_limit,
 				(uint64_t) app.duckinfo32_ptr->stderr_size);
 		}
+		
+		// OB
+		res.OB_ptr = app.duckinfo_orig.OB_ptr;
 		
 		return res;
 	}

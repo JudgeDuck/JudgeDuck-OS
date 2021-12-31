@@ -5,6 +5,7 @@
 #include <inc/utils.hpp>
 #include <inc/elf.hpp>
 #include <inc/memory.hpp>
+#include <inc/duck_cache.hpp>
 
 namespace Judger {	
 	// Statistics
@@ -13,10 +14,20 @@ namespace Judger {
 	
 	// Buffer
 	const uint64_t INITIAL_BUFFER_SIZE = 3072ul << 20;
+	const uint64_t INITIAL_BUFFER_SIZE_SMALL = 512ul << 20;
 	// TODO: resizable buffer
 	// TODO: smaller initial buffer
 	static char *buffer;
 	static uint64_t buffer_size;
+	
+	// Cache
+	const uint64_t ELF_CACHE_N = 1000;
+	const uint64_t ELF_CACHE_SIZE = 256ul << 20;  // 256 MiB
+	const uint64_t DATA_CACHE_N = 100000;
+	const uint64_t DATA_CACHE_SIZE = 8192ul << 20;  // 8192 MiB
+	const uint64_t DATA_CACHE_SIZE_SMALL = 256ul << 20;  // 256 MiB
+	DuckCache::DuckCache elf_cache;
+	DuckCache::DuckCache data_cache;
 	
 	// Judge
 	const uint64_t MAX_TIME_LIMIT_NS = 500 * 1e9;  // 500s ??
@@ -48,14 +59,36 @@ namespace Judger {
 		n_judges = 0;
 		total_time_ns = 0;
 		
+		bool use_small = false;
+		uint64_t total_size = INITIAL_BUFFER_SIZE + ELF_CACHE_SIZE + DATA_CACHE_SIZE + (3072ul << 20);
+		if (!Memory::can_allocate_virtual_memory(total_size)) {
+			use_small = true;
+		}
+		
 		// Buffer
-		buffer = Memory::allocate_virtual_memory(INITIAL_BUFFER_SIZE);
+		buffer_size = !use_small ? INITIAL_BUFFER_SIZE : INITIAL_BUFFER_SIZE_SMALL;
+		buffer = Memory::allocate_virtual_memory(buffer_size);
+		
 		if (!buffer) {
 			LFATAL("Allocate buffer failed");
 			Utils::GG_reboot();
 		}
-		buffer_size = INITIAL_BUFFER_SIZE;
+		
 		memset(buffer, 0, buffer_size);
+		
+		// Cache
+		bool r = elf_cache.init(ELF_CACHE_N, ELF_CACHE_SIZE);
+		if (!r) {
+			LFATAL("Init elf_cache failed");
+			Utils::GG_reboot();
+		}
+		
+		uint64_t data_cache_size = !use_small ? DATA_CACHE_SIZE : DATA_CACHE_SIZE_SMALL;
+		r = data_cache.init(DATA_CACHE_N, data_cache_size);
+		if (!r) {
+			LFATAL("Init data_cache failed");
+			Utils::GG_reboot();
+		}
 	}
 	
 	// Stat
@@ -129,6 +162,54 @@ namespace Judger {
 		}
 	}
 	
+	// Cache
+	
+	bool load_cache(const char *cache_name, uint64_t dst_off, uint64_t dst_len, const char *hex) {
+		DuckCache::Digest256 digest;
+		if (!DuckCache::digest_from_hex(hex, &digest)) {
+			return false;
+		}
+		
+		bool ret = false;
+		if (strcmp(cache_name, "elf") == 0) {
+			ret = elf_cache.load(&digest, (void *) (buffer + dst_off), dst_len);
+		} else if (strcmp(cache_name, "data") == 0) {
+			ret = data_cache.load(&digest, (void *) (buffer + dst_off), dst_len);
+		}
+		
+		if (ret) {
+			clear_judge_result();
+		}
+		
+		return ret;
+	}
+	
+	
+	bool store_cache(const char *cache_name, uint64_t src_off, uint64_t src_len, const char *hex) {
+		DuckCache::Digest256 digest;
+		if (!DuckCache::digest_from_hex(hex, &digest)) {
+			return false;
+		}
+		
+		if (strcmp(cache_name, "elf") == 0) {
+			return elf_cache.store(&digest, (const void *) (buffer + src_off), src_len);
+		} else if (strcmp(cache_name, "data") == 0) {
+			return data_cache.store(&digest, (const void *) (buffer + src_off), src_len);
+		} else {
+			return false;
+		}
+	}
+	
+	void get_cache_info(const char *cache_name, char *output) {
+		if (strcmp(cache_name, "elf") == 0) {
+			elf_cache.info(output);
+		} else if (strcmp(cache_name, "data") == 0) {
+			data_cache.info(output);
+		} else {
+			sprintf(output, "no-such-cache");
+		}
+	}
+	
 	// Judge
 	
 	static JudgeResult can_not_load_elf() {
@@ -175,8 +256,9 @@ namespace Judger {
 			return can_not_load_elf();
 		}
 		
-		BufferDesc buffers[4] = {
+		BufferDesc buffers[6] = {
 			req.ELF, req.stdin, req.stdout, req.stderr,
+			req.IB, req.OB,
 		};
 		
 		// invalid or overlapping buffers?
@@ -191,6 +273,11 @@ namespace Judger {
 			.stdin_size = req.stdin.len,
 			.stdout_max_size = req.stdout.len,
 			.stderr_max_size = req.stderr.len,
+			.IB_ptr = buffer + req.IB.off,
+			.IB_size = req.IB.len,
+			.OB_ptr = buffer + req.OB.off,
+			.OB_size = req.OB.len,
+			.OB_need_clear = req.OB_need_clear != 0,
 		};
 		
 		// check time limit
@@ -211,11 +298,17 @@ namespace Judger {
 			.clk_thread = res.clk_thread,
 			.clk_ref_tsc = res.clk_ref_tsc,
 			.time_ns = res.time_ns,
+			.time_ns_ref_tsc = res.time_ns_ref_tsc,
+			.time_ns_real = res.time_ns_real,
 			.time_tsc = res.time_tsc,
 			.memory_kb = res.memory_kb,
+			.memory_kb_accessed = res.memory_kb_accessed,
 			.stdout_size = res.stdout_size,
 			.stderr_size = res.stderr_size,
 			.return_code = res.return_code,
+			.trap_num = res.trap_num,
+			.trap_epc = res.trap_epc,
+			.trap_cr2 = res.trap_cr2,
 			.is_RE = res.trap_num != 255,  // TRAP_SYSCALL
 			.is_TLE = res.trap_num == 32,  // TRAP_IRQ + IRQ_TIMER
 		};
@@ -227,9 +320,14 @@ namespace Judger {
 		}
 		
 		// Copy stdout and stderr
-		// Note: max_size is used instead of actual result size
-		memcpy(buffer + req.stdout.off, res.stdout_ptr, req.stdout.len);
-		memcpy(buffer + req.stderr.off, res.stderr_ptr, req.stderr.len);
+		// Note: only copy result_size bytes
+		memcpy(buffer + req.stdout.off, res.stdout_ptr, res.stdout_size);
+		memcpy(buffer + req.stderr.off, res.stderr_ptr, res.stderr_size);
+		
+		
+		// Copy OB
+		// Note: copy all
+		memcpy(buffer + req.OB.off, res.OB_ptr, req.OB.len);
 		
 		// Update stat
 		total_time_ns += judge_result.time_ns;

@@ -5,6 +5,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <time.h>
+#include <stdint.h>
 
 // [JudgeDuck-ABI, "Running"]
 
@@ -15,12 +16,20 @@ struct DuckInfo_t {
 	uint32_t stdin_size;     // stdin size
 	
 	char *stdout_ptr;        // stdout pointer
-	uint32_t stdout_size;    // [IN] stdout maximum size
-	                         // [OUT] stdout actual size
+	uint32_t stdout_limit;   // [IN] stdout maximum size
+	uint32_t stdout_size;    // [OUT] stdout actual size
 	
 	char *stderr_ptr;        // stderr pointer
-	uint32_t stderr_size;    // [IN] stderr maximum size
-	                         // [OUT] stderr actual size
+	uint32_t stderr_limit;   // [IN] stderr maximum size
+	uint32_t stderr_size;    // [OUT] stderr actual size
+	
+	const char *IB_ptr;      // IB (Input Buffer) pointer
+	uint32_t IB_limit;       // IB limit
+	
+	char *OB_ptr;            // OB (Output Buffer) pointer
+	uint32_t OB_limit;       // OB limit
+	
+	uint64_t tsc_frequency;  // TSC (Time Stamp Counter) frequency
 } __attribute__((packed));
 
 #define AT_DUCK 0x6b637564   // "duck"
@@ -53,11 +62,11 @@ static void init() {
 	stdin_curr_pos = 0;
 	
 	// Set up stdout
-	stdout_max_size = duckinfo->stdout_size;
+	stdout_max_size = duckinfo->stdout_limit;
 	duckinfo->stdout_size = 0;
 	
 	// Set up stderr
-	stderr_max_size = duckinfo->stderr_size;
+	stderr_max_size = duckinfo->stderr_limit;
 	duckinfo->stderr_size = 0;
 	
 	// Set up heap
@@ -67,8 +76,7 @@ static void init() {
 	heap_brk = (char *) ((temp + page_size - 1) / page_size * page_size);
 	
 	// Set up clock
-	// TODO: read freq from duckinfo
-	tsc_frequency = 3600000000ull;
+	tsc_frequency = duckinfo->tsc_frequency;
 }
 
 static inline uint64_t rdtsc() {

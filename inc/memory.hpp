@@ -33,11 +33,17 @@ namespace Memory {
 	
 	void clear_access_and_dirty_flags(uint64_t start, uint64_t end);
 	uint64_t count_dirty_pages(uint64_t start, uint64_t end);
+	uint64_t count_accessed_pages(uint64_t start, uint64_t end);
+	
+	void set_duck_written_by_dirty(uint64_t start, uint64_t end);
+	void set_duck_written(uint64_t start, uint64_t end);
+	void clear_duck_written_pages(uint64_t start, uint64_t end);
 	
 	// Note: 4k-paged
 	void map_region_cache_disabled(uint64_t start, uint64_t end, uint64_t src_addr);
 	
 	char * allocate_virtual_memory(uint64_t size);
+	bool can_allocate_virtual_memory(uint64_t size);
 	
 	bool user_writable_check(uint64_t addr);
 }

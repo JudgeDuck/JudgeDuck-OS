@@ -102,6 +102,7 @@ namespace Trap {
 	const uint8_t TRAP_IRQ = 32;
 	const uint8_t TRAP_RUN_USER = 233;
 	const uint8_t TRAP_RUN_USER32 = 234;
+	const uint8_t TRAP_ABORT = 253;
 	const uint8_t TRAP_INVALID_SYSCALL = 254;
 	const uint8_t TRAP_SYSCALL = 255;
 	const uint8_t TRAP_SYSCALL32 = 128;
@@ -150,6 +151,11 @@ namespace Trap {
 		uint32_t useable:1;
 	} __attribute__((packed));
 	
+	extern "C" {
+		uint64_t __trap_epc;
+		uint64_t __trap_cr2;
+	}
+	
 	extern "C"
 	void trap_handler(Trapframe *tf) {
 		// restore kernel tsc
@@ -181,6 +187,12 @@ namespace Trap {
 			__asm__ volatile ("mov %%fs, %0" : "=r" (fs));
 			__asm__ volatile ("mov %%gs, %0" : "=r" (gs));
 			LDEBUG("ds %u, es %u, fs %u, gs %u", ds, es, fs, gs);
+			
+			__trap_epc = tf_from_user.tf_rip;
+			__trap_cr2 = cr2;
+			
+			// Flush TLB to show A/D bits
+			x86_64::lcr3(x86_64::rcr3());
 		} else {
 			if (num == TRAP_IRQ + PIC::IRQ_TIMER) {
 				// timer interrupt caused by scheduler
@@ -225,8 +237,9 @@ namespace Trap {
 				}
 				
 				if (user_time_limit_ns != 0) {
-					// add 5ms to provide a hard limit
-					LAPIC::timer_periodic_ns(500000, user_time_limit_ns / 500000ul + 10);
+					// 0.5ms per interrupt, add 10ms + 0.1% for context switching
+					uint64_t timer_cnt = user_time_limit_ns / 500000ul;
+					LAPIC::timer_periodic_ns(500000, timer_cnt + timer_cnt / 1000ul + 20);
 				}
 				
 				if (num == TRAP_RUN_USER) {
@@ -360,7 +373,7 @@ namespace Trap {
 		tf.tf_rip = rip;
 		tf.tf_cs = GDT_USER_CS | 3;
 		tf.tf_rflags = x86_64::read_rflags() & ~0x8d5;  // clear all status bits
-		tf.tf_rflags |= 0x3000 | 0x200;  // user | interrupt
+		tf.tf_rflags |= 0x200;  // user & NO IOPL
 		tf.tf_rsp = rsp;
 		tf.tf_ss = GDT_USER_SS | 3;
 		return tf;
@@ -372,7 +385,7 @@ namespace Trap {
 		tf.tf_rip = eip;
 		tf.tf_cs = GDT_USER32_CS | 3;
 		tf.tf_rflags = x86_64::read_rflags() & ~0x8d5;  // clear all status bits
-		tf.tf_rflags |= 0x3000 | 0x200;  // user | interrupt
+		tf.tf_rflags |= 0x200;  // user & NO IOPL
 		tf.tf_rsp = esp;
 		tf.tf_ss = GDT_USER32_SS | 3;
 		return tf;
@@ -397,7 +410,9 @@ namespace Trap {
 		// export return-code
 		if (trap_num == TRAP_SYSCALL) {
 			int syscall_num = (int) tf_from_user.tf_regs.rax;
-			if (syscall_num != ABI::DUCK_sys_exit) {
+			if (syscall_num == SYS_tkill) {  // 64-bit abort()
+				trap_num = TRAP_ABORT;
+			} else if (syscall_num != ABI::DUCK_sys_exit) {
 				trap_num = TRAP_INVALID_SYSCALL;
 				return_code = 0;
 			} else {

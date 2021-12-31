@@ -1,9 +1,11 @@
 kernel := build/kernel.bin
+kernel_stripped := build/kernel_stripped.bin
 iso := build/os.iso
 
 CXX := g++
 CXX += -std=c++14
 CXX += -Wall -Wextra -Werror -march=x86-64
+CXX += -fno-strict-aliasing  # prevent ub!
 CXX += -mno-red-zone
 CXX += -U_FORTIFY_SOURCE
 CXX += -I .
@@ -34,7 +36,7 @@ i386_libc_files := -L $(i386_LIBC_PREFIX) -L $(i386_LIB_PREFIX) -lc -lgcc -lgcc_
 i386_libc_crt_start := $(i386_LIBC_PREFIX)crt1.o $(i386_LIBC_PREFIX)crti.o
 i386_libc_crt_end := $(i386_LIBC_PREFIX)crtn.o
 
-all: $(kernel)
+all: $(kernel) $(kernel_stripped)
 
 include kern/Makefile
 include lib/Makefile
@@ -49,10 +51,13 @@ include ducknet/lib/Makefile
 clean:
 	@rm -r build/*
 
-QEMUOPTS ?= -m 512M
+QEMUOPTS ?= -m 2048M
 
 run: $(iso)
-	@qemu-system-x86_64 -cdrom $(iso) -cpu Haswell $(QEMUOPTS)
+	@qemu-system-x86_64 -cdrom $(iso) -cpu Skylake-Client $(QEMUOPTS)
+
+run-nox: $(iso)
+	@qemu-system-x86_64 -nographic -cdrom $(iso) -cpu Skylake-Client $(QEMUOPTS)
 
 iso: $(iso)
 
@@ -70,6 +75,11 @@ $(kernel): $(assembly_object_files) $(kern_object_files) $(lib_object_files) $(l
 		$(libc_crt_start) $(assembly_object_files) $(kern_asm_object_files) $(kern_object_files) \
 		$(lib_object_files) $(libducknet) $(libstdcxx_files) $(libc_files) $(libc_crt_end) \
 		$(user_obj_files) $(user32_obj_files)
+
+$(kernel_stripped): $(kernel)
+	@echo + strip $(kernel_stripped)
+	@cp $(kernel) $(kernel_stripped)
+	@strip --strip-all $(kernel_stripped)
 
 build/boot/%.o: boot/%.asm
 	@echo + nasm $@

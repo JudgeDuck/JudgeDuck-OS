@@ -8,6 +8,7 @@
 namespace Timer {
 	extern uint64_t tsc_freq, tsc_epoch;
 	extern uint32_t ext_freq;
+	extern uint64_t clk_freq;  // clk_thread Hz
 	
 	void init();
 	
@@ -19,6 +20,12 @@ namespace Timer {
 		uint64_t q = tsc / tsc_freq;
 		uint64_t r = tsc % tsc_freq;
 		return q * 1000000000ull + r * 1000000000ull / tsc_freq;
+	}
+	
+	static inline uint64_t clk_to_ns(uint64_t clk) {
+		uint64_t q = clk / clk_freq;
+		uint64_t r = clk % clk_freq;
+		return q * 1000000000ull + r * 1000000000ull / clk_freq;
 	}
 	
 	static inline double tsc_to_secf(uint64_t tsc) {

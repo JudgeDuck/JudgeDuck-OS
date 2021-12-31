@@ -68,6 +68,8 @@ namespace PCI {
 		{ 0x8086, 0x100e, &pci_store },  // e1000
 		{ 0x8086, 0x15bc, &pci_store },  // I219-V
 		{ 0x8086, 0x15b8, &pci_store },  // I219-V H310CM-ITX/ac
+		{ 0x8086, 0x0d55, &pci_store },  // B460M TUF Gaming
+		{ 0x8086, 0x15fa, &pci_store },  // H510M-HDV/M.2
 		{ 0, 0, 0 },
 	};
 	

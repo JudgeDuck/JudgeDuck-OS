@@ -52,7 +52,8 @@ enable_sse:
     push rcx
     xor rcx, rcx
     xgetbv  ; Load XCR0 register
-    or rax, 7  ; Set AVX, SSE, X87 bits
+    ; or rax, 7  ; Set AVX, SSE, X87 bits
+    or rax, 3  ; Set SSE, X87 bits
     xsetbv  ; Save back to XCR0
     pop rcx
     pop rax

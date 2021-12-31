@@ -3,25 +3,36 @@
 #include <sys/stat.h>
 #include <sys/auxv.h>
 #include <asm/prctl.h>
+#include <sys/utsname.h>
+#include <sys/types.h>
 #include <string.h>
 #include <stdio.h>
 #include <time.h>
+#include <stdint.h>
 
 // [JudgeDuck-ABI, "Running"]
 
 struct DuckInfo_t {
-	uint64_t abi_version;    // = 21 for version 0.02a
+	uint64_t abi_version;
 	
 	const char *stdin_ptr;   // stdin pointer (read-only contents)
 	uint64_t stdin_size;     // stdin size
 	
 	char *stdout_ptr;        // stdout pointer
-	uint64_t stdout_size;    // [IN] stdout maximum size
-	                         // [OUT] stdout actual size
+	uint64_t stdout_limit;   // [IN] stdout maximum size
+	uint64_t stdout_size;    // [OUT] stdout actual size
 	
 	char *stderr_ptr;        // stderr pointer
-	uint64_t stderr_size;    // [IN] stderr maximum size
-	                         // [OUT] stderr actual size
+	uint64_t stderr_limit;   // [IN] stderr maximum size
+	uint64_t stderr_size;    // [OUT] stderr actual size
+	
+	const char *IB_ptr;      // IB (Input Buffer) pointer
+	uint64_t IB_limit;       // IB limit
+	
+	char *OB_ptr;            // OB (Output Buffer) pointer
+	uint64_t OB_limit;       // OB limit
+	
+	uint64_t tsc_frequency;  // TSC (Time Stamp Counter) frequency
 } __attribute__((packed));
 
 #define AT_DUCK 0x6b637564   // "duck"
@@ -54,11 +65,11 @@ static void init() {
 	stdin_curr_pos = 0;
 	
 	// Set up stdout
-	stdout_max_size = duckinfo->stdout_size;
+	stdout_max_size = duckinfo->stdout_limit;
 	duckinfo->stdout_size = 0;
 	
 	// Set up stderr
-	stderr_max_size = duckinfo->stderr_size;
+	stderr_max_size = duckinfo->stderr_limit;
 	duckinfo->stderr_size = 0;
 	
 	// Set up heap
@@ -68,8 +79,7 @@ static void init() {
 	heap_brk = (char *) ((temp + page_size - 1) / page_size * page_size);
 	
 	// Set up clock
-	// TODO: read freq from duckinfo
-	tsc_frequency = 3600000000ull;
+	tsc_frequency = duckinfo->tsc_frequency;
 }
 
 static inline uint64_t rdtsc() {
@@ -130,7 +140,8 @@ static size_t duck_write(int fd, const char *buf, size_t len) {
 		memcpy(duckinfo->stdout_ptr + duckinfo->stdout_size, buf, actual_len);
 		duckinfo->stdout_size += actual_len;
 		
-		return actual_len;
+		// [2021-09-01] sliently truncate output
+		return len;
 	} else if (fd == 2) {
 		// write to stderr
 		
@@ -139,7 +150,8 @@ static size_t duck_write(int fd, const char *buf, size_t len) {
 		memcpy(duckinfo->stderr_ptr + duckinfo->stderr_size, buf, actual_len);
 		duckinfo->stderr_size += actual_len;
 		
-		return actual_len;
+		// [2021-09-01] sliently truncate output
+		return len;
 	} else {
 		return 0;
 	}
@@ -164,7 +176,7 @@ static int duck_fstat(int fd, struct stat *st) {
 	memset(st, 0, sizeof(struct stat));
 	if (fd == 0) {
 		const size_t stdin_size = duckinfo->stdin_size;
-		st->st_mode = S_IFREG | 0644;
+		st->st_mode = S_IFREG | 0664;
 		st->st_size = stdin_size;
 		st->st_blksize = 4096;
 		st->st_blocks = (stdin_size + 4095) / 4096;
@@ -172,7 +184,7 @@ static int duck_fstat(int fd, struct stat *st) {
 	}
 	if (fd == 1) {
 		const size_t stdout_size = duckinfo->stdout_size;
-		st->st_mode = S_IFREG | 0644;
+		st->st_mode = S_IFREG | 0664;
 		st->st_size = stdout_size;
 		st->st_blksize = 4096;
 		st->st_blocks = (stdout_size + 4095) / 4096;
@@ -193,6 +205,7 @@ static char * duck_brk(char *addr) {
 
 static int duck_arch_prctl(int code, unsigned long *addr) {
 	if (code == ARCH_SET_FS) {
+		// TODO: use syscall
 		__asm__ volatile ("wrfsbase %0" : : "r" (addr));
 		return 0;
 	}
@@ -204,6 +217,59 @@ static long duck_exit(int code) {
 	// NOTE: specified by JudgeDuck ABI
 	__asm__ volatile ("syscall" : : "a"(SYS_exit), "D"(code));
 	return 0;
+}
+
+#include <stdlib.h>
+
+static char __mmap_pool[10240 << 10] __attribute__((aligned(4096)));  // 10MiB
+static long __mmap_p = (long) __mmap_pool;
+
+static long duck_mmap_temp(uint64_t size) {
+	size = (size + 4095u) & -4096ul;
+	long p = __mmap_p;
+	__mmap_p += size;
+	return p;
+}
+
+static long duck_tkill_abort(int sig) {
+	// NOTE: kernel interprets this syscall as abort()
+	__asm__ volatile ("syscall" : : "a"(SYS_tkill), "d"(sig));
+	return 0;
+}
+
+static void strncpy_safe(char *dest, const char *src, size_t n) {
+	if (n > 0) {
+		strncpy(dest, src, n - 1);
+		dest[n - 1] = '\0';
+	}
+}
+
+static long duck_uname(struct utsname *buf) {
+	strncpy_safe(buf->sysname, "JudgeDuck", sizeof(buf->sysname));
+	strncpy_safe(buf->nodename, "duck", sizeof(buf->nodename));
+	
+	// glibc _dl_discover_osversion complains about this
+	strncpy_safe(buf->release, "5.11.0", sizeof(buf->release));
+	
+	strncpy_safe(buf->version, "duck-20210901", sizeof(buf->version));
+	strncpy_safe(buf->machine, "x86_64", sizeof(buf->machine));
+	
+	return 0;
+}
+
+static long duck_readlink(const char *path, char *buf, int bufsiz) {
+	// Mock: copy path to buf
+	strncpy_safe(buf, "/tmp/main.exe", bufsiz);
+	
+	return strlen(path);
+}
+
+static pid_t duck_getpid() {
+	return 1234;
+}
+
+static pid_t duck_gettid() {
+	return 1234;
 }
 
 extern "C"
@@ -233,6 +299,36 @@ long __duck64__syscall_handler(long a1, long a2, long a3, long, long, long, long
 			return 0;
 		case SYS_fstat:
 			return duck_fstat((int) a1, (struct stat *) a2);
+		case SYS_mmap:
+			return duck_mmap_temp((uint64_t) a2);  // TODO check params!!!
+		case SYS_rt_sigprocmask:
+			return 0;
+		case SYS_rt_sigaction:
+			return 0;
+		case SYS_sigaltstack:
+			return 0;
+		case SYS_set_tid_address:
+			return 12345;
+		case SYS_tkill:  // for abort()
+			return duck_tkill_abort((int) a3);
+		case SYS_mprotect:
+			return 0;  // TODO
+		case SYS_munmap:
+			return 0;  // TODO
+		case SYS_poll:
+			return 0;  // TODO (for Rust)
+		// [2021-09-01] for glibc
+		case SYS_uname:
+			return duck_uname((struct utsname *) a1);
+		case SYS_readlink:
+			return duck_readlink((const char *) a1, (char *) a2, (int) a3);
+		case SYS_getpid:
+			return duck_getpid();
+		case SYS_gettid:
+			return duck_gettid();
+		case SYS_tgkill:  // glibc abort()
+			// Note: tgkill(pid_t tgid, pid_t tid, int sig)
+			return duck_tkill_abort((int) a3);
 		default:
 			return -1;
 	}

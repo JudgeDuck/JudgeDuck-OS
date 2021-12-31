@@ -30,8 +30,14 @@ namespace Memory {
 	const uint64_t PTE_GLOBAL = 1 << 8;
 	const uint64_t PTE_NO_EXECUTE = 1ull << 63;
 	
+	// OS-available flags
+	const uint64_t PTE_DUCK_WRITTEN = 1 << 9;
+	
 	static inline uint64_t clear_page_flags(uint64_t a) {
-		return ((a << 1) >> 13) << 12;
+		// return ((a << 1) >> 13) << 12;
+		
+		// BIT 9, 10, 11 are available for OS
+		return ((a << 1) >> 10) << 9;
 	}
 	
 	// For the page table allocator
@@ -184,6 +190,7 @@ namespace Memory {
 			for (uint64_t j = 0; j < PAGE_SIZE / 8; j++) {
 				PTE(P1, j) = (paddr + j * PAGE_SIZE) | flags;
 				PTE(P1, j) &= ~PTE_USER;
+				PTE(P1, j) |= PTE_DUCK_WRITTEN;  // The content of the page will be cleared later
 			}
 			
 			vaddr += HUGE_PAGE_SIZE;
@@ -340,6 +347,60 @@ namespace Memory {
 		return ret;
 	}
 	
+	uint64_t count_accessed_pages(uint64_t start, uint64_t end) {
+		assert(start % PAGE_SIZE == 0);
+		assert(end % PAGE_SIZE == 0);
+		
+		uint64_t ret = 0;
+		while (start != end) {
+			uint64_t &P1 = get_P1(start);
+			ret += (P1 & PTE_ACCESSED) ? 1 : 0;
+			
+			start += PAGE_SIZE;
+		}
+		return ret;
+	}
+	
+	void set_duck_written_by_dirty(uint64_t start, uint64_t end) {
+		assert(start % PAGE_SIZE == 0);
+		assert(end % PAGE_SIZE == 0);
+		
+		while (start != end) {
+			uint64_t &P1 = get_P1(start);
+			bool has_dirty = (P1 & PTE_DIRTY);
+			P1 |= has_dirty ? PTE_DUCK_WRITTEN : 0;
+			
+			start += PAGE_SIZE;
+		}
+	}
+	
+	void set_duck_written(uint64_t start, uint64_t end) {
+		assert(start % PAGE_SIZE == 0);
+		assert(end % PAGE_SIZE == 0);
+		
+		while (start != end) {
+			uint64_t &P1 = get_P1(start);
+			P1 |= PTE_DUCK_WRITTEN;
+			
+			start += PAGE_SIZE;
+		}
+	}
+	
+	void clear_duck_written_pages(uint64_t start, uint64_t end) {
+		assert(start % PAGE_SIZE == 0);
+		assert(end % PAGE_SIZE == 0);
+		
+		while (start != end) {
+			uint64_t &P1 = get_P1(start);
+			if ((P1 & PTE_DUCK_WRITTEN)) {
+				memset((void *) start, 0, PAGE_SIZE);
+				P1 &= ~(PTE_DIRTY | PTE_DUCK_WRITTEN);
+			}
+			
+			start += PAGE_SIZE;
+		}
+	}
+	
 	// Note: 4k-paged
 	void map_region_cache_disabled(uint64_t start, uint64_t end, uint64_t src_addr) {
 		assert(start % PAGE_SIZE == 0);
@@ -365,6 +426,12 @@ namespace Memory {
 			vaddr_break -= size;
 			return (char *) vaddr_break;
 		}
+	}
+	
+	bool can_allocate_virtual_memory(uint64_t size) {
+		size = Utils::round_up(size, HUGE_PAGE_SIZE);
+		
+		return vaddr_break - kernel_break >= size;
 	}
 	
 	bool user_writable_check(uint64_t addr) {
