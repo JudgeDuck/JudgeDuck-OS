@@ -4,6 +4,7 @@
 #include <assert.h>
 
 #include <inc/lapic.hpp>
+#include <inc/acpi.hpp>
 #include <inc/memory.hpp>
 #include <inc/pic.hpp>
 #include <inc/x86_64.hpp>
@@ -58,103 +59,6 @@ using PIC::IRQ_TIMER;
 #define TIMER_EX_T X1
 
 namespace LAPIC {
-	
-	struct ACPI_RDSP {
-		uint8_t signature[8];
-		uint8_t checksum;
-		uint8_t oem_id[6];
-		uint8_t revision;
-		uint32_t rsdt_addr_phys;
-		uint32_t length;
-		uint64_t xsdt_addr_phys;
-		uint8_t xchecksum;
-		uint8_t reserved[3];
-	} __attribute__((packed));
-	
-	struct ACPI_desc_header {
-		uint8_t signature[4];
-		uint32_t length;
-		uint8_t revision;
-		uint8_t checksum;
-		uint8_t oem_id[6];
-		uint8_t oem_tableid[8];
-		uint32_t oem_revision;
-		uint8_t creator_id[4];
-		uint32_t creator_revision;
-	} __attribute__((packed));
-	
-	struct ACPI_RSDT {
-		struct ACPI_desc_header header;
-		uint32_t entry[0];
-	} __attribute__((packed));
-	
-	struct ACPI_MADT {
-		struct ACPI_desc_header header;
-		uint32_t lapic_addr_phys;
-		uint32_t flags;
-		uint8_t table[0];
-	} __attribute__((packed));
-	
-	struct ACPI_FADT {
-		struct   ACPI_desc_header header;
-		uint32_t FirmwareCtrl;
-		uint32_t DSDT;
-		uint8_t  Reserved;
-		uint8_t  PreferredPowerManagementProfile;
-		uint16_t SCI_Interrupt;
-		uint32_t SMI_CommandPort;
-		uint8_t  ACPI_Enable;
-		uint8_t  ACPI_Disable;
-		uint8_t  S4BIOS_REQ;
-		uint8_t  PSTATE_Control;
-		uint32_t PM1aEventBlock;
-		uint32_t PM1bEventBlock;
-		uint32_t PM1aControlBlock;
-		// more fields are omitted
-	} __attribute__((packed));
-	
-	static uint8_t sum(void *addr, int len) {
-		uint8_t sum = 0;
-		for (int i = 0; i < len; i++) {
-			sum += ((uint8_t *) addr) [i];
-		}
-		return sum;
-	}
-	
-	static void switch_to_acpi_mode(ACPI_FADT *fadt) {
-		if (fadt->SMI_CommandPort == 0) {
-			return;
-		}
-		
-		if (fadt->ACPI_Enable == 0) {
-			return;
-		}
-		
-		x86_64::outb(fadt->SMI_CommandPort, fadt->ACPI_Enable);
-		while ((x86_64::inw(fadt->PM1aControlBlock) & 1) == 0);
-		
-		LDEBUG("Switched to ACPI mode");
-	}
-	
-	static ACPI_RDSP * scan_rdsp(uint32_t base, uint32_t len) {
-		for (char *p = (char *) (uint64_t) base; len >= sizeof(ACPI_RDSP); len -= 4, p += 4) {
-			if (memcmp(p, "RSD PTR ", 8) == 0 && sum(p, 20) == 0) {
-				return (ACPI_RDSP *) p;
-			}
-		}
-		return (ACPI_RDSP *) 0;  
-	}
-	
-	static ACPI_RDSP * find_rdsp() {
-		ACPI_RDSP *rdsp;
-		uint32_t pa;
-		pa = * ((uint16_t *) (uint64_t) 0x40e) << 4;
-		if (pa && (rdsp = scan_rdsp(pa, 1024))) {
-			return rdsp;
-		}
-		return scan_rdsp(0xe0000, 0x20000);
-	}
-	
 	volatile uint32_t *lapic;
 	
 	static inline void lapicw(int index, int value) {
@@ -198,26 +102,7 @@ namespace LAPIC {
 	void init() {
 		LDEBUG_ENTER_RET();
 		
-		ACPI_RDSP *rdsp = find_rdsp();
-		ACPI_RSDT *rsdt = (ACPI_RSDT *) (uint64_t) (rdsp->rsdt_addr_phys);
-		ACPI_MADT *madt = 0;
-		ACPI_FADT *fadt = 0;
-		int count = (rsdt->header.length - sizeof(ACPI_RSDT)) / 4;
-		for (int i = 0; i < count; i++) {
-			ACPI_desc_header *hdr = (ACPI_desc_header *) (uint64_t) rsdt->entry[i];
-			if (memcmp(hdr->signature, "APIC", 4) == 0) {
-				madt = (ACPI_MADT *) hdr;
-			} else if (memcmp(hdr->signature, "FACP", 4) == 0) {
-				fadt = (ACPI_FADT *) hdr;
-			}
-		}
-		assert(madt != NULL);
-		
-		if (fadt) {
-			switch_to_acpi_mode(fadt);
-		}
-		
-		lapic = Memory::remap((volatile uint32_t *) (uint64_t) madt->lapic_addr_phys);
+		lapic = Memory::remap((volatile uint32_t *) ACPI::get_lapic_addr());
 		LDEBUG("remapped lapic = %p", lapic);
 		
 		// Enable local APIC; mask spurious interrupt vector.

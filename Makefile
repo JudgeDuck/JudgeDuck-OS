@@ -1,6 +1,9 @@
 kernel := build/kernel.bin
 kernel_stripped := build/kernel_stripped.bin
-iso := build/os.iso
+iso := build/os-legacy.iso
+esp := build/esp
+grub_efi := build/grub.efi
+esp_files := build/esp_files_done
 
 CXX := g++
 CXX += -std=c++14
@@ -46,18 +49,27 @@ include user32/Makefile
 include user_lib32/Makefile
 include ducknet/lib/Makefile
 
-.PHONY: all clean run iso
+.PHONY: all clean
 
 clean:
 	@rm -r build/*
 
 QEMUOPTS ?= -m 2048M
 
-run: $(iso)
-	@qemu-system-x86_64 -cdrom $(iso) -cpu Skylake-Client $(QEMUOPTS)
+run-legacy: $(iso)
+	@qemu-system-x86_64 -serial mon:stdio -cdrom $(iso) -cpu Skylake-Client $(QEMUOPTS)
 
-run-nox: $(iso)
-	@qemu-system-x86_64 -nographic -cdrom $(iso) -cpu Skylake-Client $(QEMUOPTS)
+run-legacy-nox: $(iso)
+	@qemu-system-x86_64 -serial mon:stdio -nographic -cdrom $(iso) -cpu Skylake-Client $(QEMUOPTS)
+
+QEMU_UEFI_OPTS := -bios /usr/share/OVMF/OVMF_CODE.fd
+QEMU_UEFI_OPTS += -drive format=raw,file=fat:rw:$(esp)
+
+run-uefi: $(esp_files)
+	@qemu-system-x86_64 -serial mon:stdio $(QEMU_UEFI_OPTS) -cpu Skylake-Client $(QEMUOPTS)
+
+run-uefi-nox: $(esp_files)
+	@qemu-system-x86_64 -serial mon:stdio -nographic $(QEMU_UEFI_OPTS) -cpu Skylake-Client $(QEMUOPTS)
 
 iso: $(iso)
 
@@ -67,6 +79,19 @@ $(iso): $(kernel) $(grub_cfg)
 	@cp $(grub_cfg) build/isofiles/boot/grub
 	@grub-mkrescue -o $(iso) build/isofiles -d /usr/lib/grub/i386-pc 2> /dev/null
 	@rm -r build/isofiles
+
+$(grub_efi): Makefile
+	@echo 'regexp -s root [(]([^/)]*) $$cmdpath' > /tmp/grub.cfg
+	@echo 'configfile /boot/grub/grub.cfg' >> /tmp/grub.cfg
+	@grub-mkstandalone -d /usr/lib/grub/x86_64-efi --modules "multiboot2 part_gpt part_msdos" -O x86_64-efi "boot/grub/grub.cfg=/tmp/grub.cfg" -o $(grub_efi)
+
+$(esp_files): $(kernel) $(grub_cfg) $(grub_efi)
+	@mkdir -p $(esp)/boot/grub
+	@mkdir -p $(esp)/efi/boot
+	@cp $(kernel) $(esp)/boot/kernel.bin
+	@cp $(grub_cfg) $(esp)/boot/grub
+	@cp $(grub_efi) $(esp)/efi/boot/bootx64.efi
+	@touch $(esp_files)
 
 $(kernel): $(assembly_object_files) $(kern_object_files) $(lib_object_files) $(linker_script) \
 	$(libc_duck64) $(kern_asm_object_files) $(libducknet) $(user_obj_files) $(user32_obj_files) $(libducknet)

@@ -4,6 +4,7 @@
 #include <algorithm>
 
 #include <inc/multiboot2_loader.hpp>
+#include <inc/acpi.hpp>
 #include <inc/lapic.hpp>
 #include <inc/memory.hpp>
 #include <inc/pic.hpp>
@@ -89,6 +90,7 @@ int main() {
 	
 	PIC::init();
 	Timer::init();
+	ACPI::init();
 	LAPIC::init();
 	
 	Memory::init();

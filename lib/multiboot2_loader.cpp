@@ -5,6 +5,7 @@
 #include <inc/multiboot2_loader.hpp>
 #include <inc/multiboot2.h>
 #include <inc/memory.hpp>
+#include <inc/acpi.hpp>
 #include <inc/utils.hpp>
 #include <inc/logger.hpp>
 
@@ -46,6 +47,8 @@ namespace Multiboot2_Loader {
 		struct multiboot_tag *tag = (struct multiboot_tag *) multiboot_addr + 1;
 		
 		while (tag->type != MULTIBOOT_TAG_TYPE_END) {
+			uint64_t acpi_rsdp_addr;
+			
 			switch (tag->type) {
 				case MULTIBOOT_TAG_TYPE_MMAP:
 					load_mmap((struct multiboot_tag_mmap *) tag);
@@ -54,6 +57,18 @@ namespace Multiboot2_Loader {
 				case MULTIBOOT_TAG_TYPE_CMDLINE:
 					strncpy(_command_line, ((struct multiboot_tag_string *) tag)->string, MAX_LENGTH - 1);
 					LDEBUG("cmdline: %s", command_line);
+					break;
+				
+				case MULTIBOOT_TAG_TYPE_ACPI_OLD:
+					acpi_rsdp_addr = (uint64_t) ((struct multiboot_tag_old_acpi *) tag)->rsdp;
+					LDEBUG("ACPI old RSDP: %08llx", acpi_rsdp_addr);
+					ACPI::set_rsdp_addr(acpi_rsdp_addr);
+					break;
+				
+				case MULTIBOOT_TAG_TYPE_ACPI_NEW:
+					acpi_rsdp_addr = (uint64_t) ((struct multiboot_tag_new_acpi *) tag)->rsdp;
+					LDEBUG("ACPI new RSDP: %08llx", acpi_rsdp_addr);
+					ACPI::set_rsdp_addr(acpi_rsdp_addr);
 					break;
 			}
 			
