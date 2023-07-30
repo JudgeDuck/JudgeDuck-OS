@@ -53,6 +53,13 @@ namespace Timer {
 		// TODO: Detect clk_thread freq
 		LWARN("Assume clk_freq Hz = round(tsc_freq, 100M)");
 		clk_freq = Utils::round_down(tsc_freq + 50 * 1000000, 100ull * 1000000);
+		
+		// TODO: Alder Lake CPU
+		if (ext_freq == 38400000) {
+			// Intel N100 (3.4 GHz)
+			LWARN("Assume Alder Lake CPU (Intel N100 @ 3.4GHz)");
+			clk_freq = 3400ull * 1000000;
+		}
 	}
 	
 	static void detect_cpu_speed_others() {

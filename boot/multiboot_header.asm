@@ -8,6 +8,16 @@ header_start:
 
     ; insert optional multiboot tags here
 
+framebuffer_tag_start:
+    dw 5    ; MULTIBOOT_HEADER_TAG_FRAMEBUFFER
+    dw 1    ; MULTIBOOT_HEADER_TAG_OPTIONAL
+    dd (framebuffer_tag_end - framebuffer_tag_start) ; size
+    dd 800  ; width
+    dd 600  ; height
+    dd 32   ; bpp
+framebuffer_tag_end:
+    dw 0    ; MULTIBOOT_HEADER_TAG_END
+
     ; required end tag
     dw 0    ; type
     dw 0    ; flags

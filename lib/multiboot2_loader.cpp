@@ -6,6 +6,7 @@
 #include <inc/multiboot2.h>
 #include <inc/memory.hpp>
 #include <inc/acpi.hpp>
+#include <inc/framebuffer.hpp>
 #include <inc/utils.hpp>
 #include <inc/logger.hpp>
 
@@ -69,6 +70,34 @@ namespace Multiboot2_Loader {
 					acpi_rsdp_addr = (uint64_t) ((struct multiboot_tag_new_acpi *) tag)->rsdp;
 					LDEBUG("ACPI new RSDP: %08llx", acpi_rsdp_addr);
 					ACPI::set_rsdp_addr(acpi_rsdp_addr);
+					break;
+				
+				case MULTIBOOT_HEADER_TAG_EFI_BS:
+					LDEBUG("EFI boot services available");
+					break;
+				
+				case MULTIBOOT_TAG_TYPE_FRAMEBUFFER:
+					LDEBUG("framebuffer: %dx%d, %d bpp, %d bytes/line, addr %08llx",
+						((struct multiboot_tag_framebuffer *) tag)->common.framebuffer_width,
+						((struct multiboot_tag_framebuffer *) tag)->common.framebuffer_height,
+						((struct multiboot_tag_framebuffer *) tag)->common.framebuffer_bpp,
+						((struct multiboot_tag_framebuffer *) tag)->common.framebuffer_pitch,
+						((struct multiboot_tag_framebuffer *) tag)->common.framebuffer_addr);
+					
+					// 800x600, 32 bpp
+					auto *common = &((struct multiboot_tag_framebuffer *) tag)->common;
+					if (common->framebuffer_width == 800 &&
+						common->framebuffer_height == 600 &&
+						common->framebuffer_bpp == 32 &&
+						common->framebuffer_pitch == 800 * 4 &&
+						common->framebuffer_addr != 0 &&
+						common->framebuffer_type == MULTIBOOT_FRAMEBUFFER_TYPE_RGB &&
+						(uint64_t) common->framebuffer_addr < 128 * 0x100000000ull) {
+						FrameBuffer::set_framebuffer_addr((uint64_t) common->framebuffer_addr);
+					} else {
+						LWARN("unsupported framebuffer, skipping");
+					}
+					
 					break;
 			}
 			

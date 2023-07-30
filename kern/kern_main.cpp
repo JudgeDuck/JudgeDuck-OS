@@ -3,7 +3,9 @@
 #include <assert.h>
 #include <algorithm>
 
+#include <inc/syslog.hpp>
 #include <inc/multiboot2_loader.hpp>
+#include <inc/framebuffer.hpp>
 #include <inc/acpi.hpp>
 #include <inc/lapic.hpp>
 #include <inc/memory.hpp>
@@ -12,6 +14,7 @@
 #include <inc/logger.hpp>
 #include <inc/timer.hpp>
 #include <inc/pci.hpp>
+#include <inc/dma.hpp>
 #include <inc/network_driver.hpp>
 #include <inc/elf.hpp>
 #include <inc/x86_64.hpp>
@@ -81,6 +84,8 @@ static void run_tests() {
 }
 
 int main() {
+	SysLog::init();
+	
 	print_hello();
 	
 	Logger::init();
@@ -98,6 +103,8 @@ int main() {
 	Trap::init();
 	
 	PCI::init();
+	FrameBuffer::init();
+	DMA::init();
 	NetworkDriver::init();
 	DuckServer::init();
 	Scheduler::init();

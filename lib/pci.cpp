@@ -70,6 +70,9 @@ namespace PCI {
 		{ 0x8086, 0x15b8, &pci_store },  // I219-V H310CM-ITX/ac
 		{ 0x8086, 0x0d55, &pci_store },  // B460M TUF Gaming
 		{ 0x8086, 0x15fa, &pci_store },  // H510M-HDV/M.2
+		{ 0x8086, 0x1539, &pci_store },  // I211AT
+		{ 0x8086, 0x15f3, &pci_store },  // I225-V
+		{ 0x8086, 0x46d1, &pci_store },  // VGA (Intel N100)
 		{ 0, 0, 0 },
 	};
 	
@@ -301,6 +304,8 @@ namespace PCI {
 		}
 		
 		if (found) {
+			LDEBUG("pci: map_device %04x:%04x at 0x%llx len 0x%llx",
+				key1, key2, base, maxlen);
 			maxlen = std::min(reg_size, maxlen);
 			uint64_t end = base + Utils::round_up(maxlen, Memory::PAGE_SIZE);
 			Memory::map_region_cache_disabled(base, end, reg_base);

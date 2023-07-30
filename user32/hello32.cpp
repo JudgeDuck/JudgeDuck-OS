@@ -23,6 +23,7 @@ static void print_hello() {
 char A[3 << 20];
 int B[] = {2, 3, 4, 1, 5};
 const int C[] = {5, 4, 3, 2, 1};
+char *p;
 
 int main() {
 	print_hello();
@@ -32,7 +33,7 @@ int main() {
 	memset(A, 0, sizeof(A));
 	
 	const int SIZE = 50 << 20;
-	char *p = new char[SIZE];
+	p = new char[SIZE];
 	memset(p, 0, SIZE);
 	delete[] p;
 	fprintf(stderr, ", memset %.1lf MiB ok", SIZE / 1048576.0);

@@ -4,6 +4,7 @@
 #include <inc/pci.hpp>
 #include <inc/logger.hpp>
 #include <inc/e1000.hpp>
+#include <inc/i211.hpp>
 #include <inc/multiboot2_loader.hpp>
 
 namespace NetworkDriver {
@@ -51,6 +52,11 @@ namespace NetworkDriver {
 			receive = e1000::receive;
 			flush = e1000::flush;
 			LINFO("e1000 driver initialized");
+		} else if (i211::init(mac)) {
+			send = i211::send;
+			receive = i211::receive;
+			flush = i211::flush;
+			LINFO("i211 driver initialized");
 		} else {
 			LWARN("No network driver found. Running in standalone mode...");
 		}

@@ -83,7 +83,7 @@ $(iso): $(kernel) $(grub_cfg)
 $(grub_efi): Makefile
 	@echo 'regexp -s root [(]([^/)]*) $$cmdpath' > /tmp/grub.cfg
 	@echo 'configfile /boot/grub/grub.cfg' >> /tmp/grub.cfg
-	@grub-mkstandalone -d /usr/lib/grub/x86_64-efi --modules "multiboot2 part_gpt part_msdos" -O x86_64-efi "boot/grub/grub.cfg=/tmp/grub.cfg" -o $(grub_efi)
+	@grub-mkstandalone -d /usr/lib/grub/x86_64-efi --modules "multiboot2 part_gpt part_msdos all_video" -O x86_64-efi "boot/grub/grub.cfg=/tmp/grub.cfg" -o $(grub_efi)
 
 $(esp_files): $(kernel) $(grub_cfg) $(grub_efi)
 	@mkdir -p $(esp)/boot/grub

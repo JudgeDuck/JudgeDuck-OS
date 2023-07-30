@@ -6,6 +6,7 @@
 #include <inc/memory.hpp>
 #include <inc/timer.hpp>
 #include <inc/pci.hpp>
+#include <inc/dma.hpp>
 
 // kernel pages are 4k-sized
 using Memory::PAGE_SIZE;
@@ -43,8 +44,8 @@ namespace e1000 {
 	static volatile TransDesc tq[TQSIZE] __attribute__((aligned(PAGE_SIZE)));
 	static volatile RecvDesc rq[RQSIZE] __attribute__((aligned(PAGE_SIZE)));
 	
-	static char tq_pages[TQSIZE / 2][PAGE_SIZE] __attribute__((aligned(PAGE_SIZE)));
-	static char rq_pages[RQSIZE / 2][PAGE_SIZE] __attribute__((aligned(PAGE_SIZE)));
+	static char **tq_pages;
+	static char **rq_pages;
 	
 	static void *tq_addrs[TQSIZE];
 	static void *rq_addrs[RQSIZE];
@@ -78,11 +79,64 @@ namespace e1000 {
 		}
 	}
 	
+	struct RegConfig {
+		uint32_t CTRL, STATUS;
+		uint32_t ICR, IMS, IMC;
+		uint32_t RAL, RAH;
+		
+		uint32_t TCTL, TIPG;
+		uint32_t TDBAL, TDBAH, TDLEN, TDH, TDT, TXDCTL;
+		
+		uint32_t RCTL;
+		uint32_t RDBAL, RDBAH, RDLEN, RDH, RDT, RXDCTL;
+	};
+	
+	static const RegConfig regs_e1000e = {
+		.CTRL = 0x0,
+		.STATUS = 0x8,
+		
+		.ICR = 0xc0,
+		.IMS = 0xd0,
+		.IMC = 0xd8,
+		
+		.RAL = 0x5400,
+		.RAH = 0x5404,
+		
+		.TCTL = 0x400,
+		.TIPG = 0x410,
+		
+		.TDBAL = 0x3800,
+		.TDBAH = 0x3804,
+		.TDLEN = 0x3808,
+		.TDH = 0x3810,
+		.TDT = 0x3818,
+		.TXDCTL = 0x3828,
+		
+		.RCTL = 0x100,
+		
+		.RDBAL = 0x2800,
+		.RDBAH = 0x2804,
+		.RDLEN = 0x2808,
+		.RDH = 0x2810,
+		.RDT = 0x2818,
+		.RXDCTL = 0x2828,
+	};
+	
+	#define READ32(reg) (*(volatile uint32_t *) (e1000 + regs_e1000e.reg))
+	#define WRITE32(reg, val) (*(volatile uint32_t *) (e1000 + regs_e1000e.reg) = (val))
+	
 	static int e1000_init(unsigned maxMTA, uint8_t mac[6]) {
-		LDEBUG("e1000 status = %x", *(volatile uint32_t *) (e1000 + 0x8));
+		LDEBUG("e1000 status = %x", READ32(STATUS));
 		
 		const uint32_t tq_pa = (uint32_t) (uint64_t) tq;
 		const uint32_t rq_pa = (uint32_t) (uint64_t) rq;
+		
+		tq_pages = (char **) DMA::alloc(TQSIZE / 2 * PAGE_SIZE);
+		rq_pages = (char **) DMA::alloc(RQSIZE / 2 * PAGE_SIZE);
+		if (!tq_pages || !rq_pages) {
+			LERROR("e1000: DMA::alloc failed");
+			return -1;
+		}
 		
 		for (uint64_t i = 0; i < TQSIZE; i++) {
 			tq_addrs[i] = (void *) tq_pages[i];
@@ -96,107 +150,118 @@ namespace e1000 {
 		last_tq_page_id = 0;
 		last_tq_page_offset = 0;
 		
-		*(volatile uint32_t *) (e1000 + 0x400) = 0;        // clear TCTL
-		*(volatile uint32_t *) (e1000 + 0x100) = 0;        // clear RCTL
+		WRITE32(TCTL, 0); 	  // clear TCTL
+		WRITE32(RCTL, 0); 	  // clear RCTL
 		
 		// try reset
-		*(volatile uint32_t *) (e1000 + 0xd8) = 0xffffffff;
-		uint32_t ctrl = *(volatile uint32_t *) (e1000 + 0x0);
-		*(volatile uint32_t *) (e1000 + 0x0) = ctrl | 0x04000000;
+		WRITE32(IMC, 0xffffffff);
+		WRITE32(CTRL, READ32(CTRL) | 0x04000000);
 		microdelay(1);
-		*(volatile uint32_t *) (e1000 + 0xd8) = 0xffffffff;
+		WRITE32(IMC, 0xffffffff);
 		
 		// try phy reset
-		ctrl = *(volatile uint32_t *) (e1000 + 0x0);
-		*(volatile uint32_t *) (e1000 + 0x0) = ctrl | 0x80000000;
+		uint32_t ctrl = READ32(CTRL);
+		WRITE32(CTRL, ctrl | 0x80000000);
 		microdelay(10000);
-		*(volatile uint32_t *) (e1000 + 0x0) = ctrl;
+		WRITE32(CTRL, ctrl);
 		
 		// Init link
-		ctrl = *(volatile uint32_t *) (e1000 + 0x0);
+		ctrl = READ32(CTRL);
 		ctrl &= ~((1u << 11) | (1u << 12));   // No forcing speed or full-duplex
 		ctrl |= 1u << 6;   // set link up
-		*(volatile uint32_t *) (e1000 + 0x0) = ctrl;
+		WRITE32(CTRL, ctrl);
 		
 		LDEBUG("e1000: waiting for link ...");
 		while (1) {
-			if ((*(volatile uint32_t *) (e1000 + 0x8)) & 0x2) break;  // link up
+			if (READ32(STATUS) & 0x2) break;  // link up
 			microdelay(100000);
 		}
 		LDEBUG("e1000: link up");
 		
-		const uint32_t tdbal = tq_pa;
-		*(volatile uint32_t *) (e1000 + 0x3800) = tdbal;      // TDBAL
-		*(volatile uint32_t *) (e1000 + 0x3804) = 0;          // TDBAH
-		*(volatile uint32_t *) (e1000 + 0x3808) = sizeof(tq); // TDLEN
-		*(volatile uint32_t *) (e1000 + 0x3810) = 0;          // TDH
-		*(volatile uint32_t *) (e1000 + 0x3818) = 0;          // TDT
-		e1000_tdt = 0;
-		e1000_tdt_real = 0;
-		e1000_tdh = 0;
-		
-		// TXDCTL: GRAN=0 | 1<<22(must=1) | WTHRESH=3 | HTHRESH=4 | PTHRESH=3
-		*(volatile uint32_t *) (e1000 + 0x3828) = (0u << 24) | (1u << 22) | (3u << 16) | (4u << 8) | 3u;
-		
-		// TCTL: EN | PSP | CT=0x10 | COLD=0x40 | MULR
-		uint32_t tctl = (1 << 1) | (1 << 3) | (0x10 << 4) | (0x40 << 12) | (1u << 28);
-		*(volatile uint32_t *) (e1000 + 0x400) = tctl;        // TCTL
-		// TIPG: ???
-		*(volatile uint32_t *) (e1000 + 0x410) = 0x00602006;
-		
 		// MAC address
-		uint32_t RAL = 0, RAH = 0;
-		for (int i = 0; i < 4; i++) RAL |= (uint32_t) mac[i] << (i * 8);
-		for (int i = 0; i < 2; i++) RAH |= (uint32_t) mac[i + 4] << (i * 8);
-		*(volatile uint32_t *) (e1000 + 0x5400) = RAL;        // RAL
-		uint32_t rah = RAH | (1u << 31);
-		*(volatile uint32_t *) (e1000 + 0x5404) = rah;        // RAH
+		uint32_t RAL_val = 0, RAH_val = 0;
+		for (int i = 0; i < 4; i++) RAL_val |= (uint32_t) mac[i] << (i * 8);
+		for (int i = 0; i < 2; i++) RAH_val |= (uint32_t) mac[i + 4] << (i * 8);
+		WRITE32(RAL, RAL_val);
+		WRITE32(RAH, RAH_val | (1u << 31));
 		
 		for (unsigned i = 0x5200; i < maxMTA; i += 4) {
 			*(volatile uint32_t *)(e1000 + i) = 0;                     // MTA
 		}
 		
-		*(volatile uint32_t *) (e1000 + 0xd8) = 0xffffffff;            // IMC
-		*(volatile uint32_t *) (e1000 + 0xc0);  // read ICR
+		WRITE32(IMC, 0xffffffff);
+		READ32(ICR);
 		
-		*(volatile uint32_t *) (e1000 + 0xd0) = 0;            // IMS
+		WRITE32(IMS, 0);
+		
+		// Transmit
+		const uint32_t tdbal = tq_pa;
+		WRITE32(TDBAL, tdbal);
+		WRITE32(TDBAH, 0);
+		WRITE32(TDLEN, sizeof(tq));
+		WRITE32(TDH, 0);
+		WRITE32(TDT, 0);
+		
+		e1000_tdt = 0;
+		e1000_tdt_real = 0;
+		e1000_tdh = 0;
+		
+		// TCTL: EN | PSP | CT=0x10 | COLD=0x40 | MULR
+		WRITE32(TXDCTL, 0);
+		WRITE32(TCTL, (1 << 1) | (1 << 3) | (0x10 << 4) | (0x40 << 12) | (1u << 28));
+		
+		// TXDCTL: QUEUE_ENABLE | WTHRESH=3 | HTHRESH=4 | PTHRESH=3
+		WRITE32(TXDCTL, (1u << 25) | (3u << 16) | (4u << 8) | 3u);
+		
+		// TIPG: ???
+		WRITE32(TIPG, 0x00602006);
+		
+		// Receive
 		uint32_t rdbal = rq_pa;
-		*(volatile uint32_t *) (e1000 + 0x2800) = rdbal;      // RDBAL
-		*(volatile uint32_t *) (e1000 + 0x2804) = 0;          // RDBAH
-		*(volatile uint32_t *) (e1000 + 0x2808) = sizeof(rq); // RDLEN
-		*(volatile uint32_t *) (e1000 + 0x2810) = 0;          // RDH
-		*(volatile uint32_t *) (e1000 + 0x2818) = RQSIZE - 1; // RDT
+		WRITE32(RDBAL, rdbal);
+		WRITE32(RDBAH, 0);
+		WRITE32(RDLEN, sizeof(rq));
+		WRITE32(RDH, 0);
+		WRITE32(RDT, RQSIZE - 1);
 		
 		e1000_rdh = 0;
 		e1000_rdt = RQSIZE - 1;
 		e1000_rdt_real = e1000_rdt;
 		
 		// RCTL: EN | BAM | BSIZE=2048 | BSEX=0 | SECRC=1
-		uint32_t rctl = (1 << 1) | (1 << 15) | (0 << 16) | (0 << 25) | (1 << 26);
-		*(volatile uint32_t *) (e1000 + 0x100) = rctl;        // RCTL
+		WRITE32(RXDCTL, 0);
+		WRITE32(RCTL, (1 << 1) | (1 << 15) | (0 << 16) | (0 << 25) | (1 << 26));
 		
-		LDEBUG("e1000 status = %08x", *(volatile uint32_t *) (e1000 + 0x8));
+		// RXDCTL: QUEUE_ENABLE | WTHRESH=3 | HTHRESH=4 | PTHRESH=3
+		WRITE32(RXDCTL, (1u << 25) | (3u << 16) | (4u << 8) | 3u);
+		
+		LDEBUG("e1000 status = %08x", READ32(STATUS));
 		
 		return 0;
 	}
 	
+	struct InitOptions {
+		uint32_t key1, key2;
+		uint32_t maxMTA;
+	};
+	
 	static int _init(uint8_t mac[6]) {
-		const uint32_t args[][3] = {
+		const InitOptions args[] = {
 			{ 0x8086, 0x15a3, 0x5280 },  // e1000e
-			{ 0x8086, 0x10d3, 0x5280 },  // e1000e
 			{ 0x8086, 0x100e, 0x5400 },  // e1000
+			{ 0x8086, 0x10d3, 0x5280 },  // e1000e
 			{ 0x8086, 0x15bc, 0x5400 },  // I219-V
 			{ 0x8086, 0x15b8, 0x5400 },  // I219-V H310CM-ITX/ac
 			{ 0x8086, 0x0d55, 0x5400 },  // B460M TUF Gaming
 			{ 0x8086, 0x15fa, 0x5400 },  // H510M-HDV/M.2
-			{ 0, 0, 0 }
+			{ 0, 0, 0 },
 		};
 		
 		uint64_t r = -1ull;
-		for (int i = 0; args[i][0]; i++) {
-			r = PCI::map_device(args[i][0], args[i][1], (uint64_t) e1000, sizeof(e1000));
+		for (int i = 0; args[i].key1; i++) {
+			r = PCI::map_device(args[i].key1, args[i].key2, (uint64_t) e1000, sizeof(e1000));
 			if (r != -1ull) {
-				return e1000_init(args[i][2], mac);
+				return e1000_init(args[i].maxMTA, mac);
 			}
 		}
 		return r;
@@ -208,7 +273,7 @@ namespace e1000 {
 		}
 		
 		if ((e1000_tdt + 1) % TQSIZE == e1000_tdh) {
-			e1000_tdh = *(volatile uint32_t *) (e1000 + 0x3810);
+			e1000_tdh = READ32(TDH);
 		}
 		if ((e1000_tdt + 1) % TQSIZE == e1000_tdh) {
 			return -1;
@@ -231,7 +296,7 @@ namespace e1000 {
 		e1000_tdt = (e1000_tdt + 1) % TQSIZE;
 		
 		if (e1000_tdt % TQ_FLUSH_COUNT == 0) {
-			*(volatile uint32_t *) (e1000 + 0x3818) = e1000_tdt;
+			WRITE32(TDT, e1000_tdt);
 			e1000_tdt_real = e1000_tdt;
 		}
 		
@@ -240,7 +305,7 @@ namespace e1000 {
 	
 	int flush() {
 		if (e1000_tdt != e1000_tdt_real) {
-			*(volatile uint32_t *) (e1000 + 0x3818) = e1000_tdt;
+			WRITE32(TDT, e1000_tdt);
 			e1000_tdt_real = e1000_tdt;
 		}
 		
@@ -265,7 +330,7 @@ namespace e1000 {
 		rd->status &= ~1;
 		e1000_rdt = idx;
 		if (e1000_rdt % RQ_FLUSH_COUNT == 0) {
-			*(volatile uint32_t *) (e1000 + 0x2818) = e1000_rdt;  // ???
+			WRITE32(RDT, e1000_rdt);  // ???
 			e1000_rdt_real = e1000_rdt;
 		}
 		return len;

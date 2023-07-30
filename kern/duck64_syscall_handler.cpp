@@ -6,6 +6,7 @@
 
 #include <inc/vga_buffer.hpp>
 #include <inc/serial.hpp>
+#include <inc/syslog.hpp>
 #include <inc/x86_64.hpp>
 
 using VGA_Buffer::writer;
@@ -17,6 +18,9 @@ static size_t duck_write(int fd, const char *buf, size_t len) {
 	
 	writer->write_buf(buf, len);
 	Serial::write_buf(buf, len);
+	for (size_t i = 0; i < len; i++) {
+		SysLog::putchar(buf[i]);
+	}
 	
 	return len;
 }

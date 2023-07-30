@@ -10,6 +10,7 @@
 #include <inc/x86_64.hpp>
 #include <inc/scheduler.hpp>
 #include <inc/judger.hpp>
+#include <inc/syslog.hpp>
 #include <ducknet.h>
 
 using NetworkDriver::mac;
@@ -40,6 +41,8 @@ namespace DuckServer {
 		res_len = -1;
 		content[len] = 0;
 		
+		int q_start, q_len;
+		
 		if (equals_to(content, len, "uptime")) {
 			uint64_t t = (uint64_t) Timer::secf_since_epoch();
 			res = content;
@@ -67,6 +70,11 @@ namespace DuckServer {
 				"microcode-current-rev = 0x%02x\n",
 				microcode_orig_rev, rev
 			);
+		} else if (2 == sscanf(content, "syslog %d %d", &q_start, &q_len)) {
+			if (q_len >= 0 && q_len <= 1400) {
+				res = content;
+				res_len = SysLog::get(q_start, q_len, res);
+			}
 		} else {
 			return false;
 		}

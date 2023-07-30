@@ -1,4 +1,5 @@
 #include <inc/vga_buffer.hpp>
+#include <inc/framebuffer.hpp>
 
 namespace VGA_Buffer {
 	Writer the_writer = (Writer) {
@@ -9,6 +10,8 @@ namespace VGA_Buffer {
 	Writer *writer = &the_writer;
 	
 	void Writer::write_byte(uint8_t byte) {
+		FrameBuffer::write_byte(byte, this->color_code);
+		
 		if (byte == '\n') {
 			this->new_line();
 		} else {
