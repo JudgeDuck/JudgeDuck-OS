@@ -5,6 +5,7 @@
 #include <inc/logger.hpp>
 #include <inc/e1000.hpp>
 #include <inc/i211.hpp>
+#include <inc/realtek.hpp>
 #include <inc/multiboot2_loader.hpp>
 
 namespace NetworkDriver {
@@ -57,6 +58,11 @@ namespace NetworkDriver {
 			receive = i211::receive;
 			flush = i211::flush;
 			LINFO("i211 driver initialized");
+		} else if (realtek::init(mac)) {
+			send = realtek::send;
+			receive = realtek::receive;
+			flush = realtek::flush;
+			LINFO("realtek driver initialized");
 		} else {
 			LWARN("No network driver found. Running in standalone mode...");
 		}

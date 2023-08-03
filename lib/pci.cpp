@@ -13,6 +13,8 @@
 
 using x86_64::inl;
 using x86_64::outl;
+using x86_64::inb;
+using x86_64::outb;
 
 namespace PCI {
 	// ==== PCI device config storage ====
@@ -73,6 +75,7 @@ namespace PCI {
 		{ 0x8086, 0x1539, &pci_store },  // I211AT
 		{ 0x8086, 0x15f3, &pci_store },  // I225-V
 		{ 0x8086, 0x46d1, &pci_store },  // VGA (Intel N100)
+		{ 0x10ec, 0x8168, &pci_store },  // RTL8111/8168
 		{ 0, 0, 0 },
 	};
 	
@@ -97,6 +100,16 @@ namespace PCI {
 	static void pci_conf_write(Func *f, uint32_t off, uint32_t v) {
 		pci_conf1_set_addr(f->bus->busno, f->dev, f->func, off);
 		outl(pci_conf1_data_ioport, v);
+	}
+	
+	static uint8_t pci_conf_read_byte(Func *f, uint32_t off) {
+		pci_conf1_set_addr(f->bus->busno, f->dev, f->func, off & ~3);
+		return inb(pci_conf1_data_ioport + (off & 3));
+	}
+	
+	static void pci_conf_write_byte(Func *f, uint32_t off, uint8_t v) {
+		pci_conf1_set_addr(f->bus->busno, f->dev, f->func, off & ~3);
+		outb(pci_conf1_data_ioport + (off & 3), v);
 	}
 	
 	static int pci_attach_match(uint32_t key1, uint32_t key2,
@@ -224,6 +237,15 @@ namespace PCI {
 			| PCI_COMMAND_MEM_ENABLE
 			| PCI_COMMAND_MASTER_ENABLE);
 		
+		#define PCI_LATENCY_TIMER 0x0d
+		uint8_t lat = pci_conf_read_byte(f, PCI_LATENCY_TIMER);
+		if (lat < 32) {
+			LWARN("PCI: %02x:%02x.%d: latency timer too low (%d), "
+				"increasing to 32",
+				f->bus->busno, f->dev, f->func, lat);
+			pci_conf_write_byte(f, PCI_LATENCY_TIMER, 32);
+		}
+		
 		uint32_t bar_width;
 		uint32_t bar;
 		for (bar = PCI_MAPREG_START; bar < PCI_MAPREG_END; bar += bar_width) {
@@ -244,6 +266,8 @@ namespace PCI {
 					bar_width = 8;
 				}
 				
+				f->reg_is_io[regnum] = false;
+				
 				size = PCI_MAPREG_MEM_SIZE(rv);
 				base = PCI_MAPREG_MEM_ADDR(oldv);
 				if (pci_show_addrs) {
@@ -251,6 +275,8 @@ namespace PCI {
 						regnum, size, base);
 				}
 			} else {
+				f->reg_is_io[regnum] = true;
+				
 				size = PCI_MAPREG_IO_SIZE(rv);
 				base = PCI_MAPREG_IO_ADDR(oldv);
 				if (pci_show_addrs) {
@@ -290,22 +316,26 @@ namespace PCI {
 	
 	// ==== For user mode PCI drivers ====
 	
-	uint64_t map_device(uint32_t key1, uint32_t key2, uint64_t base, uint64_t maxlen) {
+	uint64_t map_device(uint32_t key1, uint32_t key2, uint64_t base, uint64_t maxlen, uint32_t bar) {
 		bool found = false;
 		uint64_t reg_base, reg_size;
 		for (int i = 0; i < n_stored_pci_devices; i++) {
 			uint32_t dev_id = stored_pci_devices[i].dev_id;
 			if (PCI_VENDOR(dev_id) == key1 && PCI_PRODUCT(dev_id) == key2) {
-				reg_base = stored_pci_devices[i].reg_base[0];
-				reg_size = stored_pci_devices[i].reg_size[0];
+				if (stored_pci_devices[i].reg_is_io[bar]) {
+					continue;
+				}
+				
+				reg_base = stored_pci_devices[i].reg_base[bar];
+				reg_size = stored_pci_devices[i].reg_size[bar];
 				found = true;
 				break;
 			}
 		}
 		
 		if (found) {
-			LDEBUG("pci: map_device %04x:%04x at 0x%llx len 0x%llx",
-				key1, key2, base, maxlen);
+			LDEBUG("pci: map_device %04x:%04x at 0x%llx len 0x%llx (bar %d) -> 0x%llx",
+				key1, key2, base, maxlen, bar, reg_base);
 			maxlen = std::min(reg_size, maxlen);
 			uint64_t end = base + Utils::round_up(maxlen, Memory::PAGE_SIZE);
 			Memory::map_region_cache_disabled(base, end, reg_base);
@@ -317,6 +347,22 @@ namespace PCI {
 		} else {
 			return -1ull;
 		}
+	}
+	
+	uint64_t get_device_reg_base(uint32_t key1, uint32_t key2, uint32_t bar) {
+		for (int i = 0; i < n_stored_pci_devices; i++) {
+			uint32_t dev_id = stored_pci_devices[i].dev_id;
+			if (PCI_VENDOR(dev_id) == key1 && PCI_PRODUCT(dev_id) == key2) {
+				if (!stored_pci_devices[i].reg_is_io[bar]) {
+					continue;
+				}
+				
+				uint64_t reg_base = stored_pci_devices[i].reg_base[bar];
+				return reg_base;
+			}
+		}
+		
+		return -1ull;
 	}
 	
 }

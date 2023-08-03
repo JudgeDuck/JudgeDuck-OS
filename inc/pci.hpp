@@ -20,6 +20,7 @@ namespace PCI {
 		
 		uint32_t reg_base[6];
 		uint32_t reg_size[6];
+		bool reg_is_io[6];
 		uint8_t irq_line;
 	};
 	
@@ -34,7 +35,9 @@ namespace PCI {
 	// Map PCI device to virtual memory
 	// Returns mapped length (in bytes)
 	// -1 indicates failure
-	uint64_t map_device(uint32_t key1, uint32_t key2, uint64_t addr, uint64_t maxlen);
+	uint64_t map_device(uint32_t key1, uint32_t key2, uint64_t addr, uint64_t maxlen, uint32_t bar = 0);
+	
+	uint64_t get_device_reg_base(uint32_t key1, uint32_t key2, uint32_t bar = 0);
 }
 
 #endif

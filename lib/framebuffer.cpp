@@ -1,5 +1,7 @@
 #include <inc/framebuffer.hpp>
 #include <inc/memory.hpp>
+#include <inc/syslog.hpp>
+#include <inc/vga_buffer.hpp>
 
 static const uint8_t font[128 * 8] = {
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -195,6 +197,20 @@ namespace FrameBuffer {
 		initialized = true;
 		
 		draw_new_line();
+		
+		// Replay the syslog
+		char buf[32];
+		int offset = 0;
+		auto colorcode = VGA_Buffer::writer->color_code;
+		
+		while (1) {
+			int len = SysLog::get(offset, 32, buf);
+			if (len == 0) break;
+			for (int i = 0; i < len; i++) {
+				write_byte(buf[i], colorcode);
+			}
+			offset += len;
+		}
 	}
 	
 	void set_framebuffer_addr(uint64_t addr) {
