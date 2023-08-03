@@ -133,8 +133,8 @@ namespace realtek {
 	#define RTL_DESC_FLAG_LS (1 << 12)
 	#define RTL_DESC_LENGTH_MASK 0x3fff
 	
-	#define N_RX_DESC 4
-	#define N_TX_DESC 4
+	#define N_RX_DESC 128
+	#define N_TX_DESC 128
 	
 	static volatile Descriptor *rx_desc;
 	static volatile Descriptor *tx_desc;
