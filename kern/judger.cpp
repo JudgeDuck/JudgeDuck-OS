@@ -13,8 +13,6 @@ namespace Judger {
 	static uint64_t total_time_ns;
 	
 	// Buffer
-	const uint64_t INITIAL_BUFFER_SIZE = 3072ul << 20;
-	const uint64_t INITIAL_BUFFER_SIZE_SMALL = 512ul << 20;
 	// TODO: resizable buffer
 	// TODO: smaller initial buffer
 	static char *buffer;
@@ -22,12 +20,27 @@ namespace Judger {
 	
 	// Cache
 	const uint64_t ELF_CACHE_N = 1000;
-	const uint64_t ELF_CACHE_SIZE = 256ul << 20;  // 256 MiB
 	const uint64_t DATA_CACHE_N = 100000;
-	const uint64_t DATA_CACHE_SIZE = 8192ul << 20;  // 8192 MiB
-	const uint64_t DATA_CACHE_SIZE_SMALL = 256ul << 20;  // 256 MiB
 	DuckCache::DuckCache elf_cache;
 	DuckCache::DuckCache data_cache;
+	
+	// Sizes
+	const uint64_t BUFFER_CACHE_SIZES[][3] = {
+		{ 3072, 256, 8192 },
+		{ 3072, 256, 6144 },
+		{ 3072, 256, 4096 },
+		{ 2048, 256, 4096 },
+		{ 2048, 256, 3072 },
+		{ 1536, 256, 3072 },
+		{ 1536, 256, 2048 },
+		{ 1536, 256, 1536 },
+		{ 1024, 256, 1536 },
+		{ 1024, 256, 1024 },
+		{ 512, 256, 1024 },
+		{ 512, 256, 512 },
+		{ 512, 256, 256 },
+		{ 0, 0, 0 },
+	};
 	
 	// Judge
 	const uint64_t MAX_TIME_LIMIT_NS = 500 * 1e9;  // 500s ??
@@ -59,14 +72,35 @@ namespace Judger {
 		n_judges = 0;
 		total_time_ns = 0;
 		
-		bool use_small = false;
-		uint64_t total_size = INITIAL_BUFFER_SIZE + ELF_CACHE_SIZE + DATA_CACHE_SIZE + (3072ul << 20);
-		if (!Memory::can_allocate_virtual_memory(total_size)) {
-			use_small = true;
+		uint64_t elf_cache_size;
+		uint64_t data_cache_size;
+		
+		bool found = false;
+		
+		for (int i = 0; BUFFER_CACHE_SIZES[i][0]; i++) {
+			buffer_size = BUFFER_CACHE_SIZES[i][0] << 20;
+			elf_cache_size = BUFFER_CACHE_SIZES[i][1] << 20;
+			data_cache_size = BUFFER_CACHE_SIZES[i][2] << 20;
+			
+			uint64_t run_program_size = (3072ul << 20);
+			uint64_t total_size = buffer_size + elf_cache_size + data_cache_size + run_program_size;
+			
+			if (Memory::can_allocate_virtual_memory(total_size)) {
+				found = true;
+				break;
+			}
+		}
+		
+		if (!found) {
+			LWARN("Too small memory, try to use the smallest buffer/cache");
+			
+			int idx = sizeof(BUFFER_CACHE_SIZES) / sizeof(BUFFER_CACHE_SIZES[0]) - 2;
+			buffer_size = BUFFER_CACHE_SIZES[idx][0] << 20;
+			elf_cache_size = BUFFER_CACHE_SIZES[idx][1] << 20;
+			data_cache_size = BUFFER_CACHE_SIZES[idx][2] << 20;
 		}
 		
 		// Buffer
-		buffer_size = !use_small ? INITIAL_BUFFER_SIZE : INITIAL_BUFFER_SIZE_SMALL;
 		buffer = Memory::allocate_virtual_memory(buffer_size);
 		
 		if (!buffer) {
@@ -77,13 +111,12 @@ namespace Judger {
 		memset(buffer, 0, buffer_size);
 		
 		// Cache
-		bool r = elf_cache.init(ELF_CACHE_N, ELF_CACHE_SIZE);
+		bool r = elf_cache.init(ELF_CACHE_N, elf_cache_size);
 		if (!r) {
 			LFATAL("Init elf_cache failed");
 			Utils::GG_reboot();
 		}
 		
-		uint64_t data_cache_size = !use_small ? DATA_CACHE_SIZE : DATA_CACHE_SIZE_SMALL;
 		r = data_cache.init(DATA_CACHE_N, data_cache_size);
 		if (!r) {
 			LFATAL("Init data_cache failed");
