@@ -67,6 +67,7 @@ namespace PCI {
 		// Only store e1000 network cards
 		{ 0x8086, 0x15a3, &pci_store },  // e1000e
 		{ 0x8086, 0x10d3, &pci_store },  // e1000e
+		{ 0x8086, 0x153a, &pci_store },  // I217-LM (e1000e)
 		{ 0x8086, 0x100e, &pci_store },  // e1000
 		{ 0x8086, 0x15bc, &pci_store },  // I219-V
 		{ 0x8086, 0x15b8, &pci_store },  // I219-V H310CM-ITX/ac
@@ -76,6 +77,7 @@ namespace PCI {
 		{ 0x8086, 0x15f3, &pci_store },  // I225-V
 		{ 0x8086, 0x46d1, &pci_store },  // VGA (Intel N100)
 		{ 0x10ec, 0x8168, &pci_store },  // RTL8111/8168
+		{ 0x8086, 0x1a1c, &pci_store },  // I219-LM (13th gen)
 		{ 0, 0, 0 },
 	};
 	

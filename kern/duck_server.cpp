@@ -62,6 +62,9 @@ namespace DuckServer {
 			
 			res = content;
 			sprintf(res, "cpu-temp %lu", temp);
+		} else if (equals_to(content, len, "cpu-model-name")) {
+			res = content;
+			sprintf(res, "cpu-model-name %s", Timer::cpu_model_name);
 		} else if (equals_to(content, len, "sysinfo")) {
 			uint32_t rev = x86_64::get_microcode_revision();
 			res = content;
@@ -275,6 +278,7 @@ namespace DuckServer {
 			//   info-cache elf
 			//   info-cache data
 			//   cpu-temp
+			//   cpu-model-name
 			
 			res = content;
 			res_len = 0;
@@ -299,6 +303,9 @@ namespace DuckServer {
 			APPEND_RESULT();
 			
 			process_controls(QUERY("cpu-temp"));
+			APPEND_RESULT();
+			
+			process_controls(QUERY("cpu-model-name"));
 			APPEND_RESULT();
 			
 			#undef QUERY

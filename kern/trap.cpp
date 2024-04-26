@@ -237,9 +237,9 @@ namespace Trap {
 				}
 				
 				if (user_time_limit_ns != 0) {
-					// 0.5ms per interrupt, add 10ms + 0.1% for context switching
+					// 0.5ms per interrupt, add 10ms + 1% for context switching
 					uint64_t timer_cnt = user_time_limit_ns / 500000ul;
-					LAPIC::timer_periodic_ns(500000, timer_cnt + timer_cnt / 200ul + 20);
+					LAPIC::timer_periodic_ns(500000, timer_cnt + timer_cnt / 100ul + 20);
 				}
 				
 				if (num == TRAP_RUN_USER) {

@@ -15,6 +15,30 @@ namespace Timer {
 	uint32_t ext_freq;
 	uint64_t clk_freq;
 	
+	char cpu_model_name[49];
+	
+	static inline void cpuid(uint32_t eax, uint32_t ecx, uint32_t* abcd) {
+		asm volatile("cpuid"
+			: "=a"(abcd[0]), "=b"(abcd[1]), "=c"(abcd[2]), "=d"(abcd[3])
+			: "a"(eax), "c"(ecx));
+	}
+	
+	static void detect_cpu_model_name() {
+		uint32_t abcd[4];
+		
+		for (uint32_t i = 0x80000002; i <= 0x80000004; i++) {
+			cpuid(i, 0, abcd);
+			for (int j = 0; j < 4; j++) {
+				cpu_model_name[(i - 0x80000002) * 16 + j * 4 + 0] = abcd[j] & 0xff;
+				cpu_model_name[(i - 0x80000002) * 16 + j * 4 + 1] = (abcd[j] >> 8) & 0xff;
+				cpu_model_name[(i - 0x80000002) * 16 + j * 4 + 2] = (abcd[j] >> 16) & 0xff;
+				cpu_model_name[(i - 0x80000002) * 16 + j * 4 + 3] = (abcd[j] >> 24) & 0xff;
+			}
+		}
+		cpu_model_name[48] = '\0';
+		LINFO("CPU Model Name: %s", cpu_model_name);
+	}
+	
 	// returns: -1 if error
 	static int get_tsc_clock_ratio(uint32_t *a, uint32_t *b, uint32_t *ext_freq) {
 		uint32_t _a, _b, _c, _d;
@@ -34,32 +58,49 @@ namespace Timer {
 	}
 	
 	static void detect_cpu_speed_intel() {
-		uint32_t tsc_clock_ratio_a, tsc_clock_ratio_b;
-		int r = get_tsc_clock_ratio(&tsc_clock_ratio_a, &tsc_clock_ratio_b, &ext_freq);
-		if (r != 0) {
-			// Maybe QEMU CPU ?
-			// TODO: Detect older Intel CPUs
-			// 2020-04-03: Running QEMU on i3-8100 (3.6 GHz)
-			tsc_freq = (uint64_t) 3600 * 1000000;
-			ext_freq = 1000 * 1000000;
-		} else {
-			if (ext_freq == 0) {
-				LWARN("Unknown ext_freq, assume 24MHz");
-				ext_freq = 24 * 1000000;
-			}
-			tsc_freq = (uint64_t) ext_freq * tsc_clock_ratio_a / tsc_clock_ratio_b;
-		}
+		ext_freq = 0;
+		tsc_freq = 0;
+		clk_freq = 0;
 		
-		// TODO: Detect clk_thread freq
-		LWARN("Assume clk_freq Hz = round(tsc_freq, 100M)");
-		clk_freq = Utils::round_down(tsc_freq + 50 * 1000000, 100ull * 1000000);
-		
-		// TODO: Alder Lake CPU
-		if (ext_freq == 38400000) {
-			// Intel N100 (3.4 GHz)
-			LWARN("Assume Alder Lake CPU (Intel N100 @ 3.4GHz)");
+		// Special cases
+		if (strstr(cpu_model_name, "i7-4790") != NULL) {
+			ext_freq = 100 * 1000000;
+			tsc_freq = 3600ull * 1000000;
+			clk_freq = 3800ull * 1000000;
+		} else if (strstr(cpu_model_name, "N100") != NULL) {
 			clk_freq = 3400ull * 1000000;
+		} else if (strstr(cpu_model_name, "i7-13700K") != NULL) {
+			clk_freq = 5300ull * 1000000;
 		}
+		
+		if (!ext_freq) {
+			uint32_t tsc_clock_ratio_a, tsc_clock_ratio_b;
+			int r = get_tsc_clock_ratio(&tsc_clock_ratio_a, &tsc_clock_ratio_b, &ext_freq);
+			if (r != 0) {
+				// Maybe QEMU CPU ?
+				// TODO: Detect older Intel CPUs
+				// 2020-04-03: Running QEMU on i3-8100 (3.6 GHz)
+				tsc_freq = (uint64_t) 3600 * 1000000;
+				ext_freq = 1000 * 1000000;
+			} else {
+				if (ext_freq == 0) {
+					LWARN("Unknown ext_freq, assume 24MHz");
+					ext_freq = 24 * 1000000;
+				}
+				tsc_freq = (uint64_t) ext_freq * tsc_clock_ratio_a / tsc_clock_ratio_b;
+			}
+		}
+		
+		if (!clk_freq) {
+			// TODO: Detect clk_thread freq
+			LWARN("Assume clk_freq Hz = round(tsc_freq, 100M)");
+			clk_freq = Utils::round_down(tsc_freq + 50 * 1000000, 100ull * 1000000);
+		}
+		
+		LINFO("ext_freq: %.2f MHz; tsc_freq: %.2f MHz; clk_freq: %.2f MHz",
+			(double) ext_freq / 1000000,
+			(double) tsc_freq / 1000000,
+			(double) clk_freq / 1000000);
 	}
 	
 	static void detect_cpu_speed_others() {
@@ -84,6 +125,8 @@ namespace Timer {
 		char brand[13] = { 0 };
 		x86_64::cpuid(0, NULL, (uint32_t *) brand, (uint32_t *) brand + 2, (uint32_t *) brand + 1);
 		LDEBUG("CPU brand string: [%s]", brand);
+		
+		detect_cpu_model_name();
 		
 		if (memcmp(brand, "GenuineIntel", 12) == 0) {
 			detect_cpu_speed_intel();

@@ -10,6 +10,8 @@ namespace Timer {
 	extern uint32_t ext_freq;
 	extern uint64_t clk_freq;  // clk_thread Hz
 	
+	extern char cpu_model_name[49];
+	
 	void init();
 	
 	static inline uint64_t get_tsc() {

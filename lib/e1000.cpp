@@ -44,14 +44,11 @@ namespace e1000 {
 	static volatile TransDesc tq[TQSIZE] __attribute__((aligned(PAGE_SIZE)));
 	static volatile RecvDesc rq[RQSIZE] __attribute__((aligned(PAGE_SIZE)));
 	
-	static char **tq_pages;
-	static char **rq_pages;
+	static char *tq_buf;
+	static char *rq_buf;
 	
 	static void *tq_addrs[TQSIZE];
 	static void *rq_addrs[RQSIZE];
-	
-	static int last_tq_page_id;
-	static uint64_t last_tq_page_offset;
 	
 	static volatile char e1000[0x10000] __attribute__((aligned(PAGE_SIZE)));
 	
@@ -59,25 +56,6 @@ namespace e1000 {
 	static uint32_t e1000_rdt_real;
 	static uint32_t e1000_tdt, e1000_tdh;
 	static uint32_t e1000_tdt_real;
-	
-	// MTU = 1500, half page per packet
-	static int tq_frag_alloc(uint64_t cnt, void **va, void **pa) {
-		cnt += (-cnt) & (64 - 1);  // ???
-		if (last_tq_page_offset + cnt <= PAGE_SIZE) {
-			*pa = (char *) tq_addrs[last_tq_page_id] + last_tq_page_offset;
-			*va = tq_pages[last_tq_page_id] + last_tq_page_offset;
-			last_tq_page_offset += cnt;
-			return 0;
-		} else if (cnt <= PAGE_SIZE) {
-			last_tq_page_id = (last_tq_page_id + 1) % (TQSIZE / 2);
-			*pa = tq_addrs[last_tq_page_id];
-			*va = tq_pages[last_tq_page_id];
-			last_tq_page_offset = cnt;
-			return 0;
-		} else {
-			return -1;
-		}
-	}
 	
 	struct RegConfig {
 		uint32_t CTRL, STATUS;
@@ -131,45 +109,43 @@ namespace e1000 {
 		const uint32_t tq_pa = (uint32_t) (uint64_t) tq;
 		const uint32_t rq_pa = (uint32_t) (uint64_t) rq;
 		
-		tq_pages = (char **) DMA::alloc(TQSIZE / 2 * PAGE_SIZE);
-		rq_pages = (char **) DMA::alloc(RQSIZE / 2 * PAGE_SIZE);
-		if (!tq_pages || !rq_pages) {
+		tq_buf = (char *) DMA::alloc(TQSIZE / 2 * PAGE_SIZE);
+		rq_buf = (char *) DMA::alloc(RQSIZE / 2 * PAGE_SIZE);
+		if (!tq_buf || !rq_buf) {
 			LERROR("e1000: DMA::alloc failed");
 			return -1;
 		}
 		
 		for (uint64_t i = 0; i < TQSIZE; i++) {
-			tq_addrs[i] = (void *) tq_pages[i];
-		}
-		for (uint64_t i = 0; i < RQSIZE; i++) {
-			rq_addrs[i] = (void *) ((uint64_t) rq_pages[i / 2] + (i % 2) * PAGE_SIZE / 2);
-			rq[i].addr = (uint32_t) (uint64_t) rq_addrs[i];
+			tq_addrs[i] = (void *) ((uint64_t) tq_buf + i * PAGE_SIZE / 2);
 		}
 		
-		// For allocating fragments
-		last_tq_page_id = 0;
-		last_tq_page_offset = 0;
+		for (uint64_t i = 0; i < RQSIZE; i++) {
+			rq_addrs[i] = (void *) ((uint64_t) rq_buf + i * PAGE_SIZE / 2);
+			rq[i].addr = (uint32_t) (uint64_t) rq_addrs[i];
+		}
 		
 		WRITE32(TCTL, 0); 	  // clear TCTL
 		WRITE32(RCTL, 0); 	  // clear RCTL
 		
 		// try reset
 		WRITE32(IMC, 0xffffffff);
-		WRITE32(CTRL, READ32(CTRL) | 0x04000000);
+		if (false) WRITE32(CTRL, READ32(CTRL) | 0x04000000);
 		microdelay(1);
 		WRITE32(IMC, 0xffffffff);
 		
 		// try phy reset
 		uint32_t ctrl = READ32(CTRL);
-		WRITE32(CTRL, ctrl | 0x80000000);
+		if (false) WRITE32(CTRL, ctrl | 0x80000000);
 		microdelay(10000);
-		WRITE32(CTRL, ctrl);
+		if (false) WRITE32(CTRL, ctrl);
 		
 		// Init link
 		ctrl = READ32(CTRL);
-		ctrl &= ~((1u << 11) | (1u << 12));   // No forcing speed or full-duplex
+		if (false) ctrl &= ~((1u << 11) | (1u << 12));   // No forcing speed or full-duplex
+		if (false) ctrl |= 1u << 0 | 0b11 << 8 | 1u << 11 | 1u << 12; // Force 1000Mbps full-duplex
 		ctrl |= 1u << 6;   // set link up
-		WRITE32(CTRL, ctrl);
+		if (false) WRITE32(CTRL, ctrl);
 		
 		LDEBUG("e1000: waiting for link ...");
 		while (1) {
@@ -250,10 +226,12 @@ namespace e1000 {
 			{ 0x8086, 0x15a3, 0x5280 },  // e1000e
 			{ 0x8086, 0x100e, 0x5400 },  // e1000
 			{ 0x8086, 0x10d3, 0x5280 },  // e1000e
+			{ 0x8086, 0x153a, 0x5280 },  // I217-LM (e1000e)
 			{ 0x8086, 0x15bc, 0x5400 },  // I219-V
 			{ 0x8086, 0x15b8, 0x5400 },  // I219-V H310CM-ITX/ac
 			{ 0x8086, 0x0d55, 0x5400 },  // B460M TUF Gaming
 			{ 0x8086, 0x15fa, 0x5400 },  // H510M-HDV/M.2
+			{ 0x8086, 0x1a1c, 0x5400 },  // I219-LM (13th gen)
 			{ 0, 0, 0 },
 		};
 		
@@ -279,10 +257,9 @@ namespace e1000 {
 			return -1;
 		}
 		
-		void *va, *pa;
-		if (tq_frag_alloc(cnt, &va, &pa) < 0) {
-			return -1;
-		}
+		void *va = tq_addrs[e1000_tdt];
+		void *pa = va;
+
 		memcpy(va, buf, cnt);
 		
 		TransDesc td;

@@ -114,6 +114,7 @@ int main() {
 	
 	LINFO("Welcome to JudgeDuck-OS-64 !!!");
 	LINFO("ABI Version %s", ABI::version_str);
+	Logger::set_log_level(Logger::LL_WARN);
 	
 	DuckServer::run();
 	// Should not return
