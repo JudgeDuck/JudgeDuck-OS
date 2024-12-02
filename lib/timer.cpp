@@ -69,6 +69,8 @@ namespace Timer {
 			clk_freq = 3800ull * 1000000;
 		} else if (strstr(cpu_model_name, "N100") != NULL) {
 			clk_freq = 3400ull * 1000000;
+		} else if (strstr(cpu_model_name, "N150") != NULL) {
+			clk_freq = 3600ull * 1000000;
 		} else if (strstr(cpu_model_name, "i7-13700K") != NULL) {
 			clk_freq = 5300ull * 1000000;
 		}
